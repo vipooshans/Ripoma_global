@@ -8,7 +8,11 @@ import {
   LogOut,
   LayoutDashboard,
   Globe,
-  X
+  X,
+  Package,
+  Building,
+  ArrowDownUp,
+  AlertTriangle
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -16,9 +20,33 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   const navigation = [
     {
-      name: 'Dashboard',
-      to: '/admin/dashboard',
+      name: 'Inventory Dashboard',
+      to: '/inventory',
       icon: LayoutDashboard,
+      show: true
+    },
+    {
+      name: 'Products',
+      to: '/inventory/products',
+      icon: Package,
+      show: true
+    },
+    {
+      name: 'Warehouses',
+      to: '/inventory/warehouses',
+      icon: Building,
+      show: true
+    },
+    {
+      name: 'Movements Ledger',
+      to: '/inventory/stock',
+      icon: ArrowDownUp,
+      show: true
+    },
+    {
+      name: 'Alerts Center',
+      to: '/inventory/alerts',
+      icon: AlertTriangle,
       show: true
     },
     {
@@ -31,7 +59,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       name: 'Roles & Permissions',
       to: '/admin/roles',
       icon: ShieldCheck,
-      show: hasPermission('users:read') // Limit roles page to administrators/managers with user management access
+      show: hasPermission('users:read')
     },
     {
       name: 'My Profile',

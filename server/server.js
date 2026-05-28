@@ -12,6 +12,15 @@ const { ROLE_PERMISSIONS } = require('./controllers/user.controller');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const roleRoutes = require('./routes/role.routes');
+const productRoutes = require('./routes/product.routes');
+const categoryRoutes = require('./routes/category.routes');
+const warehouseRoutes = require('./routes/warehouse.routes');
+const inventoryRoutes = require('./routes/inventory.routes');
+const stockMovementRoutes = require('./routes/stockMovement.routes');
+const alertRoutes = require('./routes/alert.routes');
+const supplierRoutes = require('./routes/supplier.routes');
+
+const { initLowStockCron } = require('./jobs/lowStockCheck');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,7 +34,7 @@ app.use(cookieParser());
 // CORS config
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:5174'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
   })
@@ -94,6 +103,7 @@ mongoose
   .then(async () => {
     console.log('Successfully connected to MongoDB.');
     await seedDB();
+    initLowStockCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -103,6 +113,13 @@ mongoose
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/warehouses', warehouseRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/stock-movements', stockMovementRoutes);
+app.use('/api/alerts', alertRoutes);
+app.use('/api/suppliers', supplierRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
