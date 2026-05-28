@@ -12,61 +12,33 @@ import {
   Package,
   Building,
   ArrowDownUp,
-  AlertTriangle
+  AlertTriangle,
+  Truck,
+  BookUser,
+  Phone
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user, logout, hasPermission } = useAuth();
 
   const navigation = [
-    {
-      name: 'Inventory Dashboard',
-      to: '/inventory',
-      icon: LayoutDashboard,
-      show: true
-    },
-    {
-      name: 'Products',
-      to: '/inventory/products',
-      icon: Package,
-      show: true
-    },
-    {
-      name: 'Warehouses',
-      to: '/inventory/warehouses',
-      icon: Building,
-      show: true
-    },
-    {
-      name: 'Movements Ledger',
-      to: '/inventory/stock',
-      icon: ArrowDownUp,
-      show: true
-    },
-    {
-      name: 'Alerts Center',
-      to: '/inventory/alerts',
-      icon: AlertTriangle,
-      show: true
-    },
-    {
-      name: 'User Management',
-      to: '/admin/users',
-      icon: Users,
-      show: hasPermission('users:read')
-    },
-    {
-      name: 'Roles & Permissions',
-      to: '/admin/roles',
-      icon: ShieldCheck,
-      show: hasPermission('users:read')
-    },
-    {
-      name: 'My Profile',
-      to: '/profile',
-      icon: User,
-      show: true
-    }
+    { group: 'Inventory', items: [
+      { name: 'Dashboard', to: '/inventory', icon: LayoutDashboard, show: true },
+      { name: 'Products', to: '/inventory/products', icon: Package, show: true },
+      { name: 'Warehouses', to: '/inventory/warehouses', icon: Building, show: true },
+      { name: 'Movements', to: '/inventory/stock', icon: ArrowDownUp, show: true },
+      { name: 'Alerts', to: '/inventory/alerts', icon: AlertTriangle, show: true },
+    ]},
+    { group: 'CRM', items: [
+      { name: 'Suppliers', to: '/suppliers', icon: Truck, show: true },
+      { name: 'Customers', to: '/customers', icon: BookUser, show: true },
+      { name: 'Contacts', to: '/contacts', icon: Phone, show: true },
+    ]},
+    { group: 'Admin', items: [
+      { name: 'Users', to: '/admin/users', icon: Users, show: hasPermission('users:read') },
+      { name: 'Roles', to: '/admin/roles', icon: ShieldCheck, show: hasPermission('users:read') },
+      { name: 'My Profile', to: '/profile', icon: User, show: true },
+    ]}
   ];
 
   return (
@@ -105,29 +77,32 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </div>
 
         {/* Navigation list */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-          {navigation.map(
-            (item) =>
-              item.show && (
-                <NavLink
-                  key={item.name}
-                  to={item.to}
-                  onClick={() => {
-                    if (window.innerWidth < 1024) toggleSidebar();
-                  }}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? 'bg-teal-600 text-white shadow-md shadow-teal-700/20'
-                        : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
-                    }`
-                  }
-                >
-                  <item.icon size={18} className="shrink-0" />
-                  <span>{item.name}</span>
-                </NavLink>
-              )
-          )}
+        <nav className="flex-1 px-3 py-5 overflow-y-auto space-y-4">
+          {navigation.map((group) => (
+            <div key={group.group}>
+              <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-600 px-3 mb-1.5">{group.group}</p>
+              <div className="space-y-0.5">
+                {group.items.filter(item => item.show).map((item) => (
+                  <NavLink
+                    key={item.name}
+                    to={item.to}
+                    end={item.to === '/inventory'}
+                    onClick={() => { if (window.innerWidth < 1024) toggleSidebar(); }}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                        isActive
+                          ? 'bg-teal-600 text-white shadow-md shadow-teal-700/20'
+                          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
+                      }`
+                    }
+                  >
+                    <item.icon size={15} className="shrink-0" />
+                    <span>{item.name}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Footer info & Logout */}

@@ -1,43 +1,237 @@
 const Supplier = require('../models/Supplier');
+const { generateSupplierCode } = require('../utils/codeGenerator');
+const Papa = require('papaparse');
+const multer = require('multer');
 
-// GET /api/suppliers
+// ─── GET /api/suppliers ───────────────────────────────────────────────────────
 exports.getSuppliers = async (req, res) => {
   try {
-    const suppliers = await Supplier.find().sort({ name: 1 });
-    return res.status(200).json(suppliers);
-  } catch (error) {
-    console.error('Get Suppliers Error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    const {
+      page = 1, limit = 15, search, type, status, country,
+      sort = 'createdAt:desc'
+    } = req.query;
+
+    const filter = { deleted: { $ne: true } };
+    if (search) filter.$or = [
+      { companyName: { $regex: search, $options: 'i' } },
+      { code: { $regex: search, $options: 'i' } }
+    ];
+    if (type) filter.type = type;
+    if (status) filter.status = status;
+    if (country) filter.country = { $regex: country, $options: 'i' };
+
+    const [sortField, sortOrder] = sort.split(':');
+    const sortObj = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [suppliers, total] = await Promise.all([
+      Supplier.find(filter).sort(sortObj).skip(skip).limit(parseInt(limit))
+        .populate('createdBy', 'name email').lean(),
+      Supplier.countDocuments(filter)
+    ]);
+
+    return res.status(200).json({
+      suppliers,
+      pagination: {
+        total, page: parseInt(page), limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (err) {
+    console.error('getSuppliers:', err);
+    return res.status(500).json({ message: 'Server error' });
   }
 };
 
-// POST /api/suppliers
+// ─── POST /api/suppliers ──────────────────────────────────────────────────────
 exports.createSupplier = async (req, res) => {
   try {
-    const { name, code, contactPerson, email, phone, address } = req.body;
+    const { companyName } = req.body;
+    if (!companyName) return res.status(400).json({ message: 'companyName is required.' });
 
-    if (!name || !code) {
-      return res.status(400).json({ message: 'Supplier name and code are required.' });
-    }
-
-    const existing = await Supplier.findOne({ code: code.toUpperCase().trim() });
-    if (existing) {
-      return res.status(400).json({ message: 'Supplier with this code already exists.' });
-    }
+    const code = req.body.code || await generateSupplierCode();
+    const existing = await Supplier.findOne({ code });
+    if (existing) return res.status(400).json({ message: `Code ${code} already in use.` });
 
     const supplier = new Supplier({
-      name: name.trim(),
-      code: code.toUpperCase().trim(),
-      contactPerson,
-      email,
-      phone,
-      address
+      ...req.body,
+      code,
+      createdBy: req.user?._id
     });
-
     await supplier.save();
-    return res.status(201).json({ message: 'Supplier created successfully.', supplier });
-  } catch (error) {
-    console.error('Create Supplier Error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(201).json({ message: 'Supplier created.', supplier });
+  } catch (err) {
+    console.error('createSupplier:', err);
+    if (err.code === 11000) return res.status(400).json({ message: 'Supplier code already exists.' });
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── GET /api/suppliers/:id ───────────────────────────────────────────────────
+exports.getSupplierById = async (req, res) => {
+  try {
+    const supplier = await Supplier.findOne({ _id: req.params.id, deleted: { $ne: true } })
+      .populate('createdBy', 'name email').lean();
+    if (!supplier) return res.status(404).json({ message: 'Supplier not found.' });
+    return res.status(200).json({ supplier });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── PUT /api/suppliers/:id ───────────────────────────────────────────────────
+exports.updateSupplier = async (req, res) => {
+  try {
+    const supplier = await Supplier.findOneAndUpdate(
+      { _id: req.params.id, deleted: { $ne: true } },
+      { ...req.body, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!supplier) return res.status(404).json({ message: 'Supplier not found.' });
+    return res.status(200).json({ message: 'Supplier updated.', supplier });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── DELETE /api/suppliers/:id ────────────────────────────────────────────────
+exports.deleteSupplier = async (req, res) => {
+  try {
+    const supplier = await Supplier.findByIdAndUpdate(
+      req.params.id,
+      { deleted: true, deletedAt: new Date() },
+      { new: true }
+    );
+    if (!supplier) return res.status(404).json({ message: 'Supplier not found.' });
+    return res.status(200).json({ message: 'Supplier archived.' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── PATCH /api/suppliers/:id/status ─────────────────────────────────────────
+exports.updateSupplierStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['active', 'inactive', 'blacklisted'];
+    if (!allowed.includes(status)) return res.status(400).json({ message: 'Invalid status.' });
+
+    const supplier = await Supplier.findByIdAndUpdate(
+      req.params.id, { status }, { new: true }
+    );
+    if (!supplier) return res.status(404).json({ message: 'Supplier not found.' });
+    return res.status(200).json({ message: 'Status updated.', supplier });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── GET /api/suppliers/:id/stats ────────────────────────────────────────────
+exports.getSupplierStats = async (req, res) => {
+  try {
+    // Placeholder — will be populated when ImportOrder model is wired in Module 4
+    return res.status(200).json({
+      totalOrders: 0,
+      totalSpend: 0,
+      avgLeadTimeDays: 0,
+      onTimePercent: 0
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── GET /api/suppliers/:id/products ─────────────────────────────────────────
+exports.getSupplierProducts = async (req, res) => {
+  try {
+    const Product = require('../models/Product');
+    const products = await Product.find({
+      supplier: req.params.id,
+      deleted: { $ne: true }
+    }).select('sku name images unit totalStock status').lean();
+    return res.status(200).json({ products });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── POST /api/suppliers/import ───────────────────────────────────────────────
+exports.importSuppliersCSV = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No CSV file uploaded.' });
+
+    const csvText = req.file.buffer.toString('utf-8');
+    const { data, errors } = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+
+    if (errors.length > 0) {
+      return res.status(400).json({ message: 'CSV parse error.', errors });
+    }
+
+    let created = 0, skipped = 0;
+    for (const row of data) {
+      if (!row.companyName) { skipped++; continue; }
+      try {
+        const code = await generateSupplierCode();
+        const supplier = new Supplier({
+          companyName: row.companyName?.trim(),
+          type: row.type || 'manufacturer',
+          country: row.country,
+          currency: row.currency || 'USD',
+          paymentTerms: row.paymentTerms,
+          website: row.website,
+          taxId: row.taxId,
+          leadTimeDays: row.leadTimeDays ? parseInt(row.leadTimeDays) : undefined,
+          rating: row.rating ? parseFloat(row.rating) : undefined,
+          notes: row.notes,
+          code,
+          contacts: row.primaryContactName ? [{
+            name: row.primaryContactName,
+            email: row.primaryContactEmail,
+            phone: row.primaryContactPhone,
+            isPrimary: true
+          }] : [],
+          createdBy: req.user?._id
+        });
+        await supplier.save();
+        created++;
+      } catch (e) { skipped++; }
+    }
+
+    return res.status(200).json({
+      message: `Import complete. ${created} created, ${skipped} skipped.`,
+      created, skipped
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ─── GET /api/suppliers/export ────────────────────────────────────────────────
+exports.exportSuppliersCSV = async (req, res) => {
+  try {
+    const suppliers = await Supplier.find({ deleted: { $ne: true } }).lean();
+    const rows = suppliers.map(s => ({
+      code: s.code,
+      companyName: s.companyName,
+      type: s.type,
+      status: s.status,
+      country: s.country || '',
+      currency: s.currency || 'USD',
+      paymentTerms: s.paymentTerms || '',
+      leadTimeDays: s.leadTimeDays || '',
+      rating: s.rating || '',
+      website: s.website || '',
+      taxId: s.taxId || '',
+      notes: s.notes || '',
+      primaryContact: s.contacts?.find(c => c.isPrimary)?.name || '',
+      primaryEmail: s.contacts?.find(c => c.isPrimary)?.email || ''
+    }));
+
+    const csv = Papa.unparse(rows);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=suppliers.csv');
+    return res.send(csv);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
   }
 };

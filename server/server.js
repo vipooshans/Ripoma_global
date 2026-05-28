@@ -19,6 +19,9 @@ const inventoryRoutes = require('./routes/inventory.routes');
 const stockMovementRoutes = require('./routes/stockMovement.routes');
 const alertRoutes = require('./routes/alert.routes');
 const supplierRoutes = require('./routes/supplier.routes');
+const customerRoutes = require('./routes/customer.routes');
+const communicationRoutes = require('./routes/communication.routes');
+const contactRoutes = require('./routes/contact.routes');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 
@@ -120,6 +123,9 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/stock-movements', stockMovementRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/suppliers', supplierRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/communications', communicationRoutes);
+app.use('/api/contacts', contactRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

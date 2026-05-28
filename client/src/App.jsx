@@ -24,6 +24,16 @@ import WarehouseDetail from './pages/inventory/WarehouseDetail';
 import StockMovementGrid from './pages/inventory/StockMovementGrid';
 import AlertsCenter from './pages/inventory/AlertsCenter';
 
+// Supplier & Customer Management Module
+import SupplierList from './pages/suppliers/SupplierList';
+import SupplierForm from './pages/suppliers/SupplierForm';
+import SupplierDetail from './pages/suppliers/SupplierDetail';
+import CustomerList from './pages/customers/CustomerList';
+import CustomerForm from './pages/customers/CustomerForm';
+import CustomerDetail from './pages/customers/CustomerDetail';
+import ContactDirectory from './pages/contacts/ContactDirectory';
+import CommunicationLog from './pages/contacts/CommunicationLog';
+
 function App() {
   return (
     <AuthProvider>
@@ -69,6 +79,18 @@ function App() {
           <Route path="inventory/warehouses/:id" element={<WarehouseDetail />} />
           <Route path="inventory/stock" element={<StockMovementGrid />} />
           <Route path="inventory/alerts" element={<AlertsCenter />} />
+
+          {/* Supplier & Customer Management Module */}
+          <Route path="suppliers" element={<SupplierList />} />
+          <Route path="suppliers/add" element={<SupplierForm />} />
+          <Route path="suppliers/:id" element={<SupplierDetail />} />
+          <Route path="suppliers/:id/edit" element={<SupplierForm />} />
+          <Route path="customers" element={<CustomerList />} />
+          <Route path="customers/add" element={<CustomerForm />} />
+          <Route path="customers/:id" element={<CustomerDetail />} />
+          <Route path="customers/:id/edit" element={<CustomerForm />} />
+          <Route path="contacts" element={<ContactDirectory />} />
+          <Route path="contacts/:type/:id/communications" element={<CommunicationLog />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}
