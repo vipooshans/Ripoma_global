@@ -272,9 +272,9 @@ const ProductForm = () => {
                 onChange={handleChange}
               >
                 <option value="">No Default Supplier</option>
-                {suppliers?.map((sup) => (
+                {suppliers?.suppliers?.map((sup) => (
                   <option key={sup._id} value={sup._id}>
-                    {sup.name}
+                    {sup.companyName}
                   </option>
                 ))}
               </select>
