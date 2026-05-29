@@ -66,6 +66,14 @@ import ContainerDetail from './pages/shipments/ContainerDetail';
 import DeliveryMonitoring from './pages/shipments/DeliveryMonitoring';
 import ShippingSchedule from './pages/shipments/ShippingSchedule';
 
+// Document Management Module
+import DocumentsDashboard from './pages/documents/Dashboard';
+import DocumentLibrary from './pages/documents/Library';
+import DocumentUpload from './pages/documents/UploadForm';
+import DocumentDetail from './pages/documents/DocumentDetail';
+import DocumentInvoices from './pages/documents/InvoicesView';
+import DocumentActivity from './pages/documents/ActivityLog';
+
 function App() {
   return (
     <AuthProvider>
@@ -159,6 +167,14 @@ function App() {
           <Route path="shipments/containers/:id/edit" element={<ContainerForm />} />
           <Route path="shipments/monitoring" element={<DeliveryMonitoring />} />
           <Route path="shipments/schedule" element={<ShippingSchedule />} />
+
+          {/* Document Management Module */}
+          <Route path="documents" element={<DocumentsDashboard />} />
+          <Route path="documents/library" element={<DocumentLibrary />} />
+          <Route path="documents/upload" element={<DocumentUpload />} />
+          <Route path="documents/invoices" element={<DocumentInvoices />} />
+          <Route path="documents/activity" element={<DocumentActivity />} />
+          <Route path="documents/:id" element={<DocumentDetail />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}

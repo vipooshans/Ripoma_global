@@ -29,12 +29,15 @@ const invoiceRoutes = require('./routes/invoice.routes');
 const dispatchRoutes = require('./routes/dispatch.routes');
 const shipmentRoutes = require('./routes/shipment.routes');
 const containerRoutes = require('./routes/container.routes');
+const documentRoutes = require('./routes/document.routes');
+const documentActivityRoutes = require('./routes/documentActivity.routes');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
 const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
 const { initCarrierPollCron } = require('./jobs/carrierPoll');
 const { initDelayAlertCron } = require('./jobs/delayAlertCheck');
+const { startDocumentExpiryCheck } = require('./jobs/documentExpiryCheck');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -44,6 +47,10 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
+
+// Serve uploaded files (local dev storage adapter)
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // CORS config
 app.use(
@@ -122,6 +129,7 @@ mongoose
     initOverdueInvoiceCron();
     initCarrierPollCron();
     initDelayAlertCron();
+    startDocumentExpiryCheck();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -148,6 +156,8 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/dispatches', dispatchRoutes);
 app.use('/api/shipments', shipmentRoutes);
 app.use('/api/containers', containerRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/document-activity', documentActivityRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

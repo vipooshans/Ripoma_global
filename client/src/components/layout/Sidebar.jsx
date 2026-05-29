@@ -18,7 +18,9 @@ import {
   Phone,
   FileText,
   Calendar,
-  Layers
+  Layers,
+  FolderOpen,
+  Activity
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -55,6 +57,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Containers Catalog', to: '/shipments/containers', icon: Layers, show: true },
       { name: 'Pipeline Monitor', to: '/shipments/monitoring', icon: Truck, show: true },
       { name: 'Shipping Schedule', to: '/shipments/schedule', icon: Calendar, show: true },
+    ]},
+    { group: 'Document Management', items: [
+      { name: 'Doc Dashboard', to: '/documents', icon: FolderOpen, show: true },
+      { name: 'Library', to: '/documents/library', icon: FileText, show: true },
+      { name: 'Invoices', to: '/documents/invoices', icon: FileText, show: true },
+      { name: 'Activity Log', to: '/documents/activity', icon: Activity, show: true },
     ]},
     { group: 'Admin', items: [
       { name: 'Users', to: '/admin/users', icon: Users, show: hasPermission('users:read') },
