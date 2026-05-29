@@ -24,9 +24,13 @@ const communicationRoutes = require('./routes/communication.routes');
 const contactRoutes = require('./routes/contact.routes');
 const importOrderRoutes = require('./routes/importOrder.routes');
 const goodsReceiptRoutes = require('./routes/goodsReceipt.routes');
+const exportOrderRoutes = require('./routes/exportOrder.routes');
+const invoiceRoutes = require('./routes/invoice.routes');
+const dispatchRoutes = require('./routes/dispatch.routes');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
+const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -111,6 +115,7 @@ mongoose
     await seedDB();
     initLowStockCron();
     initOverdueCron();
+    initOverdueInvoiceCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -132,6 +137,9 @@ app.use('/api/communications', communicationRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/import-orders', importOrderRoutes);
 app.use('/api/goods-receipts', goodsReceiptRoutes);
+app.use('/api/export-orders', exportOrderRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/dispatches', dispatchRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -45,6 +45,16 @@ import TrackingBoard from './pages/imports/TrackingBoard';
 import DeliverySchedule from './pages/imports/DeliverySchedule';
 import ApprovalsQueue from './pages/imports/ApprovalsQueue';
 
+// Export Management Module Pages
+import ExportsDashboard from './pages/exports/Dashboard';
+import ExportOrderList from './pages/exports/OrderList';
+import ExportOrderCreate from './pages/exports/OrderCreate';
+import ExportOrderDetail from './pages/exports/OrderDetail';
+import InvoiceView from './pages/exports/InvoiceView';
+import InvoiceList from './pages/exports/InvoiceList';
+import DispatchForm from './pages/exports/DispatchForm';
+import DispatchBoard from './pages/exports/DispatchBoard';
+
 function App() {
   return (
     <AuthProvider>
@@ -114,6 +124,17 @@ function App() {
           <Route path="imports/tracking" element={<TrackingBoard />} />
           <Route path="imports/delivery-schedule" element={<DeliverySchedule />} />
           <Route path="imports/approvals" element={<ApprovalsQueue />} />
+
+          {/* Export Management Module */}
+          <Route path="exports" element={<ExportsDashboard />} />
+          <Route path="exports/orders" element={<ExportOrderList />} />
+          <Route path="exports/orders/create" element={<ExportOrderCreate />} />
+          <Route path="exports/orders/:id" element={<ExportOrderDetail />} />
+          <Route path="exports/orders/:id/edit" element={<ExportOrderCreate />} />
+          <Route path="exports/invoices" element={<InvoiceList />} />
+          <Route path="exports/invoices/:id" element={<InvoiceView />} />
+          <Route path="exports/dispatch/create" element={<DispatchForm />} />
+          <Route path="exports/dispatch/board" element={<DispatchBoard />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}

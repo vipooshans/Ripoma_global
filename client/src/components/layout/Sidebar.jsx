@@ -42,6 +42,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Logistics Tracking', to: '/imports/tracking', icon: Truck, show: true },
       { name: 'Delivery Calendar', to: '/imports/delivery-schedule', icon: Calendar, show: true },
     ]},
+    { group: 'Sales & Exports', items: [
+      { name: 'Exports Dashboard', to: '/exports', icon: Globe, show: true },
+      { name: 'Sales Orders', to: '/exports/orders', icon: FileText, show: true },
+      { name: 'Invoices', to: '/exports/invoices', icon: FileText, show: true },
+      { name: 'Dispatch Board', to: '/exports/dispatch/board', icon: Truck, show: true },
+    ]},
     { group: 'Admin', items: [
       { name: 'Users', to: '/admin/users', icon: Users, show: hasPermission('users:read') },
       { name: 'Roles', to: '/admin/roles', icon: ShieldCheck, show: hasPermission('users:read') },
