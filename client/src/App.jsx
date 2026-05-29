@@ -34,6 +34,17 @@ import CustomerDetail from './pages/customers/CustomerDetail';
 import ContactDirectory from './pages/contacts/ContactDirectory';
 import CommunicationLog from './pages/contacts/CommunicationLog';
 
+// Import Management Module Pages
+import ImportsDashboard from './pages/imports/Dashboard';
+import OrderList from './pages/imports/OrderList';
+import OrderCreate from './pages/imports/OrderCreate';
+import OrderDetail from './pages/imports/OrderDetail';
+import OrderApprove from './pages/imports/OrderApprove';
+import GoodsReceiptForm from './pages/imports/GoodsReceiptForm';
+import TrackingBoard from './pages/imports/TrackingBoard';
+import DeliverySchedule from './pages/imports/DeliverySchedule';
+import ApprovalsQueue from './pages/imports/ApprovalsQueue';
+
 function App() {
   return (
     <AuthProvider>
@@ -91,6 +102,18 @@ function App() {
           <Route path="customers/:id/edit" element={<CustomerForm />} />
           <Route path="contacts" element={<ContactDirectory />} />
           <Route path="contacts/:type/:id/communications" element={<CommunicationLog />} />
+
+          {/* Import Management Module */}
+          <Route path="imports" element={<ImportsDashboard />} />
+          <Route path="imports/orders" element={<OrderList />} />
+          <Route path="imports/orders/create" element={<OrderCreate />} />
+          <Route path="imports/orders/:id" element={<OrderDetail />} />
+          <Route path="imports/orders/:id/edit" element={<OrderCreate />} />
+          <Route path="imports/orders/:id/approve" element={<OrderApprove />} />
+          <Route path="imports/orders/:id/receive" element={<GoodsReceiptForm />} />
+          <Route path="imports/tracking" element={<TrackingBoard />} />
+          <Route path="imports/delivery-schedule" element={<DeliverySchedule />} />
+          <Route path="imports/approvals" element={<ApprovalsQueue />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}

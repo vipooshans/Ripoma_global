@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   Truck,
   BookUser,
-  Phone
+  Phone,
+  FileText,
+  Calendar
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -33,6 +35,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Suppliers', to: '/suppliers', icon: Truck, show: true },
       { name: 'Customers', to: '/customers', icon: BookUser, show: true },
       { name: 'Contacts', to: '/contacts', icon: Phone, show: true },
+    ]},
+    { group: 'Procurement & Imports', items: [
+      { name: 'Imports Dashboard', to: '/imports', icon: Globe, show: true },
+      { name: 'Purchase Orders', to: '/imports/orders', icon: FileText, show: true },
+      { name: 'Logistics Tracking', to: '/imports/tracking', icon: Truck, show: true },
+      { name: 'Delivery Calendar', to: '/imports/delivery-schedule', icon: Calendar, show: true },
     ]},
     { group: 'Admin', items: [
       { name: 'Users', to: '/admin/users', icon: Users, show: hasPermission('users:read') },
