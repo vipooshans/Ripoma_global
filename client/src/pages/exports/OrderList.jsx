@@ -26,7 +26,7 @@ const OrderList = () => {
   });
 
   const { data: customersData } = useCustomers();
-  const customersList = customersData || [];
+  const customersList = customersData?.customers || [];
 
   const handleCsvExport = () => {
     const params = new URLSearchParams({

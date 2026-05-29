@@ -15,7 +15,8 @@ const OrderCreate = () => {
   const isEditMode = !!id;
 
   const { data: existingOrder, isLoading: isLoadingOrder } = useExportOrderDetail(id);
-  const { data: customers = [] } = useCustomers();
+  const { data: customersData } = useCustomers();
+  const customers = customersData?.customers || [];
   const { data: warehousesData = [] } = useWarehouses();
   const warehousesList = warehousesData || [];
 

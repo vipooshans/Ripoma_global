@@ -21,7 +21,8 @@ const InvoiceList = () => {
     customer
   });
 
-  const { data: customers = [] } = useCustomers();
+  const { data: customersData } = useCustomers();
+  const customers = customersData?.customers || [];
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= (invoicesData?.pagination?.totalPages || 1)) {
