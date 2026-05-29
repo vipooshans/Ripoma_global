@@ -55,6 +55,17 @@ import InvoiceList from './pages/exports/InvoiceList';
 import DispatchForm from './pages/exports/DispatchForm';
 import DispatchBoard from './pages/exports/DispatchBoard';
 
+// Logistics & Shipment Tracking Pages
+import ShipmentsDashboard from './pages/shipments/Dashboard';
+import ShipmentList from './pages/shipments/ShipmentList';
+import ShipmentDetail from './pages/shipments/ShipmentDetail';
+import ShipmentForm from './pages/shipments/ShipmentForm';
+import ContainerList from './pages/shipments/ContainerList';
+import ContainerForm from './pages/shipments/ContainerForm';
+import ContainerDetail from './pages/shipments/ContainerDetail';
+import DeliveryMonitoring from './pages/shipments/DeliveryMonitoring';
+import ShippingSchedule from './pages/shipments/ShippingSchedule';
+
 function App() {
   return (
     <AuthProvider>
@@ -135,6 +146,19 @@ function App() {
           <Route path="exports/invoices/:id" element={<InvoiceView />} />
           <Route path="exports/dispatch/create" element={<DispatchForm />} />
           <Route path="exports/dispatch/board" element={<DispatchBoard />} />
+
+          {/* Logistics & Shipment Tracking Module */}
+          <Route path="shipments" element={<ShipmentsDashboard />} />
+          <Route path="shipments/all" element={<ShipmentList />} />
+          <Route path="shipments/create" element={<ShipmentForm />} />
+          <Route path="shipments/:id" element={<ShipmentDetail />} />
+          <Route path="shipments/:id/edit" element={<ShipmentForm />} />
+          <Route path="shipments/containers" element={<ContainerList />} />
+          <Route path="shipments/containers/create" element={<ContainerForm />} />
+          <Route path="shipments/containers/:id" element={<ContainerDetail />} />
+          <Route path="shipments/containers/:id/edit" element={<ContainerForm />} />
+          <Route path="shipments/monitoring" element={<DeliveryMonitoring />} />
+          <Route path="shipments/schedule" element={<ShippingSchedule />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}

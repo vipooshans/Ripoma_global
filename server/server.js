@@ -27,10 +27,14 @@ const goodsReceiptRoutes = require('./routes/goodsReceipt.routes');
 const exportOrderRoutes = require('./routes/exportOrder.routes');
 const invoiceRoutes = require('./routes/invoice.routes');
 const dispatchRoutes = require('./routes/dispatch.routes');
+const shipmentRoutes = require('./routes/shipment.routes');
+const containerRoutes = require('./routes/container.routes');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
 const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
+const { initCarrierPollCron } = require('./jobs/carrierPoll');
+const { initDelayAlertCron } = require('./jobs/delayAlertCheck');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -116,6 +120,8 @@ mongoose
     initLowStockCron();
     initOverdueCron();
     initOverdueInvoiceCron();
+    initCarrierPollCron();
+    initDelayAlertCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -140,6 +146,8 @@ app.use('/api/goods-receipts', goodsReceiptRoutes);
 app.use('/api/export-orders', exportOrderRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/dispatches', dispatchRoutes);
+app.use('/api/shipments', shipmentRoutes);
+app.use('/api/containers', containerRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
