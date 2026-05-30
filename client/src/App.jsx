@@ -96,10 +96,20 @@ import ReportBuilder from './pages/reports/ReportBuilder';
 import ScheduledReports from './pages/reports/ScheduledReports';
 import ExportHistory from './pages/reports/ExportHistory';
 
+// Notification & Alerts Module Pages
+import NotificationsDashboard from './pages/notifications/Dashboard';
+import NotificationCentre from './pages/notifications/Centre';
+import NotificationSettings from './pages/notifications/Settings';
+import RemindersBoard from './pages/notifications/Reminders';
+import ActivityLogPage from './pages/notifications/ActivityLog';
+
+import { NotificationProvider } from './context/NotificationContext';
+
 function App() {
   return (
     <AuthProvider>
-      {/* Toast notifications */}
+      <NotificationProvider>
+        {/* Toast notifications */}
       <Toaster
         position="top-right"
         toastOptions={{
@@ -221,11 +231,19 @@ function App() {
           <Route path="reports/builder" element={<ReportBuilder />} />
           <Route path="reports/scheduled" element={<ScheduledReports />} />
           <Route path="reports/history" element={<ExportHistory />} />
+
+          {/* Notification & Alerts Module */}
+          <Route path="notifications" element={<NotificationsDashboard />} />
+          <Route path="notifications/centre" element={<NotificationCentre />} />
+          <Route path="notifications/settings" element={<NotificationSettings />} />
+          <Route path="notifications/reminders" element={<RemindersBoard />} />
+          <Route path="notifications/activity-log" element={<ActivityLogPage />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}
         <Route path="*" element={<Navigate to="/inventory" replace />} />
       </Routes>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const Payment = require('../models/Payment');
 const User = require('../models/User');
-const Notification = require('../models/Notification');
+const { sendNotification } = require('../utils/notifyService');
 
 /**
  * Sweeps the database for pending payments past their due dates,
@@ -30,13 +30,19 @@ const runPaymentOverdueCheck = async () => {
       payment.isOverdue = true;
       await payment.save();
 
-      // Create notifications for all admins and managers
+      // Create notifications for all admins and managers using notifyService
       for (const staff of staffToNotify) {
-        await Notification.create({
-          user: staff._id,
+        await sendNotification({
+          recipientId: staff._id,
+          type: 'payment_overdue',
+          severity: 'error',
           title: `💸 Overdue Payment: ${payment.paymentNumber}`,
-          message: `Payment ${payment.paymentNumber} of ${payment.amount} ${payment.currency} (Counterparty: ${payment.counterpartyName}) is overdue. Due date was ${new Date(payment.dueDate).toLocaleDateString()}.`,
-          type: 'general'
+          body: `Payment ${payment.paymentNumber} of ${payment.amount} ${payment.currency} (Counterparty: ${payment.counterpartyName}) is overdue. Due date was ${new Date(payment.dueDate).toLocaleDateString()}.`,
+          actionUrl: `/finance/payments/${payment._id}`,
+          actionLabel: 'View Payment Details',
+          entityType: 'Payment',
+          entityId: payment._id,
+          entityRef: payment.paymentNumber
         });
       }
       updatedCount++;

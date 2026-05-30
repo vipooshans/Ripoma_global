@@ -3,7 +3,8 @@ const Shipment = require('../models/Shipment');
 const ImportOrder = require('../models/ImportOrder');
 const ExportOrder = require('../models/ExportOrder');
 const Dispatch = require('../models/Dispatch');
-const Notification = require('../models/Notification');
+const User = require('../models/User');
+const { sendNotification } = require('../utils/notifyService');
 const { getCarrierAdapter } = require('../utils/carriers');
 const detectDelay = require('../utils/delayDetector');
 const syncSchedule = require('../utils/scheduleSync');
@@ -22,6 +23,11 @@ const runCarrierPoll = async () => {
     });
 
     let updatedCount = 0;
+    const staffToNotify = await User.find({
+      role: { $in: ['admin', 'manager'] },
+      deleted: { $ne: true },
+      status: 'active'
+    });
 
     for (const shipment of activeShipments) {
       const adapter = getCarrierAdapter(shipment.carrierCode);
@@ -56,21 +62,40 @@ const runCarrierPoll = async () => {
 
       // 1. Alert Notifications
       if (shipment.isDelayed && (!previousIsDelayed || shipment.delayDays > previousDelayDays)) {
-        await Notification.create({
-          title: `⚠️ Shipment Delay: ${shipment.shipmentNumber}`,
-          message: `Shipment ${shipment.shipmentNumber} (${shipment.carrierName}) has been delayed by ${shipment.delayDays} day(s). Reason: ${shipment.delayReason || 'Transit delay'}`,
-          type: 'delay_alert',
-          shipment: shipment._id
-        });
+        for (const staff of staffToNotify) {
+          await sendNotification({
+            recipientId: staff._id,
+            type: 'shipment_delayed',
+            severity: 'warning',
+            title: `⚠️ Shipment Delay: ${shipment.shipmentNumber}`,
+            body: `Shipment ${shipment.shipmentNumber} (${shipment.carrierName}) has been delayed by ${shipment.delayDays} day(s). Reason: ${shipment.delayReason || 'Transit delay'}`,
+            actionUrl: `/logistics/shipments/${shipment._id}`,
+            actionLabel: 'View Shipment Details',
+            entityType: 'Shipment',
+            entityId: shipment._id,
+            entityRef: shipment.shipmentNumber
+          });
+        }
       }
 
       if (shipment.status !== previousStatus) {
-        await Notification.create({
-          title: `🚚 Shipment Update: ${shipment.shipmentNumber}`,
-          message: `Shipment ${shipment.shipmentNumber} status changed from ${previousStatus} to ${shipment.status}. Location: ${shipment.currentLocation?.name || 'N/A'}`,
-          type: 'carrier_update',
-          shipment: shipment._id
-        });
+        const type = shipment.status === 'delivered' ? 'shipment_delivered' : 'carrier_update';
+        const severity = shipment.status === 'delivered' ? 'success' : 'info';
+        
+        for (const staff of staffToNotify) {
+          await sendNotification({
+            recipientId: staff._id,
+            type,
+            severity,
+            title: `🚚 Shipment Update: ${shipment.shipmentNumber}`,
+            body: `Shipment ${shipment.shipmentNumber} status changed from ${previousStatus} to ${shipment.status}. Location: ${shipment.currentLocation?.name || 'N/A'}`,
+            actionUrl: `/logistics/shipments/${shipment._id}`,
+            actionLabel: 'View Shipment Details',
+            entityType: 'Shipment',
+            entityId: shipment._id,
+            entityRef: shipment.shipmentNumber
+          });
+        }
 
         // 2. Propagate Status updates to linked orders / dispatches
         await propagateStatusUpdate(shipment);

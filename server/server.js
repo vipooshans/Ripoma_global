@@ -37,6 +37,12 @@ const taxDutyRoutes = require('./routes/taxDuty.routes');
 const currencyRoutes = require('./routes/currency.routes');
 const profitAnalysisRoutes = require('./routes/profitAnalysis.routes');
 const reportRoutes = require('./routes/report.routes');
+const activityLogger = require('./middleware/activityLogger');
+
+const notificationRoutes = require('./routes/notification.routes');
+const notificationPreferenceRoutes = require('./routes/notificationPreference.routes');
+const reminderRoutes = require('./routes/reminder.routes');
+const activityLogRoutes = require('./routes/activityLog.routes');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
@@ -48,6 +54,8 @@ const { initExchangeRateCron, seedExchangeRates } = require('./jobs/exchangeRate
 const { initPaymentOverdueCron } = require('./jobs/paymentOverdueCheck');
 const { initTaxDutyAlertCron } = require('./jobs/taxDutyDueAlerts');
 const { initScheduledReportCron } = require('./jobs/scheduledReportRunner');
+const { initScheduledReminderCron } = require('./jobs/reminderCheck');
+const { initNotificationDigestCron } = require('./jobs/notificationDigest');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -70,6 +78,8 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
   })
 );
+
+app.use(activityLogger);
 
 // DB Connection & Seeding
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ripoma_global';
@@ -145,6 +155,8 @@ mongoose
     initPaymentOverdueCron();
     initTaxDutyAlertCron();
     initScheduledReportCron();
+    initScheduledReminderCron();
+    initNotificationDigestCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -179,6 +191,10 @@ app.use('/api/tax-duty', taxDutyRoutes);
 app.use('/api/currency', currencyRoutes);
 app.use('/api/profit-analysis', profitAnalysisRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/notification-preferences', notificationPreferenceRoutes);
+app.use('/api/reminders', reminderRoutes);
+app.use('/api/activity-log', activityLogRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -193,6 +209,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+const http = require('http');
+const socketIO = require('./socket');
+
+const server = http.createServer(app);
+socketIO.init(server);
+
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

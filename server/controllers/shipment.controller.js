@@ -4,6 +4,8 @@ const ImportOrder = require('../models/ImportOrder');
 const ExportOrder = require('../models/ExportOrder');
 const Dispatch = require('../models/Dispatch');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
+const { sendNotification } = require('../utils/notifyService');
 const ShippingScheduleEntry = require('../models/ShippingScheduleEntry');
 const generateShipmentNumber = require('../utils/shipmentNumberGenerator');
 const detectDelay = require('../utils/delayDetector');
@@ -299,12 +301,25 @@ exports.addTrackingEvent = async (req, res) => {
     await syncSchedule(shipment);
 
     // Trigger Notification for manual update
-    await Notification.create({
-      title: `📍 Shipment Update: ${shipment.shipmentNumber}`,
-      message: `Manual update: ${description} (Status: ${status})`,
-      type: 'carrier_update',
-      shipment: shipment._id
+    const staffToNotify = await User.find({
+      role: { $in: ['admin', 'manager'] },
+      deleted: { $ne: true },
+      status: 'active'
     });
+    for (const staff of staffToNotify) {
+      await sendNotification({
+        recipientId: staff._id,
+        type: 'carrier_update',
+        severity: 'info',
+        title: `📍 Shipment Update: ${shipment.shipmentNumber}`,
+        body: `Manual update: ${description} (Status: ${status})`,
+        actionUrl: `/logistics/shipments/${shipment._id}`,
+        actionLabel: 'View Shipment Details',
+        entityType: 'Shipment',
+        entityId: shipment._id,
+        entityRef: shipment.shipmentNumber
+      });
+    }
 
     res.status(200).json({ success: true, shipment });
   } catch (error) {

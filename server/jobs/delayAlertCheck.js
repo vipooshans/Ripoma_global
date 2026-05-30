@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const Shipment = require('../models/Shipment');
-const Notification = require('../models/Notification');
+const User = require('../models/User');
+const { sendNotification } = require('../utils/notifyService');
 const detectDelay = require('../utils/delayDetector');
 
 /**
@@ -17,6 +18,11 @@ const runDelayAlertCheck = async () => {
     });
 
     let alertCount = 0;
+    const staffToNotify = await User.find({
+      role: { $in: ['admin', 'manager'] },
+      deleted: { $ne: true },
+      status: 'active'
+    });
 
     for (const shipment of activeShipments) {
       const delayResult = detectDelay(shipment);
@@ -31,12 +37,20 @@ const runDelayAlertCheck = async () => {
 
         // Create alert if it was not previously flagged as delayed
         if (!previousIsDelayed) {
-          await Notification.create({
-            title: `⚠️ Daily Delay Alert: ${shipment.shipmentNumber}`,
-            message: `Shipment ${shipment.shipmentNumber} is flagged as delayed by ${shipment.delayDays} day(s). Details: ${shipment.delayReason}`,
-            type: 'delay_alert',
-            shipment: shipment._id
-          });
+          for (const staff of staffToNotify) {
+            await sendNotification({
+              recipientId: staff._id,
+              type: 'shipment_delayed',
+              severity: 'warning',
+              title: `⚠️ Daily Delay Alert: ${shipment.shipmentNumber}`,
+              body: `Shipment ${shipment.shipmentNumber} is flagged as delayed by ${shipment.delayDays} day(s). Details: ${shipment.delayReason}`,
+              actionUrl: `/logistics/shipments/${shipment._id}`,
+              actionLabel: 'View Shipment Details',
+              entityType: 'Shipment',
+              entityId: shipment._id,
+              entityRef: shipment.shipmentNumber
+            });
+          }
           alertCount++;
         }
       }

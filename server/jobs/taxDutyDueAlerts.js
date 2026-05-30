@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const TaxDutyRecord = require('../models/TaxDutyRecord');
 const User = require('../models/User');
-const Notification = require('../models/Notification');
+const { sendNotification } = require('../utils/notifyService');
 
 /**
  * Scans for tax/duty records that are due in the next 30 days and are unpaid,
@@ -32,13 +32,20 @@ const runTaxDutyDueCheck = async () => {
     });
 
     for (const record of upcomingRecords) {
+      const notifyType = record.type === 'tax' ? 'tax_due' : 'duty_due';
+      
       for (const staff of staffToNotify) {
-        // Only notify if there is no duplicate notification created recently (optional safeguard, but simple creation is fine)
-        await Notification.create({
-          user: staff._id,
+        await sendNotification({
+          recipientId: staff._id,
+          type: notifyType,
+          severity: 'warning',
           title: `⚖️ Tax/Duty Due Soon: ${record.recordNumber}`,
-          message: `Tax/Duty record ${record.recordNumber} (${record.type.replace('_', ' ')}) for ${record.country} of amount ${record.amount} ${record.currency} is due on ${new Date(record.dueDate).toLocaleDateString()}.`,
-          type: 'general'
+          body: `Tax/Duty record ${record.recordNumber} (${record.type.replace('_', ' ')}) for ${record.country} of amount ${record.amount} ${record.currency} is due on ${new Date(record.dueDate).toLocaleDateString()}.`,
+          actionUrl: '/finance/taxes',
+          actionLabel: 'View Tax/Duty Board',
+          entityType: 'TaxDutyRecord',
+          entityId: record._id,
+          entityRef: record.recordNumber
         });
       }
       console.log(`[CRON ALERT] Tax/Duty record ${record.recordNumber} flagged as due within 30 days (Due: ${new Date(record.dueDate).toLocaleDateString()}).`);

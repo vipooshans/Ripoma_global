@@ -1,4 +1,4 @@
-const PdfPrinter = require('pdfmake');
+const PdfPrinter = require('pdfmake/js/printer').default;
 
 // Initialize the printer with built-in Helvetica fonts to avoid disk TTF load overhead
 const fonts = {

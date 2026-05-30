@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Menu, Transition } from '@headlessui/react';
 import { useAuth } from '../../hooks/useAuth';
 import { Menu as MenuIcon, User, LogOut, Settings, Bell, ChevronDown } from 'lucide-react';
+import NotificationBell from '../notifications/NotificationBell';
 
 const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
@@ -27,11 +28,8 @@ const Navbar = ({ toggleSidebar }) => {
 
       {/* Right side: Notifications and Profile Dropdown */}
       <div className="flex items-center gap-4">
-        {/* Notification bell mock */}
-        <button className="relative p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-200">
-          <Bell size={20} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-teal-500 rounded-full ring-2 ring-white"></span>
-        </button>
+        {/* Notification bell */}
+        <NotificationBell />
 
         {/* Vertical divider */}
         <div className="h-6 w-px bg-slate-250"></div>

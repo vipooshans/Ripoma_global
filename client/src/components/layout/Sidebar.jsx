@@ -83,6 +83,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Invoices', to: '/documents/invoices', icon: FileText, show: true },
       { name: 'Activity Log', to: '/documents/activity', icon: Activity, show: true },
     ]},
+    { group: 'Alerts & Activity', items: [
+      { name: 'Control Centre', to: '/notifications', icon: AlertTriangle, show: true },
+      { name: 'Task Reminders', to: '/notifications/reminders', icon: Calendar, show: true },
+      { name: 'Alert Preferences', to: '/notifications/settings', icon: ShieldCheck, show: true },
+      { name: 'System Audit Log', to: '/notifications/activity-log', icon: Activity, show: true },
+    ]},
     { group: 'Admin', items: [
       { name: 'Users', to: '/admin/users', icon: Users, show: hasPermission('users:read') },
       { name: 'Roles', to: '/admin/roles', icon: ShieldCheck, show: hasPermission('users:read') },
