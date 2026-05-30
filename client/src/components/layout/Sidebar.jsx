@@ -21,13 +21,17 @@ import {
   Layers,
   FolderOpen,
   Activity,
-  Wallet
+  Wallet,
+  Home,
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user, logout, hasPermission } = useAuth();
 
   const navigation = [
+    { group: 'Home', items: [
+      { name: 'Command Centre', to: '/dashboard', icon: Home, show: true },
+    ]},
     { group: 'Inventory', items: [
       { name: 'Dashboard', to: '/inventory', icon: LayoutDashboard, show: true },
       { name: 'Products', to: '/inventory/products', icon: Package, show: true },

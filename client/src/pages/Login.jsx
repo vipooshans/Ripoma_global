@@ -32,7 +32,7 @@ const Login = () => {
       setSubmitting(true);
       await login(data.email, data.password);
       toast.success('Successfully logged in! Welcome back.');
-      navigate('/admin/users');
+      navigate('/dashboard');
     } catch (err) {
       toast.error(err.message || 'Invalid email or password.');
     } finally {

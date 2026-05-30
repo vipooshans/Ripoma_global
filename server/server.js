@@ -43,6 +43,10 @@ const notificationRoutes = require('./routes/notification.routes');
 const notificationPreferenceRoutes = require('./routes/notificationPreference.routes');
 const reminderRoutes = require('./routes/reminder.routes');
 const activityLogRoutes = require('./routes/activityLog.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
+
+const authMiddleware = require('./middleware/authMiddleware');
+const { globalSearch } = require('./controllers/dashboard.controller');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
@@ -195,6 +199,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notification-preferences', notificationPreferenceRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/activity-log', activityLogRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.get('/api/search', authMiddleware, globalSearch);
 
 // Health check
 app.get('/health', (req, res) => {

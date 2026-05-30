@@ -5,10 +5,12 @@ import { AuthProvider } from './context/AuthContext';
 import AdminLayout from './components/layout/AdminLayout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
+import PublicRoute from './components/auth/PublicRoute';
 
 // Old Pages
 import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/admin/Dashboard';
+import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/admin/Dashboard';
 import UserList from './pages/admin/UserList';
 import UserForm from './pages/admin/UserForm';
 import RolesPermissions from './pages/admin/RolesPermissions';
@@ -125,16 +127,17 @@ function App() {
 
       <Routes>
         {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* Protected Dashboard Layout Routes */}
         <Route path="/" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/inventory" replace />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
           
           {/* Admin User Management */}
-          <Route path="admin/dashboard" element={<Dashboard />} />
+          <Route path="admin/dashboard" element={<AdminDashboard />} />
           <Route path="admin/users" element={<UserList />} />
           <Route path="admin/users/add" element={<UserForm />} />
           <Route path="admin/users/:id/edit" element={<UserForm />} />
@@ -240,8 +243,8 @@ function App() {
           <Route path="notifications/activity-log" element={<ActivityLogPage />} />
         </Route>
 
-        {/* Catch-all fallback redirects to inventory */}
-        <Route path="*" element={<Navigate to="/inventory" replace />} />
+        {/* Catch-all fallback redirects to dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       </NotificationProvider>
     </AuthProvider>
