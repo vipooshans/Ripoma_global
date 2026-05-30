@@ -67,6 +67,16 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Tax & Duties', to: '/finance/taxes', icon: FileText, show: hasPermission('finance:read') },
       { name: 'Currency Center', to: '/finance/currency', icon: Globe, show: hasPermission('finance:read') },
     ]},
+    { group: 'Intelligence Center', items: [
+      { name: 'Analytics Dashboard', to: '/reports', icon: LayoutDashboard, show: true },
+      { name: 'Sales Report', to: '/reports/sales', icon: FileText, show: true },
+      { name: 'Logistics Report', to: '/reports/shipments', icon: Globe, show: true },
+      { name: 'Financial Ageing', to: '/reports/financial', icon: Wallet, show: true },
+      { name: 'Business Intelligence', to: '/reports/business-analytics', icon: Activity, show: true },
+      { name: 'Report Builder', to: '/reports/builder', icon: Layers, show: true },
+      { name: 'Automations Schedule', to: '/reports/scheduled', icon: Calendar, show: true },
+      { name: 'Export History', to: '/reports/history', icon: FolderOpen, show: true },
+    ]},
     { group: 'Document Management', items: [
       { name: 'Doc Dashboard', to: '/documents', icon: FolderOpen, show: true },
       { name: 'Library', to: '/documents/library', icon: FileText, show: true },

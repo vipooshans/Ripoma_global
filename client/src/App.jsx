@@ -86,6 +86,16 @@ import ProfitAnalysis from './pages/finance/ProfitAnalysis';
 import TaxDuty from './pages/finance/TaxDuty';
 import CurrencyConverter from './pages/finance/CurrencyConverter';
 
+// Reporting & Analytics Module Pages
+import ReportsDashboard from './pages/reports/Dashboard';
+import SalesReport from './pages/reports/SalesReport';
+import ShipmentReport from './pages/reports/ShipmentReport';
+import FinancialReport from './pages/reports/FinancialReport';
+import BusinessAnalytics from './pages/reports/BusinessAnalytics';
+import ReportBuilder from './pages/reports/ReportBuilder';
+import ScheduledReports from './pages/reports/ScheduledReports';
+import ExportHistory from './pages/reports/ExportHistory';
+
 function App() {
   return (
     <AuthProvider>
@@ -201,6 +211,16 @@ function App() {
           <Route path="finance/profit" element={<ProfitAnalysis />} />
           <Route path="finance/taxes" element={<TaxDuty />} />
           <Route path="finance/currency" element={<CurrencyConverter />} />
+
+          {/* Reporting & Analytics Module */}
+          <Route path="reports" element={<ReportsDashboard />} />
+          <Route path="reports/sales" element={<SalesReport />} />
+          <Route path="reports/shipments" element={<ShipmentReport />} />
+          <Route path="reports/financial" element={<FinancialReport />} />
+          <Route path="reports/business-analytics" element={<BusinessAnalytics />} />
+          <Route path="reports/builder" element={<ReportBuilder />} />
+          <Route path="reports/scheduled" element={<ScheduledReports />} />
+          <Route path="reports/history" element={<ExportHistory />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}

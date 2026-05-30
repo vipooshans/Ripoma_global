@@ -36,6 +36,7 @@ const expenseRoutes = require('./routes/expense.routes');
 const taxDutyRoutes = require('./routes/taxDuty.routes');
 const currencyRoutes = require('./routes/currency.routes');
 const profitAnalysisRoutes = require('./routes/profitAnalysis.routes');
+const reportRoutes = require('./routes/report.routes');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
@@ -46,6 +47,7 @@ const { startDocumentExpiryCheck } = require('./jobs/documentExpiryCheck');
 const { initExchangeRateCron, seedExchangeRates } = require('./jobs/exchangeRateFetch');
 const { initPaymentOverdueCron } = require('./jobs/paymentOverdueCheck');
 const { initTaxDutyAlertCron } = require('./jobs/taxDutyDueAlerts');
+const { initScheduledReportCron } = require('./jobs/scheduledReportRunner');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -142,6 +144,7 @@ mongoose
     initExchangeRateCron();
     initPaymentOverdueCron();
     initTaxDutyAlertCron();
+    initScheduledReportCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -175,6 +178,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/tax-duty', taxDutyRoutes);
 app.use('/api/currency', currencyRoutes);
 app.use('/api/profit-analysis', profitAnalysisRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
