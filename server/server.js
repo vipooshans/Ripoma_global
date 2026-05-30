@@ -31,6 +31,11 @@ const shipmentRoutes = require('./routes/shipment.routes');
 const containerRoutes = require('./routes/container.routes');
 const documentRoutes = require('./routes/document.routes');
 const documentActivityRoutes = require('./routes/documentActivity.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const expenseRoutes = require('./routes/expense.routes');
+const taxDutyRoutes = require('./routes/taxDuty.routes');
+const currencyRoutes = require('./routes/currency.routes');
+const profitAnalysisRoutes = require('./routes/profitAnalysis.routes');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
@@ -38,6 +43,9 @@ const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
 const { initCarrierPollCron } = require('./jobs/carrierPoll');
 const { initDelayAlertCron } = require('./jobs/delayAlertCheck');
 const { startDocumentExpiryCheck } = require('./jobs/documentExpiryCheck');
+const { initExchangeRateCron, seedExchangeRates } = require('./jobs/exchangeRateFetch');
+const { initPaymentOverdueCron } = require('./jobs/paymentOverdueCheck');
+const { initTaxDutyAlertCron } = require('./jobs/taxDutyDueAlerts');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -124,12 +132,16 @@ mongoose
   .then(async () => {
     console.log('Successfully connected to MongoDB.');
     await seedDB();
+    await seedExchangeRates();
     initLowStockCron();
     initOverdueCron();
     initOverdueInvoiceCron();
     initCarrierPollCron();
     initDelayAlertCron();
     startDocumentExpiryCheck();
+    initExchangeRateCron();
+    initPaymentOverdueCron();
+    initTaxDutyAlertCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -158,6 +170,11 @@ app.use('/api/shipments', shipmentRoutes);
 app.use('/api/containers', containerRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/document-activity', documentActivityRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/tax-duty', taxDutyRoutes);
+app.use('/api/currency', currencyRoutes);
+app.use('/api/profit-analysis', profitAnalysisRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

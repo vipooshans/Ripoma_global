@@ -74,6 +74,18 @@ import DocumentDetail from './pages/documents/DocumentDetail';
 import DocumentInvoices from './pages/documents/InvoicesView';
 import DocumentActivity from './pages/documents/ActivityLog';
 
+// Financial Management Module Pages
+import FinanceDashboard from './pages/finance/Dashboard';
+import PaymentList from './pages/finance/PaymentList';
+import PaymentForm from './pages/finance/PaymentForm';
+import PaymentDetail from './pages/finance/PaymentDetail';
+import ExpenseList from './pages/finance/ExpenseList';
+import ExpenseForm from './pages/finance/ExpenseForm';
+import ExpenseDetail from './pages/finance/ExpenseDetail';
+import ProfitAnalysis from './pages/finance/ProfitAnalysis';
+import TaxDuty from './pages/finance/TaxDuty';
+import CurrencyConverter from './pages/finance/CurrencyConverter';
+
 function App() {
   return (
     <AuthProvider>
@@ -175,6 +187,20 @@ function App() {
           <Route path="documents/invoices" element={<DocumentInvoices />} />
           <Route path="documents/activity" element={<DocumentActivity />} />
           <Route path="documents/:id" element={<DocumentDetail />} />
+
+          {/* Financial Management Module */}
+          <Route path="finance" element={<FinanceDashboard />} />
+          <Route path="finance/payments" element={<PaymentList />} />
+          <Route path="finance/payments/add" element={<PaymentForm />} />
+          <Route path="finance/payments/:id" element={<PaymentDetail />} />
+          <Route path="finance/payments/:id/edit" element={<PaymentForm />} />
+          <Route path="finance/expenses" element={<ExpenseList />} />
+          <Route path="finance/expenses/add" element={<ExpenseForm />} />
+          <Route path="finance/expenses/:id" element={<ExpenseDetail />} />
+          <Route path="finance/expenses/:id/edit" element={<ExpenseForm />} />
+          <Route path="finance/profit" element={<ProfitAnalysis />} />
+          <Route path="finance/taxes" element={<TaxDuty />} />
+          <Route path="finance/currency" element={<CurrencyConverter />} />
         </Route>
 
         {/* Catch-all fallback redirects to inventory */}

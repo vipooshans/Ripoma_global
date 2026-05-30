@@ -20,7 +20,8 @@ import {
   Calendar,
   Layers,
   FolderOpen,
-  Activity
+  Activity,
+  Wallet
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -57,6 +58,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Containers Catalog', to: '/shipments/containers', icon: Layers, show: true },
       { name: 'Pipeline Monitor', to: '/shipments/monitoring', icon: Truck, show: true },
       { name: 'Shipping Schedule', to: '/shipments/schedule', icon: Calendar, show: true },
+    ]},
+    { group: 'Financial Control', items: [
+      { name: 'Finance Dashboard', to: '/finance', icon: LayoutDashboard, show: hasPermission('finance:read') },
+      { name: 'Payments Ledger', to: '/finance/payments', icon: ArrowDownUp, show: hasPermission('finance:read') },
+      { name: 'Expenses', to: '/finance/expenses', icon: Wallet, show: hasPermission('finance:read') },
+      { name: 'P&L Analytics', to: '/finance/profit', icon: Activity, show: hasPermission('finance:read') },
+      { name: 'Tax & Duties', to: '/finance/taxes', icon: FileText, show: hasPermission('finance:read') },
+      { name: 'Currency Center', to: '/finance/currency', icon: Globe, show: hasPermission('finance:read') },
     ]},
     { group: 'Document Management', items: [
       { name: 'Doc Dashboard', to: '/documents', icon: FolderOpen, show: true },
