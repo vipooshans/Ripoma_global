@@ -163,7 +163,7 @@ const SalesReport = () => {
                 No trend data available for this range.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={250}>
                 <ComposedChart data={trendData} margin={{ top: 10, right: -5, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="month" stroke="#94A3B8" fontSize={9} tickLine={false} />
@@ -193,7 +193,7 @@ const SalesReport = () => {
                 No customer orders recorded.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={250}>
                 <BarChart
                   data={topCustData}
                   layout="vertical"

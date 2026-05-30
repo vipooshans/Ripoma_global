@@ -248,7 +248,7 @@ const ProfitAnalysis = () => {
                 No trend history recorded.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trendData || []} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="month" stroke="#94A3B8" fontSize={9} tickLine={false} />
@@ -281,7 +281,7 @@ const ProfitAnalysis = () => {
             ) : pieData.length === 0 ? (
               <div className="text-slate-400 text-center py-20 italic">No category expenses recorded.</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={235}>
                 <PieChart>
                   <Pie
                     data={pieData}

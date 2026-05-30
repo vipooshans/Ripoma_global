@@ -23,7 +23,7 @@ const TradeCorridorChart = ({ corridors = [] }) => {
             No corridor shipment metrics recorded.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={250}>
             <BarChart
               data={corridors}
               layout="vertical"

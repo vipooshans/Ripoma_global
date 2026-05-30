@@ -41,7 +41,7 @@ const FunnelChart = ({ data = [] }) => {
               No sales pipeline statistics.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={200}>
               <BarChart
                 data={chartData}
                 layout="vertical"

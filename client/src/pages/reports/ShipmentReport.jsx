@@ -153,7 +153,7 @@ const ShipmentReport = () => {
                 No trend data available for this range.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={monthlyTrend} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="month" stroke="#94A3B8" fontSize={9} tickLine={false} />
@@ -182,7 +182,7 @@ const ShipmentReport = () => {
                 No performance progression data.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={monthlyTrend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="month" stroke="#94A3B8" fontSize={9} tickLine={false} />

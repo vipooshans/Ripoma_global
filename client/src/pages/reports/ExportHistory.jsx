@@ -29,8 +29,9 @@ const ExportHistory = () => {
 
   // Fetch exports with dynamic polling if any item is generating
   const { data: exports = [], isLoading, refetch } = useReportExports(filters, {
-    refetchInterval: (data) => {
-      const hasGenerating = (data || []).some(item => item.status === 'generating');
+    refetchInterval: (query) => {
+      const list = query?.state?.data;
+      const hasGenerating = Array.isArray(list) && list.some(item => item.status === 'generating');
       return hasGenerating ? 3000 : false;
     }
   });
