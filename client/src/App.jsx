@@ -2,10 +2,21 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { CustomerAuthProvider } from './context/CustomerAuthContext';
 import AdminLayout from './components/layout/AdminLayout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import PublicRoute from './components/auth/PublicRoute';
+import PublicCustomerRoute from './components/auth/PublicCustomerRoute';
+import ProtectedCustomerRoute from './components/auth/ProtectedCustomerRoute';
+
+// Customer Portal Pages
+import CustomerLogin from './pages/customer/Login';
+import CustomerRegister from './pages/customer/Register';
+import CustomerForgotPassword from './pages/customer/ForgotPassword';
+import CustomerResetPassword from './pages/customer/ResetPassword';
+import CustomerEmailVerify from './pages/customer/EmailVerify';
+import CustomerProfile from './pages/customer/Profile';
 
 // Old Pages
 import ResetPassword from './pages/ResetPassword';
@@ -110,6 +121,7 @@ import { NotificationProvider } from './context/NotificationContext';
 function App() {
   return (
     <AuthProvider>
+      <CustomerAuthProvider>
       <NotificationProvider>
         {/* Toast notifications */}
       <Toaster
@@ -126,10 +138,18 @@ function App() {
       />
 
       <Routes>
-        {/* Public Routes */}
+        {/* ── Staff Public Routes ── */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+        {/* ── Customer Portal Routes ── */}
+        <Route path="/customer/login" element={<PublicCustomerRoute><CustomerLogin /></PublicCustomerRoute>} />
+        <Route path="/customer/register" element={<PublicCustomerRoute><CustomerRegister /></PublicCustomerRoute>} />
+        <Route path="/customer/forgot-password" element={<CustomerForgotPassword />} />
+        <Route path="/customer/reset-password/:token" element={<CustomerResetPassword />} />
+        <Route path="/customer/verify-email/:token" element={<CustomerEmailVerify />} />
+        <Route path="/customer/profile" element={<ProtectedCustomerRoute><CustomerProfile /></ProtectedCustomerRoute>} />
 
         {/* Protected Dashboard Layout Routes */}
         <Route path="/" element={<AdminLayout />}>
@@ -247,6 +267,7 @@ function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       </NotificationProvider>
+      </CustomerAuthProvider>
     </AuthProvider>
   );
 }
