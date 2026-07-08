@@ -11,12 +11,14 @@ import PublicCustomerRoute from './components/auth/PublicCustomerRoute';
 import ProtectedCustomerRoute from './components/auth/ProtectedCustomerRoute';
 
 // Customer Portal Pages
+import CustomerHome from './pages/customer/Home';
 import CustomerLogin from './pages/customer/Login';
 import CustomerRegister from './pages/customer/Register';
 import CustomerForgotPassword from './pages/customer/ForgotPassword';
 import CustomerResetPassword from './pages/customer/ResetPassword';
 import CustomerEmailVerify from './pages/customer/EmailVerify';
 import CustomerProfile from './pages/customer/Profile';
+import CustomerProducts from './pages/customer/Products';
 
 // Old Pages
 import ResetPassword from './pages/ResetPassword';
@@ -144,6 +146,8 @@ function App() {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* ── Customer Portal Routes ── */}
+        <Route path="/customer" element={<CustomerHome />} />
+        <Route path="/customer/products" element={<CustomerProducts />} />
         <Route path="/customer/login" element={<PublicCustomerRoute><CustomerLogin /></PublicCustomerRoute>} />
         <Route path="/customer/register" element={<PublicCustomerRoute><CustomerRegister /></PublicCustomerRoute>} />
         <Route path="/customer/forgot-password" element={<CustomerForgotPassword />} />

@@ -11,6 +11,7 @@ const { ROLE_PERMISSIONS } = require('./controllers/user.controller');
 
 const authRoutes = require('./routes/auth.routes');
 const customerAuthRoutes = require('./routes/customerAuth.routes');
+const storefrontRoutes = require('./routes/storefront.routes');
 const userRoutes = require('./routes/user.routes');
 const roleRoutes = require('./routes/role.routes');
 const productRoutes = require('./routes/product.routes');
@@ -170,6 +171,7 @@ mongoose
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/customer-auth', customerAuthRoutes);
+app.use('/api/storefront', storefrontRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/products', productRoutes);

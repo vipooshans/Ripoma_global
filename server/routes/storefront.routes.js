@@ -1,0 +1,13 @@
+const express = require('express');
+const router = express.Router();
+const storefrontController = require('../controllers/storefront.controller');
+
+// All routes are PUBLIC — no auth middleware
+
+router.get('/featured', storefrontController.getFeaturedProducts);
+router.get('/categories', storefrontController.getCategories);
+router.get('/products', storefrontController.getProducts);
+router.get('/products/:id', storefrontController.getProductDetail);
+router.get('/search-suggestions', storefrontController.getSearchSuggestions);
+
+module.exports = router;
