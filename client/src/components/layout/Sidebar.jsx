@@ -56,13 +56,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Invoices', to: '/exports/invoices', icon: FileText, show: true },
       { name: 'Dispatch Board', to: '/exports/dispatch/board', icon: Truck, show: true },
     ]},
-    { group: 'Logistics & Shipping', items: [
-      { name: 'Dashboard', to: '/shipments', icon: LayoutDashboard, show: true },
-      { name: 'Shipments Ledger', to: '/shipments/all', icon: Globe, show: true },
-      { name: 'Containers Catalog', to: '/shipments/containers', icon: Layers, show: true },
-      { name: 'Pipeline Monitor', to: '/shipments/monitoring', icon: Truck, show: true },
-      { name: 'Shipping Schedule', to: '/shipments/schedule', icon: Calendar, show: true },
-    ]},
     { group: 'Financial Control', items: [
       { name: 'Finance Dashboard', to: '/finance', icon: LayoutDashboard, show: hasPermission('finance:read') },
       { name: 'Payments Ledger', to: '/finance/payments', icon: ArrowDownUp, show: hasPermission('finance:read') },
@@ -74,7 +67,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { group: 'Intelligence Center', items: [
       { name: 'Analytics Dashboard', to: '/reports', icon: LayoutDashboard, show: true },
       { name: 'Sales Report', to: '/reports/sales', icon: FileText, show: true },
-      { name: 'Logistics Report', to: '/reports/shipments', icon: Globe, show: true },
       { name: 'Financial Ageing', to: '/reports/financial', icon: Wallet, show: true },
       { name: 'Business Intelligence', to: '/reports/business-analytics', icon: Activity, show: true },
       { name: 'Report Builder', to: '/reports/builder', icon: Layers, show: true },

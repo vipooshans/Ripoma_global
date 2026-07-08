@@ -36,13 +36,6 @@ const ReportBuilderPanel = ({
       { key: 'growth', label: 'Growth %' },
       { key: 'pctTotal', label: '% of Total' }
     ],
-    shipment: [
-      { key: 'origin', label: 'Origin Port' },
-      { key: 'destination', label: 'Destination Port' },
-      { key: 'direction', label: 'Channel Direction' },
-      { key: 'shipments', label: 'Shipments Count' },
-      { key: 'avgTransitDays', label: 'Avg Transit (Days)' }
-    ],
     financial: [
       { key: 'customerName', label: 'Customer Name' },
       { key: 'invoiceNumber', label: 'Invoice / PAY Ref' },
@@ -58,10 +51,6 @@ const ReportBuilderPanel = ({
     sales: [
       { value: 'currency', label: 'Order Currency' },
       { value: 'paymentStatus', label: 'Payment Status' }
-    ],
-    shipment: [
-      { value: 'carrierName', label: 'Carrier Name' },
-      { value: 'shippingMethod', label: 'Shipping Method' }
     ],
     financial: [
       { value: 'status', label: 'Payment status' }
@@ -120,7 +109,7 @@ const ReportBuilderPanel = ({
     if (!definition) {
       const defaultCols = columnsMap[type] || [];
       setColumns(defaultCols.map(c => c.key));
-      setSortBy(type === 'sales' ? 'revenue' : (type === 'shipment' ? 'shipments' : 'amount'));
+      setSortBy(type === 'sales' ? 'revenue' : 'amount');
       setFilters([]);
     }
   }, [type]);
@@ -221,7 +210,6 @@ const ReportBuilderPanel = ({
             className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-250 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
           >
             <option value="sales">Sales & Revenue</option>
-            <option value="shipment">Logistics & Shipments</option>
             <option value="financial">Financial Owed (Ageing)</option>
           </select>
         </div>

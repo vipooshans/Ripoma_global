@@ -138,13 +138,6 @@ const ExpenseDetail = () => {
         <ExternalLink size={10} />
       </Link>
     );
-  } else if (e.shipment) {
-    linkedRefText = (
-      <Link to={`/shipments/${e.shipment._id || e.shipment}`} className="text-teal-650 font-bold hover:underline flex items-center gap-1">
-        <span>SH: {e.shipment.shipmentNumber || 'Details'}</span>
-        <ExternalLink size={10} />
-      </Link>
-    );
   }
 
   return (

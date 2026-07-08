@@ -28,13 +28,6 @@ const AlertStrip = ({ alerts, onDismiss }) => {
       message: `${alerts.overduePayments.count} overdue payment${alerts.overduePayments.count > 1 ? 's' : ''} — $${Number(alerts.overduePayments.totalAmount).toLocaleString()} due`,
       link: '/finance/payments',
     },
-    alerts.delayedShipments?.count > 0 && {
-      key: 'shipments',
-      icon: Truck,
-      color: 'amber',
-      message: `${alerts.delayedShipments.count} shipment${alerts.delayedShipments.count > 1 ? 's' : ''} delayed`,
-      link: '/shipments/monitoring',
-    },
     alerts.lowStockProducts?.count > 0 && {
       key: 'stock',
       icon: Package,

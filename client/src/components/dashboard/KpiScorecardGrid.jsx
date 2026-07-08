@@ -72,19 +72,6 @@ const KpiScorecardGrid = ({ data, loading }) => {
       link: '/exports/orders',
     },
     {
-      icon: Truck,
-      iconBg: 'bg-orange-50',
-      iconColor: 'text-orange-600',
-      label: 'Shipments In Transit',
-      value: fmt(data.shipmentsInTransit?.count, false),
-      badge:
-        data.shipmentsInTransit?.delayed > 0
-          ? `${data.shipmentsInTransit.delayed} delayed`
-          : undefined,
-      badgeColor: 'bg-rose-100 text-rose-700',
-      link: '/shipments/monitoring',
-    },
-    {
       icon: Boxes,
       iconBg: 'bg-indigo-50',
       iconColor: 'text-indigo-600',

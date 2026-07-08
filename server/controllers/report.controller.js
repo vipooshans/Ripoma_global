@@ -3,7 +3,6 @@ const ScheduledReport = require('../models/ScheduledReport');
 const ReportExport = require('../models/ReportExport');
 const { aggregateKPIs } = require('../utils/reports/kpiAggregator');
 const { aggregateSales } = require('../utils/reports/salesAggregator');
-const { aggregateShipments } = require('../utils/reports/shipmentAggregator');
 const { aggregateFinancials } = require('../utils/reports/financialAggregator');
 const { aggregateAnalytics } = require('../utils/reports/businessAnalyticsAggregator');
 const { generateInsights } = require('../utils/reports/insightGenerator');
@@ -72,18 +71,6 @@ const getReportData = async (definition, dateRange = null) => {
       }
       break;
     }
-    case 'shipment': {
-      const res = await aggregateShipments({ 
-        dateFrom: dates.start, 
-        dateTo: dates.end, 
-        direction: config.filters?.direction || 'all'
-      });
-      data = res.routeVolume || [];
-      if (columns.length === 0) {
-        columns = ['origin', 'destination', 'direction', 'shipments', 'avgTransitDays'];
-      }
-      break;
-    }
     case 'financial': {
       const res = await aggregateFinancials({ 
         dateFrom: dates.start, 
@@ -138,34 +125,6 @@ exports.getSalesReport = async (req, res) => {
     return res.status(200).json(data);
   } catch (error) {
     console.error('Sales Aggregation Error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-// GET /api/reports/shipments
-exports.getShipmentReport = async (req, res) => {
-  try {
-    const { dateFrom, dateTo, direction, carrier, shippingMethod } = req.query;
-    
-    const defaults = resolvePresetDates('last_30d');
-    const start = dateFrom ? new Date(dateFrom) : defaults.start;
-    const end = dateTo ? new Date(dateTo) : defaults.end;
-
-    // Parse array filters
-    const carriers = carrier ? (Array.isArray(carrier) ? carrier : [carrier]) : [];
-    const shippingMethods = shippingMethod ? (Array.isArray(shippingMethod) ? shippingMethod : [shippingMethod]) : [];
-
-    const data = await aggregateShipments({
-      dateFrom: start,
-      dateTo: end,
-      direction: direction || 'all',
-      carriers,
-      shippingMethods
-    });
-
-    return res.status(200).json(data);
-  } catch (error) {
-    console.error('Shipment Aggregation Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

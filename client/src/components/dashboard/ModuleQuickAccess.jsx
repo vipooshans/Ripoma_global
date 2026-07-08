@@ -21,7 +21,6 @@ const modules = [
   { name: 'Customers', icon: Users, to: '/customers', color: 'from-cyan-500 to-cyan-600' },
   { name: 'Import Orders', icon: Globe, to: '/imports/orders', color: 'from-teal-500 to-teal-600' },
   { name: 'Export Orders', icon: Package, to: '/exports/orders', color: 'from-violet-500 to-violet-600' },
-  { name: 'Shipments', icon: Truck, to: '/shipments/all', color: 'from-orange-500 to-orange-600' },
   { name: 'Documents', icon: FolderOpen, to: '/documents/library', color: 'from-amber-500 to-amber-600' },
   { name: 'Finance', icon: DollarSign, to: '/finance', color: 'from-emerald-500 to-emerald-600', permission: 'finance:read' },
   { name: 'Reports', icon: BarChart2, to: '/reports', color: 'from-rose-500 to-rose-600' },

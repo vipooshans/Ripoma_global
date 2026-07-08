@@ -70,17 +70,6 @@ import InvoiceList from './pages/exports/InvoiceList';
 import DispatchForm from './pages/exports/DispatchForm';
 import DispatchBoard from './pages/exports/DispatchBoard';
 
-// Logistics & Shipment Tracking Pages
-import ShipmentsDashboard from './pages/shipments/Dashboard';
-import ShipmentList from './pages/shipments/ShipmentList';
-import ShipmentDetail from './pages/shipments/ShipmentDetail';
-import ShipmentForm from './pages/shipments/ShipmentForm';
-import ContainerList from './pages/shipments/ContainerList';
-import ContainerForm from './pages/shipments/ContainerForm';
-import ContainerDetail from './pages/shipments/ContainerDetail';
-import DeliveryMonitoring from './pages/shipments/DeliveryMonitoring';
-import ShippingSchedule from './pages/shipments/ShippingSchedule';
-
 // Document Management Module
 import DocumentsDashboard from './pages/documents/Dashboard';
 import DocumentLibrary from './pages/documents/Library';
@@ -104,7 +93,6 @@ import CurrencyConverter from './pages/finance/CurrencyConverter';
 // Reporting & Analytics Module Pages
 import ReportsDashboard from './pages/reports/Dashboard';
 import SalesReport from './pages/reports/SalesReport';
-import ShipmentReport from './pages/reports/ShipmentReport';
 import FinancialReport from './pages/reports/FinancialReport';
 import BusinessAnalytics from './pages/reports/BusinessAnalytics';
 import ReportBuilder from './pages/reports/ReportBuilder';
@@ -214,19 +202,6 @@ function App() {
           <Route path="exports/dispatch/create" element={<DispatchForm />} />
           <Route path="exports/dispatch/board" element={<DispatchBoard />} />
 
-          {/* Logistics & Shipment Tracking Module */}
-          <Route path="shipments" element={<ShipmentsDashboard />} />
-          <Route path="shipments/all" element={<ShipmentList />} />
-          <Route path="shipments/create" element={<ShipmentForm />} />
-          <Route path="shipments/:id" element={<ShipmentDetail />} />
-          <Route path="shipments/:id/edit" element={<ShipmentForm />} />
-          <Route path="shipments/containers" element={<ContainerList />} />
-          <Route path="shipments/containers/create" element={<ContainerForm />} />
-          <Route path="shipments/containers/:id" element={<ContainerDetail />} />
-          <Route path="shipments/containers/:id/edit" element={<ContainerForm />} />
-          <Route path="shipments/monitoring" element={<DeliveryMonitoring />} />
-          <Route path="shipments/schedule" element={<ShippingSchedule />} />
-
           {/* Document Management Module */}
           <Route path="documents" element={<DocumentsDashboard />} />
           <Route path="documents/library" element={<DocumentLibrary />} />
@@ -252,7 +227,6 @@ function App() {
           {/* Reporting & Analytics Module */}
           <Route path="reports" element={<ReportsDashboard />} />
           <Route path="reports/sales" element={<SalesReport />} />
-          <Route path="reports/shipments" element={<ShipmentReport />} />
           <Route path="reports/financial" element={<FinancialReport />} />
           <Route path="reports/business-analytics" element={<BusinessAnalytics />} />
           <Route path="reports/builder" element={<ReportBuilder />} />

@@ -24,16 +24,6 @@ export const useSalesReport = (params) =>
     enabled: !!params
   });
 
-export const useShipmentReport = (params) =>
-  useQuery({
-    queryKey: ['shipmentReport', params],
-    queryFn: async () => {
-      const { data } = await api.get('/reports/shipments', { params });
-      return data;
-    },
-    enabled: !!params
-  });
-
 export const useFinancialReport = (params) =>
   useQuery({
     queryKey: ['financialReport', params],

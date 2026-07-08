@@ -4,7 +4,6 @@ import { X, ExternalLink } from 'lucide-react';
 const ENTITY_LABELS = {
   ImportOrder: { label: 'Import Order', color: 'bg-blue-900/40 text-blue-400 border-blue-600/30' },
   ExportOrder: { label: 'Export Order', color: 'bg-emerald-900/40 text-emerald-400 border-emerald-600/30' },
-  Shipment: { label: 'Shipment', color: 'bg-purple-900/40 text-purple-400 border-purple-600/30' },
   Invoice: { label: 'Invoice', color: 'bg-yellow-900/40 text-yellow-400 border-yellow-600/30' },
   Supplier: { label: 'Supplier', color: 'bg-orange-900/40 text-orange-400 border-orange-600/30' },
   Customer: { label: 'Customer', color: 'bg-pink-900/40 text-pink-400 border-pink-600/30' },
@@ -16,7 +15,6 @@ const ENTITY_LABELS = {
 const ENTITY_ROUTES = {
   ImportOrder: '/imports/orders',
   ExportOrder: '/exports/orders',
-  Shipment: '/shipments',
   Invoice: '/exports/invoices',
   Supplier: '/suppliers',
   Customer: '/customers',

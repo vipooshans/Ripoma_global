@@ -4,7 +4,6 @@ const ReportDefinition = require('../models/ReportDefinition');
 const ReportExport = require('../models/ReportExport');
 const { generateExport } = require('../utils/reports/exportBuilder');
 const { aggregateSales } = require('../utils/reports/salesAggregator');
-const { aggregateShipments } = require('../utils/reports/shipmentAggregator');
 const { aggregateFinancials } = require('../utils/reports/financialAggregator');
 const Supplier = require('../models/Supplier');
 const Customer = require('../models/Customer');
@@ -70,18 +69,6 @@ const getReportData = async (definition) => {
       data = res.tableData || [];
       if (columns.length === 0) {
         columns = data.length > 0 ? Object.keys(data[0]) : ['month', 'orders', 'revenue', 'avgOrderValue'];
-      }
-      break;
-    }
-    case 'shipment': {
-      const res = await aggregateShipments({ 
-        dateFrom: dates.start, 
-        dateTo: dates.end, 
-        direction: config.filters?.direction || 'all'
-      });
-      data = res.routeVolume || [];
-      if (columns.length === 0) {
-        columns = ['origin', 'destination', 'direction', 'shipments', 'avgTransitDays'];
       }
       break;
     }
