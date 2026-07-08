@@ -1,6 +1,5 @@
 const ExportOrder = require('../../models/ExportOrder');
 const ImportOrder = require('../../models/ImportOrder');
-const Shipment = require('../../models/Shipment');
 const Customer = require('../../models/Customer');
 const { calculatePLSummary } = require('../plCalculator');
 const convert = require('../currencyConverter');
@@ -157,25 +156,24 @@ const aggregateAnalytics = async ({ dateFrom, dateTo }) => {
   // Gross Margin Growth
   const grossMarginGrowth = currentPL.grossMargin - priorPL.grossMargin;
 
-  // 6. Top Trade Corridors by Shipment Volume
-  const tradeCorridors = await Shipment.aggregate([
+  // 6. Top Trade Corridors by Export Destination Country
+  const tradeCorridors = await ExportOrder.aggregate([
     {
       $match: {
-        createdAt: { $gte: start, $lte: end }
+        orderDate: { $gte: start, $lte: end },
+        status: { $ne: 'cancelled' },
+        'shippingAddress.country': { $exists: true, $nin: [null, ''] }
       }
     },
     {
       $group: {
-        _id: {
-          origin: '$origin.name',
-          destination: '$destination.name'
-        },
+        _id: '$shippingAddress.country',
         count: { $sum: 1 }
       }
     },
     {
       $project: {
-        corridor: { $concat: ['$_id.origin', ' → ', '$_id.destination'] },
+        corridor: { $concat: ['Export → ', '$_id'] },
         count: '$count',
         _id: 0
       }

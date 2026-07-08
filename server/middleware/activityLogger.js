@@ -26,9 +26,6 @@ const getModelAndModule = (url) => {
   if (cleanUrl.startsWith('/api/export-orders')) {
     return { modelName: 'ExportOrder', module: 'export_orders', entityType: 'ExportOrder' };
   }
-  if (cleanUrl.startsWith('/api/shipments')) {
-    return { modelName: 'Shipment', module: 'shipments', entityType: 'Shipment' };
-  }
   if (cleanUrl.startsWith('/api/documents')) {
     return { modelName: 'Document', module: 'documents', entityType: 'Document' };
   }
@@ -60,7 +57,6 @@ const resolveEntityRef = (body, beforeState) => {
     obj.paymentNumber ||
     obj.expenseNumber ||
     obj.recordNumber ||
-    obj.shipmentNumber ||
     obj.poNumber ||
     obj.orderNumber ||
     obj.dispatchNumber ||

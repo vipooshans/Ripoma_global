@@ -7,7 +7,6 @@ import { useCreateExpense, useUpdateExpense, useExpenseDetail } from '../../hook
 import { useBaseCurrency, useCurrencyRates } from '../../hooks/useCurrencyRates';
 import { useImportOrders } from '../../hooks/useImportOrders';
 import { useExportOrders } from '../../hooks/useExportOrders';
-import { useShipments } from '../../hooks/useShipments';
 
 const ExpenseForm = () => {
   const { id } = useParams();
@@ -33,7 +32,7 @@ const ExpenseForm = () => {
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
   const [vendor, setVendor] = useState('');
   const [invoiceReference, setInvoiceReference] = useState('');
-  const [linkType, setLinkType] = useState(''); // importOrder | exportOrder | shipment | none
+  const [linkType, setLinkType] = useState(''); // importOrder | exportOrder | none
   const [linkId, setLinkId] = useState('');
   const [notes, setNotes] = useState('');
   const [fileUrl, setFileUrl] = useState('');
@@ -42,11 +41,9 @@ const ExpenseForm = () => {
   // Linkable documents dropdowns
   const { data: importOrdersData } = useImportOrders({ limit: 1000 });
   const { data: exportOrdersData } = useExportOrders({ limit: 1000 });
-  const { data: shipmentsData } = useShipments({ limit: 1000 });
 
   const importOrders = importOrdersData?.orders || [];
   const exportOrders = exportOrdersData?.orders || [];
-  const shipments = shipmentsData?.shipments || [];
 
   // Populate form if editing
   useEffect(() => {
@@ -68,9 +65,6 @@ const ExpenseForm = () => {
       } else if (detail.exportOrder) {
         setLinkType('exportOrder');
         setLinkId(detail.exportOrder._id || detail.exportOrder);
-      } else if (detail.shipment) {
-        setLinkType('shipment');
-        setLinkId(detail.shipment._id || detail.shipment);
       } else {
         setLinkType('');
         setLinkId('');
@@ -146,8 +140,7 @@ const ExpenseForm = () => {
       notes,
       receiptUrl: fileUrl,
       importOrder: linkType === 'importOrder' && linkId ? linkId : null,
-      exportOrder: linkType === 'exportOrder' && linkId ? linkId : null,
-      shipment: linkType === 'shipment' && linkId ? linkId : null
+      exportOrder: linkType === 'exportOrder' && linkId ? linkId : null
     };
 
     try {
@@ -327,7 +320,6 @@ const ExpenseForm = () => {
               <option value="">No Link</option>
               <option value="importOrder">Purchase Order (PO)</option>
               <option value="exportOrder">Sales Order (SO)</option>
-              <option value="shipment">Shipment Ledger Record</option>
             </select>
           </div>
 
@@ -358,20 +350,6 @@ const ExpenseForm = () => {
                   <option value="">Select SO...</option>
                   {exportOrders.map(o => (
                     <option key={o._id} value={o._id}>{o.orderNumber} ({o.customer?.companyName})</option>
-                  ))}
-                </select>
-              )}
-
-              {linkType === 'shipment' && (
-                <select
-                  value={linkId}
-                  onChange={(e) => setLinkId(e.target.value)}
-                  className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-250 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  required
-                >
-                  <option value="">Select Shipment...</option>
-                  {shipments.map(s => (
-                    <option key={s._id} value={s._id}>{s.shipmentNumber} ({s.carrier} — {s.status})</option>
                   ))}
                 </select>
               )}

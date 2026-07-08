@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const ExportOrder = require('../models/ExportOrder');
 const ImportOrder = require('../models/ImportOrder');
-const Shipment = require('../models/Shipment');
 const Invoice = require('../models/Invoice');
 const Payment = require('../models/Payment');
 const Notification = require('../models/Notification');
@@ -32,8 +31,6 @@ exports.getKpis = async (req, res) => {
       pendingApprovalCount,
       activeExportCount,
       readyToShipCount,
-      shipmentsCount,
-      delayedCount,
       stockValue,
       lowStockCountResult,
       receivablesAggr,
@@ -59,13 +56,9 @@ exports.getKpis = async (req, res) => {
       ExportOrder.countDocuments({ status: { $nin: ['delivered', 'cancelled', 'returned'] } }),
       // 6. Ready to Ship Export Orders
       ExportOrder.countDocuments({ status: 'ready_to_ship' }),
-      // 7. Shipments In Transit
-      Shipment.countDocuments({ status: { $ne: 'delivered' } }),
-      // 8. Shipments Delayed
-      Shipment.countDocuments({ isDelayed: true, status: { $ne: 'delivered' } }),
-      // 9. Inventory Value
+      // 7. Inventory Value
       getStockValue(),
-      // 10. Low Stock Products Count
+      // 8. Low Stock Products Count
       (async () => {
         const activeProducts = await Product.find({ status: 'active', deleted: false });
         let count = 0;
@@ -78,19 +71,19 @@ exports.getKpis = async (req, res) => {
         }
         return count;
       })(),
-      // 11. Outstanding Receivables
+      // 9. Outstanding Receivables
       Invoice.aggregate([
         { $match: { status: { $nin: ['paid', 'cancelled'] } } },
         { $group: { _id: null, total: { $sum: { $subtract: ['$grandTotal', '$amountPaid'] } } } }
       ]),
-      // 12. Overdue Receivables count
+      // 10. Overdue Receivables count
       Invoice.countDocuments({ status: 'overdue' }),
-      // 13. Outstanding Payables
+      // 11. Outstanding Payables
       Payment.aggregate([
         { $match: { type: 'outbound', status: 'pending' } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]),
-      // 14. Unread notifications
+      // 12. Unread notifications
       Notification.countDocuments({ recipient: req.user._id, isRead: false })
     ]);
 
@@ -105,7 +98,6 @@ exports.getKpis = async (req, res) => {
       revenueMTD: { value: revenueValue, currency: 'USD', trendPercent },
       activeImportOrders: { count: activeImportCount, pendingApproval: pendingApprovalCount },
       activeExportOrders: { count: activeExportCount, readyToShip: readyToShipCount },
-      shipmentsInTransit: { count: shipmentsCount, delayed: delayedCount },
       inventoryValue: { value: stockValue, currency: 'USD', lowStockCount: lowStockCountResult },
       outstandingReceivables: { 
         value: receivablesAggr[0]?.total || 0, 
@@ -130,7 +122,6 @@ exports.getAlerts = async (req, res) => {
     const [
       overdueInvoicesAggr,
       overduePaymentsAggr,
-      delayedShipmentsCount,
       lowStockCount,
       expiringDocumentsCount,
       pendingApprovalsCount
@@ -143,7 +134,6 @@ exports.getAlerts = async (req, res) => {
         { $match: { type: 'outbound', status: 'pending', isOverdue: true } },
         { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$amount' } } }
       ]),
-      Shipment.countDocuments({ isDelayed: true, status: { $ne: 'delivered' } }),
       (async () => {
         const activeProducts = await Product.find({ status: 'active', deleted: false });
         let count = 0;
@@ -175,7 +165,6 @@ exports.getAlerts = async (req, res) => {
           count: overduePaymentsAggr[0]?.count || 0,
           totalAmount: overduePaymentsAggr[0]?.total || 0
         },
-        delayedShipments: { count: delayedShipmentsCount },
         lowStockProducts: { count: lowStockCount },
         expiringDocuments: { count: expiringDocumentsCount },
         pendingApprovals: ['admin', 'manager'].includes(req.user.role) ? pendingApprovalsCount : 0
@@ -337,16 +326,15 @@ exports.globalSearch = async (req, res) => {
     if (!q || q.trim() === '') {
       return res.status(200).json({ 
         success: true, 
-        results: { orders: [], shipments: [], products: [], contacts: [] } 
+        results: { orders: [], products: [], contacts: [] } 
       });
     }
 
     const regex = new RegExp(q, 'i');
 
-    const [importOrders, exportOrders, shipments, products, customers, suppliers] = await Promise.all([
+    const [importOrders, exportOrders, products, customers, suppliers] = await Promise.all([
       ImportOrder.find({ $or: [{ poNumber: regex }, { status: regex }] }).limit(5).lean(),
       ExportOrder.find({ $or: [{ orderNumber: regex }, { status: regex }] }).limit(5).lean(),
-      Shipment.find({ $or: [{ shipmentNumber: regex }, { trackingNumber: regex }, { carrierName: regex }] }).limit(5).lean(),
       Product.find({ deleted: false, $or: [{ name: regex }, { sku: regex }] }).limit(5).lean(),
       Customer.find({ $or: [{ companyName: regex }, { contactName: regex }, { email: regex }] }).limit(5).lean(),
       Supplier.find({ $or: [{ companyName: regex }, { contactName: regex }, { email: regex }] }).limit(5).lean()
@@ -367,12 +355,6 @@ exports.globalSearch = async (req, res) => {
           url: `/exports/orders/${eo._id}` 
         }))
       ],
-      shipments: shipments.map(s => ({ 
-        id: s._id, 
-        title: s.shipmentNumber, 
-        subtitle: `Shipment · ${s.carrierName} (${s.status})`, 
-        url: `/shipments/${s._id}` 
-      })),
       products: products.map(p => ({ 
         id: p._id, 
         title: p.name, 

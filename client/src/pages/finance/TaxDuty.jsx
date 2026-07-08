@@ -24,7 +24,6 @@ import {
 } from '../../hooks/useTaxDuty';
 import { useImportOrders } from '../../hooks/useImportOrders';
 import { useExportOrders } from '../../hooks/useExportOrders';
-import { useShipments } from '../../hooks/useShipments';
 import { TaxTypeBadge, TaxStatusBadge } from '../../components/finance/TaxTypeBadge';
 import OverduePill from '../../components/finance/OverduePill';
 import CurrencyAmountDisplay from '../../components/finance/CurrencyAmountDisplay';
@@ -70,18 +69,16 @@ const TaxDuty = () => {
   const [newAmount, setNewAmount] = useState('');
   const [newCurrency, setNewCurrency] = useState('USD');
   const [newDueDate, setNewDueDate] = useState('');
-  const [newLinkType, setNewLinkType] = useState(''); // importOrder | exportOrder | shipment | none
+  const [newLinkType, setNewLinkType] = useState(''); // importOrder | exportOrder | none
   const [newLinkId, setNewLinkId] = useState('');
   const [newNotes, setNewNotes] = useState('');
 
   // Dropdowns lists
   const { data: importOrdersData } = useImportOrders({ limit: 1000 });
   const { data: exportOrdersData } = useExportOrders({ limit: 1000 });
-  const { data: shipmentsData } = useShipments({ limit: 1000 });
 
   const importOrders = importOrdersData?.orders || [];
   const exportOrders = exportOrdersData?.orders || [];
-  const shipments = shipmentsData?.shipments || [];
 
   const format = (val) => {
     return (val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -116,8 +113,7 @@ const TaxDuty = () => {
       dueDate: newDueDate ? new Date(newDueDate) : null,
       notes: newNotes,
       importOrder: newLinkType === 'importOrder' && newLinkId ? newLinkId : null,
-      exportOrder: newLinkType === 'exportOrder' && newLinkId ? newLinkId : null,
-      shipment: newLinkType === 'shipment' && newLinkId ? newLinkId : null
+      exportOrder: newLinkType === 'exportOrder' && newLinkId ? newLinkId : null
     };
 
     try {
@@ -647,7 +643,6 @@ const TaxDuty = () => {
                     <option value="">No Link</option>
                     <option value="importOrder">Purchase Order (PO)</option>
                     <option value="exportOrder">Sales Order (SO)</option>
-                    <option value="shipment">Shipment Ledger</option>
                   </select>
                 </div>
 
@@ -677,19 +672,6 @@ const TaxDuty = () => {
                         <option value="">Select SO...</option>
                         {exportOrders.map(o => (
                           <option key={o._id} value={o._id}>{o.orderNumber}</option>
-                        ))}
-                      </select>
-                    )}
-                    {newLinkType === 'shipment' && (
-                      <select
-                        value={newLinkId}
-                        onChange={(e) => setNewLinkId(e.target.value)}
-                        className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-250 rounded-lg p-2 focus:outline-none"
-                        required
-                      >
-                        <option value="">Select Shipment...</option>
-                        {shipments.map(s => (
-                          <option key={s._id} value={s._id}>{s.shipmentNumber}</option>
                         ))}
                       </select>
                     )}
