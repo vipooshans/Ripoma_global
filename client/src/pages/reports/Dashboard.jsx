@@ -111,21 +111,6 @@ const Dashboard = () => {
             </Link>
           </div>
 
-          {/* Shipment Report card */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all flex flex-col justify-between h-44 group">
-            <div>
-              <div className="p-2 bg-slate-50 text-navy-600 border border-slate-200 rounded-lg w-fit group-hover:scale-105 transition-transform">
-                <Globe size={16} />
-              </div>
-              <h4 className="font-extrabold text-slate-805 text-xs mt-3.5">Logistics & Shipments</h4>
-              <p className="text-[10px] text-slate-405 mt-1 leading-relaxed">Assess carrier on-time rates, transit delays, and cargo routes volume.</p>
-            </div>
-            <Link to="/reports/shipments" className="text-[10px] font-bold text-teal-650 hover:underline flex items-center gap-0.5 mt-4 self-end">
-              <span>View Logistics</span>
-              <ArrowRight size={12} />
-            </Link>
-          </div>
-
           {/* Financial Report card */}
           <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-teal-300 transition-all flex flex-col justify-between h-44 group">
             <div>

@@ -10,6 +10,8 @@ const User = require('./models/User');
 const { ROLE_PERMISSIONS } = require('./controllers/user.controller');
 
 const authRoutes = require('./routes/auth.routes');
+const customerAuthRoutes = require('./routes/customerAuth.routes');
+const storefrontRoutes = require('./routes/storefront.routes');
 const userRoutes = require('./routes/user.routes');
 const roleRoutes = require('./routes/role.routes');
 const productRoutes = require('./routes/product.routes');
@@ -27,8 +29,6 @@ const goodsReceiptRoutes = require('./routes/goodsReceipt.routes');
 const exportOrderRoutes = require('./routes/exportOrder.routes');
 const invoiceRoutes = require('./routes/invoice.routes');
 const dispatchRoutes = require('./routes/dispatch.routes');
-const shipmentRoutes = require('./routes/shipment.routes');
-const containerRoutes = require('./routes/container.routes');
 const documentRoutes = require('./routes/document.routes');
 const documentActivityRoutes = require('./routes/documentActivity.routes');
 const paymentRoutes = require('./routes/payment.routes');
@@ -43,12 +43,14 @@ const notificationRoutes = require('./routes/notification.routes');
 const notificationPreferenceRoutes = require('./routes/notificationPreference.routes');
 const reminderRoutes = require('./routes/reminder.routes');
 const activityLogRoutes = require('./routes/activityLog.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
+
+const authMiddleware = require('./middleware/authMiddleware');
+const { globalSearch } = require('./controllers/dashboard.controller');
 
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
 const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
-const { initCarrierPollCron } = require('./jobs/carrierPoll');
-const { initDelayAlertCron } = require('./jobs/delayAlertCheck');
 const { startDocumentExpiryCheck } = require('./jobs/documentExpiryCheck');
 const { initExchangeRateCron, seedExchangeRates } = require('./jobs/exchangeRateFetch');
 const { initPaymentOverdueCron } = require('./jobs/paymentOverdueCheck');
@@ -148,8 +150,6 @@ mongoose
     initLowStockCron();
     initOverdueCron();
     initOverdueInvoiceCron();
-    initCarrierPollCron();
-    initDelayAlertCron();
     startDocumentExpiryCheck();
     initExchangeRateCron();
     initPaymentOverdueCron();
@@ -164,6 +164,8 @@ mongoose
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/customer-auth', customerAuthRoutes);
+app.use('/api/storefront', storefrontRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/products', productRoutes);
@@ -181,8 +183,6 @@ app.use('/api/goods-receipts', goodsReceiptRoutes);
 app.use('/api/export-orders', exportOrderRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/dispatches', dispatchRoutes);
-app.use('/api/shipments', shipmentRoutes);
-app.use('/api/containers', containerRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/document-activity', documentActivityRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -195,6 +195,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notification-preferences', notificationPreferenceRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/activity-log', activityLogRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.get('/api/search', authMiddleware, globalSearch);
 
 // Health check
 app.get('/health', (req, res) => {

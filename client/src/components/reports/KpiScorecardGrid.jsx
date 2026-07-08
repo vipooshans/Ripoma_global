@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownRight, DollarSign, FileText, Globe, Percent, Calendar } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, DollarSign, FileText, Percent } from 'lucide-react';
 
 const KpiScorecardGrid = ({ kpiData, isLoading }) => {
   const formatValue = (key, val) => {
@@ -7,7 +7,7 @@ const KpiScorecardGrid = ({ kpiData, isLoading }) => {
     if (key === 'revenue' || key === 'expenses') {
       return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
-    if (key === 'onTimeRate' || key === 'grossMargin') {
+    if (key === 'grossMargin') {
       return `${val.toFixed(1)}%`;
     }
     return val.toLocaleString();
@@ -20,12 +20,8 @@ const KpiScorecardGrid = ({ kpiData, isLoading }) => {
         return <DollarSign className={`${classes} text-teal-600`} />;
       case 'orders':
         return <FileText className={`${classes} text-navy-500`} />;
-      case 'activeShipments':
-        return <Globe className={`${classes} text-amber-600`} />;
       case 'expenses':
         return <DollarSign className={`${classes} text-rose-600`} />;
-      case 'onTimeRate':
-        return <Calendar className={`${classes} text-emerald-600`} />;
       case 'grossMargin':
         return <Percent className={`${classes} text-teal-600`} />;
       default:
@@ -40,12 +36,8 @@ const KpiScorecardGrid = ({ kpiData, isLoading }) => {
         return 'bg-teal-50/50 border-teal-100';
       case 'orders':
         return 'bg-slate-50/50 border-slate-100';
-      case 'activeShipments':
-        return 'bg-amber-50/30 border-amber-100';
       case 'expenses':
         return 'bg-rose-50/30 border-rose-100';
-      case 'onTimeRate':
-        return 'bg-emerald-50/30 border-emerald-100';
       default:
         return 'bg-slate-50 border-slate-200';
     }
@@ -54,16 +46,14 @@ const KpiScorecardGrid = ({ kpiData, isLoading }) => {
   const metrics = [
     { key: 'revenue', label: 'Revenue MTD', data: kpiData?.revenue },
     { key: 'orders', label: 'Total Orders MTD', data: kpiData?.orders },
-    { key: 'activeShipments', label: 'Active Shipments', data: kpiData?.activeShipments },
     { key: 'expenses', label: 'Expenses MTD', data: kpiData?.expenses },
-    { key: 'onTimeRate', label: 'On-Time Delivery %', data: kpiData?.onTimeRate },
     { key: 'grossMargin', label: 'Gross Margin %', data: kpiData?.grossMargin }
   ];
 
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[...Array(6)].map((_, idx) => (
+        {[...Array(4)].map((_, idx) => (
           <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm h-28 animate-pulse flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div className="h-3.5 bg-slate-200 rounded w-24"></div>
@@ -82,14 +72,6 @@ const KpiScorecardGrid = ({ kpiData, isLoading }) => {
         const val = metric.data?.value;
         const growth = metric.data?.growth || 0;
         const isPositive = growth >= 0;
-        
-        // On-Time Delivery coloring rules: green >= 90%, amber 70-89%, red < 70%
-        let specialValueColor = '';
-        if (metric.key === 'onTimeRate' && typeof val === 'number') {
-          if (val >= 90) specialValueColor = 'text-emerald-600';
-          else if (val >= 70) specialValueColor = 'text-amber-600';
-          else specialValueColor = 'text-rose-600';
-        }
 
         return (
           <div 
@@ -106,7 +88,7 @@ const KpiScorecardGrid = ({ kpiData, isLoading }) => {
             </div>
             
             <div className="flex items-end justify-between mt-4">
-              <span className={`text-xl font-mono font-extrabold text-slate-800 tracking-tight leading-none ${specialValueColor}`}>
+              <span className="text-xl font-mono font-extrabold text-slate-800 tracking-tight leading-none">
                 {formatValue(metric.key, val)}
               </span>
               

@@ -1,0 +1,56 @@
+import api, { setCustomerAuthHeader } from './api';
+
+const customerAuthService = {
+  register: async (data) => {
+    const response = await api.post('/customer-auth/register', data);
+    return response.data;
+  },
+
+  verifyEmail: async (token) => {
+    const response = await api.get(`/customer-auth/verify-email/${token}`);
+    return response.data;
+  },
+
+  login: async (email, password) => {
+    const response = await api.post('/customer-auth/login', { email, password });
+    if (response.data.accessToken) {
+      setCustomerAuthHeader(response.data.accessToken);
+    }
+    return response.data;
+  },
+
+  logout: async () => {
+    try {
+      await api.post('/customer-auth/logout');
+    } finally {
+      setCustomerAuthHeader(null);
+    }
+  },
+
+  getCurrentCustomer: async () => {
+    const response = await api.get('/customer-auth/me');
+    return response.data;
+  },
+
+  updateProfile: async (data) => {
+    const response = await api.put('/customer-auth/me', data);
+    return response.data;
+  },
+
+  forgotPassword: async (email) => {
+    const response = await api.post('/customer-auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token, password) => {
+    const response = await api.post('/customer-auth/reset-password', { token, password });
+    return response.data;
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await api.post('/customer-auth/change-password', { currentPassword, newPassword });
+    return response.data;
+  }
+};
+
+export default customerAuthService;

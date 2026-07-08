@@ -2,13 +2,28 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { CustomerAuthProvider } from './context/CustomerAuthContext';
 import AdminLayout from './components/layout/AdminLayout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
+import PublicRoute from './components/auth/PublicRoute';
+import PublicCustomerRoute from './components/auth/PublicCustomerRoute';
+import ProtectedCustomerRoute from './components/auth/ProtectedCustomerRoute';
+
+// Customer Portal Pages
+import CustomerHome from './pages/customer/Home';
+import CustomerLogin from './pages/customer/Login';
+import CustomerRegister from './pages/customer/Register';
+import CustomerForgotPassword from './pages/customer/ForgotPassword';
+import CustomerResetPassword from './pages/customer/ResetPassword';
+import CustomerEmailVerify from './pages/customer/EmailVerify';
+import CustomerProfile from './pages/customer/Profile';
+import CustomerProducts from './pages/customer/Products';
 
 // Old Pages
 import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/admin/Dashboard';
+import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/admin/Dashboard';
 import UserList from './pages/admin/UserList';
 import UserForm from './pages/admin/UserForm';
 import RolesPermissions from './pages/admin/RolesPermissions';
@@ -55,17 +70,6 @@ import InvoiceList from './pages/exports/InvoiceList';
 import DispatchForm from './pages/exports/DispatchForm';
 import DispatchBoard from './pages/exports/DispatchBoard';
 
-// Logistics & Shipment Tracking Pages
-import ShipmentsDashboard from './pages/shipments/Dashboard';
-import ShipmentList from './pages/shipments/ShipmentList';
-import ShipmentDetail from './pages/shipments/ShipmentDetail';
-import ShipmentForm from './pages/shipments/ShipmentForm';
-import ContainerList from './pages/shipments/ContainerList';
-import ContainerForm from './pages/shipments/ContainerForm';
-import ContainerDetail from './pages/shipments/ContainerDetail';
-import DeliveryMonitoring from './pages/shipments/DeliveryMonitoring';
-import ShippingSchedule from './pages/shipments/ShippingSchedule';
-
 // Document Management Module
 import DocumentsDashboard from './pages/documents/Dashboard';
 import DocumentLibrary from './pages/documents/Library';
@@ -89,7 +93,6 @@ import CurrencyConverter from './pages/finance/CurrencyConverter';
 // Reporting & Analytics Module Pages
 import ReportsDashboard from './pages/reports/Dashboard';
 import SalesReport from './pages/reports/SalesReport';
-import ShipmentReport from './pages/reports/ShipmentReport';
 import FinancialReport from './pages/reports/FinancialReport';
 import BusinessAnalytics from './pages/reports/BusinessAnalytics';
 import ReportBuilder from './pages/reports/ReportBuilder';
@@ -108,6 +111,7 @@ import { NotificationProvider } from './context/NotificationContext';
 function App() {
   return (
     <AuthProvider>
+      <CustomerAuthProvider>
       <NotificationProvider>
         {/* Toast notifications */}
       <Toaster
@@ -124,17 +128,28 @@ function App() {
       />
 
       <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
+        {/* ── Staff Public Routes ── */}
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
 
+        {/* ── Customer Portal Routes ── */}
+        <Route path="/customer" element={<CustomerHome />} />
+        <Route path="/customer/products" element={<CustomerProducts />} />
+        <Route path="/customer/login" element={<PublicCustomerRoute><CustomerLogin /></PublicCustomerRoute>} />
+        <Route path="/customer/register" element={<PublicCustomerRoute><CustomerRegister /></PublicCustomerRoute>} />
+        <Route path="/customer/forgot-password" element={<CustomerForgotPassword />} />
+        <Route path="/customer/reset-password/:token" element={<CustomerResetPassword />} />
+        <Route path="/customer/verify-email/:token" element={<CustomerEmailVerify />} />
+        <Route path="/customer/profile" element={<ProtectedCustomerRoute><CustomerProfile /></ProtectedCustomerRoute>} />
+
         {/* Protected Dashboard Layout Routes */}
         <Route path="/" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/inventory" replace />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
           
           {/* Admin User Management */}
-          <Route path="admin/dashboard" element={<Dashboard />} />
+          <Route path="admin/dashboard" element={<AdminDashboard />} />
           <Route path="admin/users" element={<UserList />} />
           <Route path="admin/users/add" element={<UserForm />} />
           <Route path="admin/users/:id/edit" element={<UserForm />} />
@@ -187,19 +202,6 @@ function App() {
           <Route path="exports/dispatch/create" element={<DispatchForm />} />
           <Route path="exports/dispatch/board" element={<DispatchBoard />} />
 
-          {/* Logistics & Shipment Tracking Module */}
-          <Route path="shipments" element={<ShipmentsDashboard />} />
-          <Route path="shipments/all" element={<ShipmentList />} />
-          <Route path="shipments/create" element={<ShipmentForm />} />
-          <Route path="shipments/:id" element={<ShipmentDetail />} />
-          <Route path="shipments/:id/edit" element={<ShipmentForm />} />
-          <Route path="shipments/containers" element={<ContainerList />} />
-          <Route path="shipments/containers/create" element={<ContainerForm />} />
-          <Route path="shipments/containers/:id" element={<ContainerDetail />} />
-          <Route path="shipments/containers/:id/edit" element={<ContainerForm />} />
-          <Route path="shipments/monitoring" element={<DeliveryMonitoring />} />
-          <Route path="shipments/schedule" element={<ShippingSchedule />} />
-
           {/* Document Management Module */}
           <Route path="documents" element={<DocumentsDashboard />} />
           <Route path="documents/library" element={<DocumentLibrary />} />
@@ -225,7 +227,6 @@ function App() {
           {/* Reporting & Analytics Module */}
           <Route path="reports" element={<ReportsDashboard />} />
           <Route path="reports/sales" element={<SalesReport />} />
-          <Route path="reports/shipments" element={<ShipmentReport />} />
           <Route path="reports/financial" element={<FinancialReport />} />
           <Route path="reports/business-analytics" element={<BusinessAnalytics />} />
           <Route path="reports/builder" element={<ReportBuilder />} />
@@ -240,10 +241,11 @@ function App() {
           <Route path="notifications/activity-log" element={<ActivityLogPage />} />
         </Route>
 
-        {/* Catch-all fallback redirects to inventory */}
-        <Route path="*" element={<Navigate to="/inventory" replace />} />
+        {/* Catch-all fallback redirects to dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       </NotificationProvider>
+      </CustomerAuthProvider>
     </AuthProvider>
   );
 }

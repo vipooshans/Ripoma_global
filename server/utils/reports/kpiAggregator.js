@@ -1,6 +1,4 @@
 const ExportOrder = require('../../models/ExportOrder');
-const Shipment = require('../../models/Shipment');
-const Expense = require('../../models/Expense');
 const { calculatePLSummary } = require('../plCalculator');
 
 /**
@@ -34,38 +32,6 @@ const aggregateKPIs = async () => {
     orderDate: { $gte: priStart, $lte: priEnd }
   });
 
-  // 3. Active Shipments (created in range or status != delivered)
-  const activeShipmentsCount = await Shipment.countDocuments({
-    status: { $ne: 'delivered' }
-  });
-  // Trend indicator proxy: count of shipments created in current period vs prior period
-  const curShipmentsCreated = await Shipment.countDocuments({
-    createdAt: { $gte: curStart, $lte: curEnd }
-  });
-  const priShipmentsCreated = await Shipment.countDocuments({
-    createdAt: { $gte: priStart, $lte: priEnd }
-  });
-
-  // 4. On-Time Delivery Rate
-  const getOnTimeRate = async (startRange, endRange) => {
-    const list = await Shipment.find({
-      status: 'delivered',
-      actualArrivalDate: { $gte: startRange, $lte: endRange }
-    });
-    if (list.length === 0) return 100; // Default if no deliveries
-    
-    let onTime = 0;
-    list.forEach(s => {
-      if (s.actualArrivalDate && s.estimatedArrivalDate && s.actualArrivalDate <= s.estimatedArrivalDate) {
-        onTime++;
-      }
-    });
-    return (onTime / list.length) * 100;
-  };
-
-  const curOnTimeRate = await getOnTimeRate(curStart, curEnd);
-  const priOnTimeRate = await getOnTimeRate(priStart, priEnd);
-
   // Helper to calculate percent growth
   const calcGrowth = (current, prior) => {
     if (prior === 0) return current > 0 ? 100 : 0;
@@ -85,21 +51,13 @@ const aggregateKPIs = async () => {
       value: curOrders,
       growth: Math.round(calcGrowth(curOrders, priOrders) * 100) / 100
     },
-    activeShipments: {
-      value: activeShipmentsCount,
-      growth: Math.round(calcGrowth(curShipmentsCreated, priShipmentsCreated) * 100) / 100
-    },
     expenses: {
       value: Math.round(curExpenses * 100) / 100,
       growth: Math.round(calcGrowth(curExpenses, priExpenses) * 100) / 100
     },
-    onTimeRate: {
-      value: Math.round(curOnTimeRate * 100) / 100,
-      growth: Math.round((curOnTimeRate - priOnTimeRate) * 100) / 100 // raw percentage points difference
-    },
     grossMargin: {
       value: Math.round(curPL.grossMargin * 100) / 100,
-      growth: Math.round((curPL.grossMargin - priPL.grossMargin) * 100) / 100 // raw percentage points difference
+      growth: Math.round((curPL.grossMargin - priPL.grossMargin) * 100) / 100
     }
   };
 };

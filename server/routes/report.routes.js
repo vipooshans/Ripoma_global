@@ -9,7 +9,6 @@ router.use(authMiddleware);
 // Dashboard KPIs & Analytics Summaries
 router.get('/dashboard', reportController.getDashboardKPIs);
 router.get('/sales', reportController.getSalesReport);
-router.get('/shipments', reportController.getShipmentReport);
 router.get('/financial', reportController.getFinancialReport);
 router.get('/business-analytics', reportController.getBusinessAnalytics);
 

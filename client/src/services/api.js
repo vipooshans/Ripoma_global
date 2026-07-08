@@ -78,8 +78,17 @@ api.interceptors.response.use(
   }
 );
 
-// Method to update authentication header
+// Method to update staff authentication header
 export const setAuthHeader = (token) => {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common['Authorization'];
+  }
+};
+
+// Method to update customer portal authentication header
+export const setCustomerAuthHeader = (token) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
