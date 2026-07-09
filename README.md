@@ -1,73 +1,266 @@
-# Ripoma_global
+# RIPOMA GLOBAL
 
-Ripoma_global is a full-stack JavaScript project containing a React (Vite) client and a Node.js server. This repository provides the front-end and back-end for the Ripoma application and includes scripts to run, build, and develop both parts locally.
+RIPOMA GLOBAL is a full-stack trade operations platform for managing inventory, procurement, sales, finance, documents, reporting, and customer-facing storefront workflows from a single admin hub.
 
-## Repository structure
+The repository is split into a **React (Vite)** frontend and a **Node.js (Express + MongoDB)** backend with real-time notifications via Socket.IO.
 
-- client/ — React + Vite front-end
-- server/ — Node.js back-end
-- README.md — this file
+---
 
-## Technologies
+## Features
 
-Primary language: JavaScript
+| Module | Capabilities |
+|--------|--------------|
+| **Command Centre** | KPI scorecards, alerts, charts, global search |
+| **Inventory** | Products, warehouses, stock movements, low-stock alerts |
+| **CRM** | Suppliers, customers, contact directory |
+| **Procurement & Imports** | Purchase orders, approvals, goods receipt, import tracking, delivery calendar |
+| **Sales & Exports** | Sales orders, invoices, dispatch board |
+| **Financial Control** | Payments, expenses, P&L, tax & duties, multi-currency |
+| **Intelligence Center** | Sales/financial reports, business analytics, custom report builder, scheduled exports |
+| **Document Management** | Document library, invoice archive, activity log |
+| **Alerts & Activity** | Notification centre, reminders, preferences, system audit log |
+| **Admin** | Users, roles & permissions, profile management |
+| **Customer Portal** | Public storefront, registration, login, profile, product browsing |
 
-- Front-end: React, Vite
-- Back-end: Node.js (Express or similar)
+---
 
-> Note: Some dependency READMEs still appear inside node_modules; they are third-party packages and do not need changes here.
+## Tech Stack
 
-## Getting started
+### Frontend (`client/`)
 
-Prerequisites:
+- React 18, Vite 5, React Router 6
+- Tailwind CSS, Lucide icons
+- TanStack Query, React Hook Form, Zod
+- Recharts, React Big Calendar, Leaflet
+- Socket.IO client, Axios
 
-- Node.js 18+ (or a supported LTS)
-- npm or yarn
+### Backend (`server/`)
 
-Install dependencies for both client and server:
+- Node.js, Express 4
+- MongoDB with Mongoose
+- JWT authentication (staff + customer portals)
+- Socket.IO for live notifications
+- Node-cron background jobs
+- Local filesystem or AWS S3 storage
+- Excel/PDF/CSV report generation
+- Nodemailer for email digests and scheduled reports
 
-```sh
-# from repo root
-cd client
-npm install
+---
 
-# in another terminal
-cd server
-npm install
+## Project Structure
+
+```text
+Rippoma/
+├── client/                 # React admin + customer portal UI
+│   ├── src/
+│   │   ├── components/     # Shared UI components
+│   │   ├── pages/          # Route-level screens
+│   │   ├── hooks/          # API/data hooks
+│   │   ├── context/        # Auth & notification providers
+│   │   └── services/       # Axios API client
+│   └── package.json
+├── server/                 # Express API + cron jobs
+│   ├── controllers/        # Route handlers
+│   ├── models/             # Mongoose schemas
+│   ├── routes/             # API route definitions
+│   ├── middleware/         # Auth, roles, activity logging
+│   ├── jobs/               # Scheduled background tasks
+│   ├── utils/              # Helpers, storage, report builders
+│   └── server.js           # App entry point
+└── README.md
 ```
 
-Running locally:
+---
 
-```sh
-# start the client (from client/)
+## Prerequisites
+
+- **Node.js** 18+ (LTS recommended)
+- **npm** 9+
+- **MongoDB** 6+ running locally or via Atlas
+
+---
+
+## Quick Start
+
+### 1. Clone and install dependencies
+
+```bash
+git clone https://github.com/vipooshans/Ripoma_global.git
+cd Ripoma_global
+
+cd client && npm install
+cd ../server && npm install
+```
+
+### 2. Configure environment variables
+
+Create `server/.env`:
+
+```env
+# Core
+PORT=5000
+NODE_ENV=development
+MONGODB_URI=mongodb://localhost:27017/ripoma_global
+FRONTEND_URL=http://localhost:5173
+
+# Staff auth (change in production)
+JWT_SECRET=your_staff_access_secret
+JWT_REFRESH_SECRET=your_staff_refresh_secret
+
+# Customer portal auth (change in production)
+CUSTOMER_JWT_SECRET=your_customer_access_secret
+CUSTOMER_JWT_REFRESH_SECRET=your_customer_refresh_secret
+
+# File storage: local (default) or s3
+STORAGE_PROVIDER=local
+
+# Optional — AWS S3 (when STORAGE_PROVIDER=s3)
+AWS_REGION=ap-southeast-1
+AWS_S3_BUCKET=ripoma-documents
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# Optional — email (reports, digests, password reset)
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+EMAIL_FROM=notifications@ripomaglobal.com
+```
+
+Optional client override in `client/.env`:
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+### 3. Start MongoDB
+
+Make sure MongoDB is running before starting the API server.
+
+### 4. Run the application
+
+Use two terminals:
+
+```bash
+# Terminal 1 — API server (port 5000)
+cd server
 npm run dev
 
-# start the server (from server/)
-npm start
+# Terminal 2 — frontend (port 5173)
+cd client
+npm run dev
 ```
 
-Building for production:
+Open the app:
 
-```sh
-# build client
+- **Staff admin:** [http://localhost:5173/login](http://localhost:5173/login)
+- **Customer portal:** [http://localhost:5173/customer](http://localhost:5173/customer)
+- **API health check:** [http://localhost:5000/health](http://localhost:5000/health)
+
+---
+
+## Default Admin Account
+
+On first startup, the server seeds roles and a default administrator if none exists:
+
+| Field | Value |
+|-------|-------|
+| Email | `admin@ripoma.com` |
+| Password | `AdminPassword123!` |
+
+Change this password immediately after first login in any non-local environment.
+
+---
+
+## User Roles
+
+| Role | Access |
+|------|--------|
+| `admin` | Full system control |
+| `manager` | Operations management; limited user/finance admin |
+| `staff` | Day-to-day order and inventory operations |
+| `viewer` | Read-only dashboards and reports |
+
+Finance modules additionally require the `finance:read` / `finance:write` permissions configured per role.
+
+---
+
+## API Overview
+
+All staff-protected routes are prefixed with `/api` and require a valid JWT (cookie or bearer token).
+
+| Area | Base path |
+|------|-----------|
+| Staff auth | `/api/auth` |
+| Customer auth | `/api/customer-auth` |
+| Storefront | `/api/storefront` |
+| Users & roles | `/api/users`, `/api/roles` |
+| Inventory | `/api/products`, `/api/warehouses`, `/api/inventory`, `/api/stock-movements` |
+| CRM | `/api/suppliers`, `/api/customers`, `/api/contacts` |
+| Imports | `/api/import-orders`, `/api/goods-receipts` |
+| Exports | `/api/export-orders`, `/api/invoices`, `/api/dispatches` |
+| Finance | `/api/payments`, `/api/expenses`, `/api/tax-duty`, `/api/currency`, `/api/profit-analysis` |
+| Documents | `/api/documents`, `/api/document-activity` |
+| Reports | `/api/reports` |
+| Notifications | `/api/notifications`, `/api/reminders`, `/api/activity-log` |
+| Dashboard | `/api/dashboard`, `/api/search` |
+
+---
+
+## Background Jobs
+
+The server runs scheduled tasks automatically after MongoDB connects:
+
+- Low-stock monitoring
+- Overdue delivery and invoice checks
+- Document expiry alerts
+- Exchange rate updates
+- Payment and tax/duty due alerts
+- Scheduled report generation
+- Reminder checks
+- Notification email digests
+
+---
+
+## Production Build
+
+```bash
+# Build frontend static assets
 cd client
 npm run build
 
-# server build steps (if any) - check server package.json
+# Preview production build locally
+npm run preview
+
+# Start API server
+cd ../server
+npm start
 ```
 
-## Environment
+Serve the `client/dist` folder with your preferred static host (Nginx, Vercel, S3 + CloudFront, etc.) and point `VITE_API_URL` / `FRONTEND_URL` to your deployed URLs.
 
-Create any required environment files for the server (for example `.env`) and the client if needed. See `server/package.json` and `client/package.json` for available scripts and configuration keys.
+---
+
+## Development Notes
+
+- Uploaded files are stored under `server/uploads/` when using local storage.
+- Real-time updates use Socket.IO on the same port as the API server.
+- Activity logging middleware records create/update/delete actions across major modules.
+- Use `server/seed-users.js` to seed additional demo users if needed.
+
+---
 
 ## Contributing
 
-Contributions are welcome. Please open issues or pull requests with a clear description of the change and why it is needed.
+1. Create a feature branch from `dev` or `main`.
+2. Keep changes focused and match existing code style.
+3. Test both `client` and `server` locally before opening a PR.
+4. Describe what changed and why in the pull request.
+
+---
 
 ## License
 
-Specify the project license here (e.g., MIT). If the repo already contains a LICENSE file use that.
-
-## Contact
-
-If you want me to expand this README with usage examples, API documentation, environment variable descriptions, or deployment instructions, tell me what you'd like included and I will update the file.
+License not specified. Add a `LICENSE` file to the repository if you intend to open-source or distribute this project.
