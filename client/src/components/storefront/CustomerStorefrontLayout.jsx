@@ -29,8 +29,8 @@ const CustomerStorefrontLayout = () => {
     return () => window.removeEventListener('cart-updated', sync);
   }, []);
 
-  const handleAddToCart = useCallback((product, openDrawer = true) => {
-    const updated = addItem(product);
+  const handleAddToCart = useCallback((product, openDrawer = true, qty = 1) => {
+    const updated = addItem(product, qty);
     setCart(updated);
     if (openDrawer) {
       setCartOpen(true);

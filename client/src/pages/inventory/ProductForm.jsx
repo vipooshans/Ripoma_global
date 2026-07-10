@@ -44,6 +44,7 @@ const ProductForm = () => {
     brand: '',
     status: 'active',
     isFeatured: false,
+    faqs: [],
     supplier: '',
     lowStockThreshold: 10,
     reorderQuantity: 50
@@ -72,6 +73,9 @@ const ProductForm = () => {
         brand: p.brand || '',
         status: p.status || 'active',
         isFeatured: Boolean(p.isFeatured),
+        faqs: Array.isArray(p.faqs) && p.faqs.length > 0
+          ? p.faqs.map((f) => ({ question: f.question || '', answer: f.answer || '' }))
+          : [],
         supplier: p.supplier?._id || p.supplier || '',
         lowStockThreshold: p.lowStockThreshold || 10,
         reorderQuantity: p.reorderQuantity || 50
@@ -135,11 +139,15 @@ const ProductForm = () => {
       : [];
 
     const cleanedImages = formData.images.map((img) => img.trim()).filter((img) => img !== '');
+    const cleanedFaqs = (formData.faqs || [])
+      .map((f) => ({ question: (f.question || '').trim(), answer: (f.answer || '').trim() }))
+      .filter((f) => f.question && f.answer);
 
     const payload = {
       ...formData,
       tags: processedTags,
       images: cleanedImages,
+      faqs: cleanedFaqs,
       supplier: formData.supplier || null,
       brand: formData.brand?.trim() || undefined,
       unitCost: parseFloat(formData.unitCost) || 0,
@@ -594,6 +602,69 @@ const ProductForm = () => {
                     </div>
                   ))}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* FAQs */}
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h3 className="font-extrabold text-slate-800 text-xs">Customer FAQs</h3>
+            <button
+              type="button"
+              onClick={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  faqs: [...(prev.faqs || []), { question: '', answer: '' }]
+                }))
+              }
+              className="text-xs font-bold text-teal-650 hover:text-teal-800"
+            >
+              + Add FAQ
+            </button>
+          </div>
+          {(formData.faqs || []).length === 0 ? (
+            <p className="text-xs text-slate-400">No FAQs yet. Add questions customers often ask on the product page.</p>
+          ) : (
+            <div className="space-y-4">
+              {formData.faqs.map((faq, idx) => (
+                <div key={idx} className="p-3 border border-slate-100 rounded-xl space-y-2 bg-slate-50/50">
+                  <input
+                    type="text"
+                    className="form-input text-xs"
+                    placeholder="Question"
+                    value={faq.question}
+                    onChange={(e) => {
+                      const faqs = [...formData.faqs];
+                      faqs[idx] = { ...faqs[idx], question: e.target.value };
+                      setFormData((prev) => ({ ...prev, faqs }));
+                    }}
+                  />
+                  <textarea
+                    rows={2}
+                    className="form-input text-xs py-2"
+                    placeholder="Answer"
+                    value={faq.answer}
+                    onChange={(e) => {
+                      const faqs = [...formData.faqs];
+                      faqs[idx] = { ...faqs[idx], answer: e.target.value };
+                      setFormData((prev) => ({ ...prev, faqs }));
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        faqs: prev.faqs.filter((_, i) => i !== idx)
+                      }))
+                    }
+                    className="text-[10px] font-bold text-rose-500 hover:text-rose-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

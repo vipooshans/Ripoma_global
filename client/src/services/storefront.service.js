@@ -31,6 +31,16 @@ const storefrontService = {
     return res.data;
   },
 
+  getProductReviews: async (id) => {
+    const res = await api.get(`/storefront/products/${id}/reviews`);
+    return res.data;
+  },
+
+  createProductReview: async (id, payload) => {
+    const res = await api.post(`/storefront/products/${id}/reviews`, payload);
+    return res.data;
+  },
+
   getSearchSuggestions: async (q) => {
     const res = await api.get('/storefront/search-suggestions', { params: { q } });
     return res.data;

@@ -25,6 +25,11 @@ const SAMPLE_PRODUCTS = [
     images: [
       'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&h=800&fit=crop'
+    ],
+    faqs: [
+      { question: 'Does this phone support dual SIM?', answer: 'Yes. It includes dual nano-SIM support for field teams working across regions.' },
+      { question: 'What is the warranty period?', answer: 'Standard manufacturer warranty of 12 months from the date of delivery.' },
+      { question: 'Is bulk pricing available?', answer: 'Yes. Contact sales for volume discounts on orders of 50+ units.' }
     ]
   },
   {
@@ -60,6 +65,10 @@ const SAMPLE_PRODUCTS = [
     images: [
       'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&h=800&fit=crop',
       'https://images.unsplash.com/photo-1525547719571-a2d4ac882e75?w=800&h=800&fit=crop'
+    ],
+    faqs: [
+      { question: 'What storage configuration is included?', answer: 'Base configuration includes SSD storage suitable for office workloads. Custom configs available on request.' },
+      { question: 'Can I order with regional power adapters?', answer: 'Yes. Specify destination country at checkout and we will include the correct adapter kit.' }
     ]
   },
   {
@@ -94,6 +103,10 @@ const SAMPLE_PRODUCTS = [
     stock: 3,
     images: [
       'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&h=800&fit=crop'
+    ],
+    faqs: [
+      { question: 'Is operator training included?', answer: 'Basic onboarding documentation is included. On-site training can be arranged as an add-on service.' },
+      { question: 'What is the lead time for delivery?', answer: 'Typical lead time is 4–8 weeks depending on destination port and customs clearance.' }
     ]
   },
   {
@@ -247,6 +260,10 @@ const SAMPLE_PRODUCTS = [
     stock: 75,
     images: [
       'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=800&h=800&fit=crop'
+    ],
+    faqs: [
+      { question: 'What is included in the kit?', answer: 'Drill body, two 18V batteries, charger, and a hard carry case.' },
+      { question: 'Are spare batteries available?', answer: 'Yes. Compatible batteries can be ordered as separate SKUs from our Power Tools category.' }
     ]
   },
   {
@@ -308,12 +325,33 @@ async function backfillSampleImages() {
   }
 }
 
+/** Backfill FAQs on sample SKUs that have none. */
+async function backfillSampleFaqs() {
+  let updated = 0;
+  for (const item of SAMPLE_PRODUCTS) {
+    if (!item.faqs?.length) continue;
+    const result = await Product.updateOne(
+      {
+        sku: item.sku,
+        deleted: { $ne: true },
+        $or: [{ faqs: { $exists: false } }, { faqs: { $size: 0 } }]
+      },
+      { $set: { faqs: item.faqs } }
+    );
+    if (result.modifiedCount > 0) updated += 1;
+  }
+  if (updated > 0) {
+    console.log(`[SEED] Backfilled FAQs on ${updated} sample products.`);
+  }
+}
+
 async function seedProducts() {
   await seedCategories();
 
   const existing = await Product.countDocuments({ deleted: { $ne: true } });
   if (existing > 0) {
     await backfillSampleImages();
+    await backfillSampleFaqs();
     return;
   }
 
@@ -345,6 +383,7 @@ async function seedProducts() {
       isFeatured: item.isFeatured,
       status: 'active',
       images: item.images || [],
+      faqs: item.faqs || [],
       lowStockThreshold: 10,
       reorderQuantity: 50
     });
