@@ -17,6 +17,14 @@ const authService = {
     }
   },
 
+  refresh: async () => {
+    const response = await api.post('/auth/refresh');
+    if (response.data.accessToken) {
+      setAuthHeader(response.data.accessToken);
+    }
+    return response.data;
+  },
+
   getCurrentUser: async () => {
     const response = await api.get('/auth/me');
     return response.data;

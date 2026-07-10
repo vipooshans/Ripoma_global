@@ -1,10 +1,17 @@
 /**
  * Customer portal auth configuration.
  *
- * CUSTOMER_REQUIRE_EMAIL_VERIFICATION (default: true)
- *   When true, login is rejected until emailVerified is true (403 + code EMAIL_NOT_VERIFIED).
- *   Set to "false" in development to allow login before verifying.
+ * CUSTOMER_REQUIRE_EMAIL_VERIFICATION
+ *   Development: off by default; set to "true" to enforce verification locally.
+ *   Production: on by default; set to "false" to allow login before verifying.
  */
+
+const isEmailVerificationRequired = () => {
+  if (process.env.NODE_ENV !== 'production') {
+    return process.env.CUSTOMER_REQUIRE_EMAIL_VERIFICATION === 'true';
+  }
+  return process.env.CUSTOMER_REQUIRE_EMAIL_VERIFICATION !== 'false';
+};
 
 const DEV_ACCESS_FALLBACK = 'ripoma_customer_access_secret_12345';
 const DEV_REFRESH_FALLBACK = 'ripoma_customer_refresh_secret_67890';
@@ -35,9 +42,6 @@ const getCustomerRefreshSecret = () =>
 const getFrontendUrl = () =>
   process.env.FRONTEND_URL ||
   (process.env.NODE_ENV === 'production' ? undefined : DEV_FRONTEND_URL);
-
-const isEmailVerificationRequired = () =>
-  process.env.CUSTOMER_REQUIRE_EMAIL_VERIFICATION !== 'false';
 
 module.exports = {
   requireProductionEnv,

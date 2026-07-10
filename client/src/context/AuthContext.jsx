@@ -1,7 +1,11 @@
 import React, { createContext, useState, useEffect } from 'react';
 import authService from '../services/auth.service';
+import { setAuthHeader } from '../services/api';
 
 export const AuthContext = createContext(null);
+
+const isCustomerPortalPath = () =>
+  typeof window !== 'undefined' && window.location.pathname.startsWith('/customer');
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -9,13 +13,20 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   const checkSession = async () => {
+    // Staff session restore is not needed on the customer portal
+    if (isCustomerPortalPath()) {
+      setLoading(false);
+      return;
+    }
+
     try {
+      await authService.refresh();
       const data = await authService.getCurrentUser();
-      if (data && data.user) {
+      if (data?.user) {
         setUser(data.user);
       }
-    } catch (err) {
-      console.log('No active session found.');
+    } catch {
+      setAuthHeader(null);
     } finally {
       setLoading(false);
     }
@@ -56,12 +67,12 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null);
       setError(null);
+      setAuthHeader(null);
     }
   };
 
   const hasPermission = (permission) => {
     if (!user) return false;
-    // Admin role bypasses permission checks
     if (user.role === 'admin') return true;
     return user.permissions && user.permissions.includes(permission);
   };

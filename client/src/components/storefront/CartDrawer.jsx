@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Package, X, ArrowRight } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
@@ -7,10 +7,34 @@ import { formatPrice } from '../../utils/formatPrice';
 const CartDrawer = ({ open, onClose, cart, onRemove, onUpdateQty }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useContext(CustomerAuthContext);
+  const closeButtonRef = useRef(null);
   const total = cart.reduce((sum, item) => sum + item.sellingPrice * item.qty, 0);
 
-  const handleCheckout = () => {
+  const handleClose = useCallback(() => {
+    if (closeButtonRef.current?.contains(document.activeElement)) {
+      document.getElementById('cart-icon-btn')?.focus();
+    }
     onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, handleClose]);
+
+  useEffect(() => {
+    if (open) {
+      closeButtonRef.current?.focus();
+    }
+  }, [open]);
+
+  const handleCheckout = () => {
+    handleClose();
     if (isAuthenticated) {
       navigate('/customer/products');
     } else {
@@ -18,21 +42,20 @@ const CartDrawer = ({ open, onClose, cart, onRemove, onUpdateQty }) => {
     }
   };
 
+  if (!open) return null;
+
   return (
     <>
-      {open && (
-        <button
-          type="button"
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
-          onClick={onClose}
-          aria-label="Close cart"
-        />
-      )}
+      <button
+        type="button"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+        onClick={handleClose}
+        aria-label="Close cart"
+      />
       <aside
-        className={`fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        aria-hidden={!open}
+        className="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 translate-x-0"
+        role="dialog"
+        aria-modal="true"
         aria-label="Shopping cart"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
@@ -41,7 +64,13 @@ const CartDrawer = ({ open, onClose, cart, onRemove, onUpdateQty }) => {
             <h2 className="font-extrabold text-slate-800 text-base">Your Cart</h2>
             <span className="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">{cart.length}</span>
           </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors" aria-label="Close">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={handleClose}
+            className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors"
+            aria-label="Close cart"
+          >
             <X size={18} />
           </button>
         </div>
@@ -51,7 +80,7 @@ const CartDrawer = ({ open, onClose, cart, onRemove, onUpdateQty }) => {
             <ShoppingCart size={48} className="text-slate-200" />
             <p className="font-semibold">Your cart is empty</p>
             <p className="text-xs text-center">Add products from the catalog to get started</p>
-            <Link to="/customer/products" onClick={onClose} className="text-sm font-bold text-teal-600 hover:text-teal-700 mt-2">
+            <Link to="/customer/products" onClick={handleClose} className="text-sm font-bold text-teal-600 hover:text-teal-700 mt-2">
               Browse Products
             </Link>
           </div>
