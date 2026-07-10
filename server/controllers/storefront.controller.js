@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const ProductReview = require('../models/ProductReview');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
 const { getStorefrontPromos } = require('../config/storefrontPromos');
 const {
@@ -17,7 +18,7 @@ const formatProduct = (p, stock = null) => ({
   description: p.description,
   brand: p.brand || null,
   category: p.category
-    ? { id: p.category._id, name: p.category.name }
+    ? { id: p.category._id, name: p.category.name, description: p.category.description }
     : null,
   sellingPrice: p.sellingPrice,
   currency: p.currency,
@@ -27,9 +28,35 @@ const formatProduct = (p, stock = null) => ({
   weight: p.weight,
   dimensions: p.dimensions,
   countryOfOrigin: p.countryOfOrigin,
+  hsCode: p.hsCode || null,
+  faqs: (p.faqs || [])
+    .filter((f) => f.question && f.answer)
+    .map((f) => ({ question: f.question, answer: f.answer })),
   totalStock: stock,
   isFeatured: Boolean(p.isFeatured)
 });
+
+const getReviewSummary = async (productId) => {
+  const oid =
+    typeof productId === 'string'
+      ? new (require('mongoose').Types.ObjectId)(productId)
+      : productId;
+  const rows = await ProductReview.aggregate([
+    { $match: { product: oid, status: 'approved' } },
+    {
+      $group: {
+        _id: null,
+        average: { $avg: '$rating' },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  if (!rows[0]) return { average: 0, count: 0 };
+  return {
+    average: Math.round(rows[0].average * 10) / 10,
+    count: rows[0].count
+  };
+};
 
 const getSortOption = (sort) => {
   if (sort === 'price_asc') return { sellingPrice: 1 };
@@ -258,8 +285,8 @@ exports.getProductDetail = async (req, res) => {
     }
 
     const stock = await getTotalStockForProduct(product._id);
+    const reviewSummary = await getReviewSummary(product._id);
 
-    // Related products in same category
     const related = await Product.find({
       category: product.category._id,
       _id: { $ne: product._id },
@@ -278,10 +305,103 @@ exports.getProductDetail = async (req, res) => {
 
     return res.status(200).json({
       product: formatProduct(product, stock.quantityOnHand),
-      related: relatedEnriched
+      related: relatedEnriched,
+      reviewSummary
     });
   } catch (error) {
     console.error('Storefront Product Detail Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/products/:id/reviews ─────────────────────────────────
+exports.getProductReviews = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const product = await Product.findOne({ _id: id, status: 'active', deleted: false }).select('_id');
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found.' });
+    }
+
+    const reviews = await ProductReview.find({ product: id, status: 'approved' })
+      .populate('customer', 'firstName lastName')
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    const summary = await getReviewSummary(product._id);
+
+    return res.status(200).json({
+      reviews: reviews.map((r) => ({
+        id: r._id,
+        rating: r.rating,
+        title: r.title || null,
+        comment: r.comment,
+        createdAt: r.createdAt,
+        customerName: r.customer
+          ? `${r.customer.firstName}${r.customer.lastName ? ` ${r.customer.lastName.charAt(0)}.` : ''}`
+          : 'Customer'
+      })),
+      summary
+    });
+  } catch (error) {
+    console.error('Storefront Product Reviews Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── POST /api/storefront/products/:id/reviews ────────────────────────────────
+exports.createProductReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, title, comment } = req.body;
+    const customerId = req.customerUser._id;
+
+    const product = await Product.findOne({ _id: id, status: 'active', deleted: false }).select('_id');
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found.' });
+    }
+
+    const ratingNum = parseInt(rating, 10);
+    if (!ratingNum || ratingNum < 1 || ratingNum > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
+    }
+    if (!comment || !String(comment).trim()) {
+      return res.status(400).json({ message: 'Review comment is required.' });
+    }
+
+    const existing = await ProductReview.findOne({ product: id, customer: customerId });
+    if (existing) {
+      return res.status(409).json({ message: 'You have already reviewed this product.' });
+    }
+
+    const review = await ProductReview.create({
+      product: id,
+      customer: customerId,
+      rating: ratingNum,
+      title: title ? String(title).trim() : undefined,
+      comment: String(comment).trim(),
+      status: 'approved'
+    });
+
+    await review.populate('customer', 'firstName lastName');
+
+    return res.status(201).json({
+      message: 'Review submitted successfully.',
+      review: {
+        id: review._id,
+        rating: review.rating,
+        title: review.title || null,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        customerName: `${review.customer.firstName}${review.customer.lastName ? ` ${review.customer.lastName.charAt(0)}.` : ''}`
+      }
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'You have already reviewed this product.' });
+    }
+    console.error('Create Product Review Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

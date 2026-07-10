@@ -13,12 +13,13 @@ export const saveCart = (cart) => {
   window.dispatchEvent(new Event('cart-updated'));
 };
 
-export const addToCart = (product) => {
+export const addToCart = (product, qty = 1) => {
+  const amount = Math.max(1, parseInt(qty, 10) || 1);
   const current = getCart();
   const existing = current.find((i) => i.id === product.id);
   const updated = existing
-    ? current.map((i) => (i.id === product.id ? { ...i, qty: i.qty + 1 } : i))
-    : [...current, { ...product, qty: 1 }];
+    ? current.map((i) => (i.id === product.id ? { ...i, qty: i.qty + amount } : i))
+    : [...current, { ...product, qty: amount }];
   saveCart(updated);
   return updated;
 };

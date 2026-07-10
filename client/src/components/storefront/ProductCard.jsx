@@ -1,18 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, ShoppingCart, ShieldCheck } from 'lucide-react';
+import { Package, ShoppingCart, ShieldCheck, Heart } from 'lucide-react';
 import { formatPrice } from '../../utils/formatPrice';
+import { isInWishlist, toggleWishlist } from '../../utils/wishlist';
 
 const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
   const navigate = useNavigate();
   const [added, setAdded] = useState(false);
+  const [wishlisted, setWishlisted] = useState(() => isInWishlist(product.id));
   const inStock = product.totalStock > 0;
+
+  useEffect(() => {
+    const sync = () => setWishlisted(isInWishlist(product.id));
+    window.addEventListener('wishlist-updated', sync);
+    return () => window.removeEventListener('wishlist-updated', sync);
+  }, [product.id]);
 
   const handleAdd = (e) => {
     e.stopPropagation();
     onAddToCart(product);
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
+  };
+
+  const handleWishlist = (e) => {
+    e.stopPropagation();
+    const { added: wasAdded } = toggleWishlist(product);
+    setWishlisted(wasAdded);
   };
 
   if (view === 'list') {
@@ -81,9 +95,21 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
         ) : (
           <div className="absolute top-3 left-3 bg-teal-500/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">In Stock</div>
         )}
-        {product.isFeatured && (
-          <div className="absolute top-3 right-3 bg-amber-500/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">Featured</div>
+        {product.isFeatured && !wishlisted && (
+          <div className="absolute top-3 right-12 bg-amber-500/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">Featured</div>
         )}
+        <button
+          type="button"
+          onClick={handleWishlist}
+          className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm backdrop-blur-sm ${
+            wishlisted
+              ? 'bg-rose-500 text-white opacity-100'
+              : 'bg-white/80 text-slate-400 hover:text-rose-500 hover:bg-white opacity-0 group-hover:opacity-100'
+          }`}
+          aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+        >
+          <Heart size={14} className={wishlisted ? 'fill-white' : ''} />
+        </button>
       </div>
       <div className="p-4">
         {product.category && (

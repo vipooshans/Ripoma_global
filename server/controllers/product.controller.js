@@ -133,6 +133,7 @@ exports.createProduct = async (req, res) => {
       dimensions,
       tags,
       brand,
+      faqs,
       status,
       isFeatured,
       supplier,
@@ -182,6 +183,9 @@ exports.createProduct = async (req, res) => {
       dimensions: dimensions || { length: 0, width: 0, height: 0 },
       tags: tags || [],
       brand: brand || undefined,
+      faqs: Array.isArray(faqs)
+        ? faqs.filter((f) => f?.question?.trim() && f?.answer?.trim())
+        : [],
       status: status || 'active',
       isFeatured: Boolean(isFeatured),
       supplier: supplier || null,
@@ -231,7 +235,7 @@ exports.updateProduct = async (req, res) => {
     const fieldsToUpdate = [
       'name', 'description', 'category', 'unit', 'unitCost', 'sellingPrice',
       'currency', 'images', 'barcode', 'hsCode', 'countryOfOrigin', 'weight',
-      'dimensions', 'tags', 'brand', 'status', 'isFeatured', 'supplier',
+      'dimensions', 'tags', 'brand', 'faqs', 'status', 'isFeatured', 'supplier',
       'lowStockThreshold', 'reorderQuantity'
     ];
 
@@ -245,6 +249,9 @@ exports.updateProduct = async (req, res) => {
       }
       if (field === 'isFeatured') {
         value = Boolean(value);
+      }
+      if (field === 'faqs' && Array.isArray(value)) {
+        value = value.filter((f) => f?.question?.trim() && f?.answer?.trim());
       }
       product[field] = value;
     });

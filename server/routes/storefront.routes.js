@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const storefrontController = require('../controllers/storefront.controller');
+const customerAuthMiddleware = require('../middleware/customerAuthMiddleware');
 
-// All routes are PUBLIC — no auth middleware
+// All routes are PUBLIC unless noted
 
 router.get('/featured', storefrontController.getFeaturedProducts);
 router.get('/categories', storefrontController.getCategories);
@@ -11,6 +12,8 @@ router.get('/stats', storefrontController.getStats);
 router.get('/promos', storefrontController.getPromos);
 router.get('/products/facets', storefrontController.getProductFacets);
 router.get('/products', storefrontController.getProducts);
+router.get('/products/:id/reviews', storefrontController.getProductReviews);
+router.post('/products/:id/reviews', customerAuthMiddleware, storefrontController.createProductReview);
 router.get('/products/:id', storefrontController.getProductDetail);
 router.get('/search-suggestions', storefrontController.getSearchSuggestions);
 
