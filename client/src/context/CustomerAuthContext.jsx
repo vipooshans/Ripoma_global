@@ -17,7 +17,10 @@ export const CustomerAuthProvider = ({ children }) => {
 
   const checkSession = async () => {
     try {
-      await customerAuthService.refresh();
+      const refreshData = await customerAuthService.refresh();
+      if (!refreshData.accessToken) {
+        return;
+      }
       const data = await customerAuthService.getCurrentCustomer();
       if (data?.customer) {
         setCustomerUser(data.customer);

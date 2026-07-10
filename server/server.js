@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { requireProductionEnv } = require('./utils/customerAuthConfig');
+const { requireProductionEnv, isEmailVerificationRequired } = require('./utils/customerAuthConfig');
 requireProductionEnv();
 
 const express = require('express');
@@ -222,4 +222,7 @@ socketIO.init(server);
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(
+    `[CUSTOMER AUTH] Email verification on login: ${isEmailVerificationRequired() ? 'required' : 'disabled'}`
+  );
 });
