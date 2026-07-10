@@ -11,6 +11,16 @@ const {
 
 const ACTIVE_QUERY = { status: 'active', deleted: false };
 
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const flattenStorefrontCategories = (nodes, acc = []) => {
+  for (const node of nodes || []) {
+    acc.push(node);
+    if (node.subcategories?.length) flattenStorefrontCategories(node.subcategories, acc);
+  }
+  return acc;
+};
+
 const formatProduct = (p, stock = null) => ({
   id: p._id,
   sku: p.sku,
@@ -72,13 +82,21 @@ const buildProductListQuery = async (queryParams) => {
   const query = { ...ACTIVE_QUERY };
 
   if (search && search.trim()) {
-    query.$or = [
-      { name: { $regex: search.trim(), $options: 'i' } },
-      { description: { $regex: search.trim(), $options: 'i' } },
-      { tags: { $regex: search.trim(), $options: 'i' } },
-      { sku: { $regex: search.trim(), $options: 'i' } },
-      { brand: { $regex: search.trim(), $options: 'i' } }
-    ];
+    const tokens = search.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length) {
+      query.$and = tokens.map((token) => {
+        const rx = { $regex: escapeRegex(token), $options: 'i' };
+        return {
+          $or: [
+            { name: rx },
+            { description: rx },
+            { tags: rx },
+            { sku: rx },
+            { brand: rx }
+          ]
+        };
+      });
+    }
   }
 
   if (category) {
@@ -407,32 +425,64 @@ exports.createProductReview = async (req, res) => {
 };
 
 // ─── GET /api/storefront/search-suggestions ────────────────────────────────────
-// Quick search suggestions (name only, up to 6 results)
+// Product (name/sku/brand) + category name suggestions
 exports.getSearchSuggestions = async (req, res) => {
   try {
     const { q } = req.query;
-    if (!q || q.trim().length < 2) {
-      return res.status(200).json({ suggestions: [] });
+    const trimmed = (q || '').trim();
+    if (trimmed.length < 2) {
+      return res.status(200).json({ suggestions: [], categories: [] });
     }
 
-    const products = await Product.find({
-      status: 'active',
-      deleted: false,
-      name: { $regex: q.trim(), $options: 'i' }
-    })
-      .select('name sku images sellingPrice currency')
-      .limit(6);
+    const rx = { $regex: escapeRegex(trimmed), $options: 'i' };
+    const prefixRx = new RegExp(`^${escapeRegex(trimmed)}`, 'i');
 
-    const suggestions = products.map((p) => ({
+    const products = await Product.find({
+      ...ACTIVE_QUERY,
+      $or: [{ name: rx }, { sku: rx }, { brand: rx }]
+    })
+      .select('name sku images sellingPrice currency brand')
+      .limit(24)
+      .lean();
+
+    const sorted = [...products].sort((a, b) => {
+      const aPrefix = prefixRx.test(a.name) ? 0 : 1;
+      const bPrefix = prefixRx.test(b.name) ? 0 : 1;
+      if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+      return String(a.name).localeCompare(String(b.name));
+    }).slice(0, 6);
+
+    const suggestions = sorted.map((p) => ({
+      type: 'product',
       id: p._id,
       name: p.name,
       sku: p.sku,
       image: p.images?.[0] || null,
       sellingPrice: p.sellingPrice,
-      currency: p.currency
+      currency: p.currency,
+      brand: p.brand || null
     }));
 
-    return res.status(200).json({ suggestions });
+    const tree = await buildStorefrontCategoryTree();
+    const flat = flattenStorefrontCategories(tree);
+    const qLower = trimmed.toLowerCase();
+    const categories = flat
+      .filter((c) => c.name && String(c.name).toLowerCase().includes(qLower) && c.productCount > 0)
+      .sort((a, b) => {
+        const aPrefix = String(a.name).toLowerCase().startsWith(qLower) ? 0 : 1;
+        const bPrefix = String(b.name).toLowerCase().startsWith(qLower) ? 0 : 1;
+        if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+        return String(a.name).localeCompare(String(b.name));
+      })
+      .slice(0, 4)
+      .map((c) => ({
+        type: 'category',
+        id: c.id,
+        name: c.name,
+        productCount: c.productCount
+      }));
+
+    return res.status(200).json({ suggestions, categories });
   } catch (error) {
     console.error('Search Suggestions Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
