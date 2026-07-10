@@ -112,7 +112,9 @@ CUSTOMER_JWT_SECRET=your_customer_access_secret
 CUSTOMER_JWT_REFRESH_SECRET=your_customer_refresh_secret
 
 # When "false", customers may log in before verifying email (dev convenience)
-CUSTOMER_REQUIRE_EMAIL_VERIFICATION=true
+# Development: verification is OFF by default. Set to "true" to test the verify flow locally.
+# Production: verification is ON by default.
+CUSTOMER_REQUIRE_EMAIL_VERIFICATION=false
 
 # File storage: local (default) or s3
 STORAGE_PROVIDER=local

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { requireProductionEnv } = require('./utils/customerAuthConfig');
+const { requireProductionEnv, isEmailVerificationRequired } = require('./utils/customerAuthConfig');
 requireProductionEnv();
 
 const express = require('express');
@@ -56,6 +56,7 @@ const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
 const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
 const { startDocumentExpiryCheck } = require('./jobs/documentExpiryCheck');
 const { initExchangeRateCron, seedExchangeRates } = require('./jobs/exchangeRateFetch');
+const { seedCategories } = require('./seed/categories');
 const { initPaymentOverdueCron } = require('./jobs/paymentOverdueCheck');
 const { initTaxDutyAlertCron } = require('./jobs/taxDutyDueAlerts');
 const { initScheduledReportCron } = require('./jobs/scheduledReportRunner');
@@ -139,6 +140,8 @@ async function seedDB() {
       await adminUser.save();
       console.log('[SEED] Created default administrator: admin@ripoma.com / AdminPassword123!');
     }
+
+    await seedCategories();
   } catch (error) {
     console.error('[SEED ERROR] Failed to seed database:', error);
   }
@@ -222,4 +225,7 @@ socketIO.init(server);
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(
+    `[CUSTOMER AUTH] Email verification on login: ${isEmailVerificationRequired() ? 'required' : 'disabled'}`
+  );
 });

@@ -11,6 +11,11 @@ const storefrontService = {
     return res.data;
   },
 
+  getCategoryDetail: async (id) => {
+    const res = await api.get(`/storefront/categories/${id}`);
+    return res.data;
+  },
+
   getProducts: async (params = {}) => {
     const res = await api.get('/storefront/products', { params });
     return res.data;
@@ -23,6 +28,16 @@ const storefrontService = {
 
   getSearchSuggestions: async (q) => {
     const res = await api.get('/storefront/search-suggestions', { params: { q } });
+    return res.data;
+  },
+
+  getStats: async () => {
+    const res = await api.get('/storefront/stats');
+    return res.data;
+  },
+
+  getPromos: async () => {
+    const res = await api.get('/storefront/promos');
     return res.data;
   }
 };

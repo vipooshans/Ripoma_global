@@ -1,7 +1,12 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
-const InventoryItem = require('../models/InventoryItem');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
+const { getStorefrontPromos } = require('../config/storefrontPromos');
+const {
+  buildStorefrontCategoryTree,
+  getDescendantCategoryIds,
+  getStorefrontCategoryDetail
+} = require('../utils/categoryHelpers');
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const formatProduct = (p, stock = null) => ({
@@ -20,19 +25,28 @@ const formatProduct = (p, stock = null) => ({
   weight: p.weight,
   dimensions: p.dimensions,
   countryOfOrigin: p.countryOfOrigin,
-  totalStock: stock
+  totalStock: stock,
+  isFeatured: Boolean(p.isFeatured)
 });
 
 // ─── GET /api/storefront/featured ─────────────────────────────────────────────
-// Returns up to 8 active products sorted by newest as "featured"
+// Returns active products marked isFeatured; falls back to newest if none featured
 exports.getFeaturedProducts = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 8;
+    const baseQuery = { status: 'active', deleted: false };
 
-    const products = await Product.find({ status: 'active', deleted: false })
+    let products = await Product.find({ ...baseQuery, isFeatured: true })
       .populate('category', 'name')
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1 })
       .limit(limit);
+
+    if (products.length === 0) {
+      products = await Product.find(baseQuery)
+        .populate('category', 'name')
+        .sort({ createdAt: -1 })
+        .limit(limit);
+    }
 
     const enriched = await Promise.all(
       products.map(async (p) => {
@@ -49,34 +63,30 @@ exports.getFeaturedProducts = async (req, res) => {
 };
 
 // ─── GET /api/storefront/categories ───────────────────────────────────────────
-// Returns all categories (with product counts)
+// Returns hierarchical categories with rolled-up product counts
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Category.find().sort({ name: 1 });
-
-    const enriched = await Promise.all(
-      categories.map(async (cat) => {
-        const count = await Product.countDocuments({
-          category: cat._id,
-          status: 'active',
-          deleted: false
-        });
-        return {
-          id: cat._id,
-          name: cat.name,
-          description: cat.description,
-          icon: cat.icon,
-          productCount: count
-        };
-      })
-    );
-
-    // Only return categories that have at least one product
-    const filtered = enriched.filter((c) => c.productCount > 0);
-
-    return res.status(200).json({ categories: filtered });
+    const categories = await buildStorefrontCategoryTree();
+    return res.status(200).json({ categories });
   } catch (error) {
     console.error('Storefront Categories Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/categories/:id ─────────────────────────────────────────
+exports.getCategoryDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = await getStorefrontCategoryDetail(id);
+
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found.' });
+    }
+
+    return res.status(200).json({ category });
+  } catch (error) {
+    console.error('Storefront Category Detail Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -99,7 +109,8 @@ exports.getProducts = async (req, res) => {
     }
 
     if (category) {
-      query.category = category;
+      const categoryIds = await getDescendantCategoryIds(category);
+      query.category = { $in: categoryIds };
     }
 
     // Pagination
@@ -214,6 +225,45 @@ exports.getSearchSuggestions = async (req, res) => {
     return res.status(200).json({ suggestions });
   } catch (error) {
     console.error('Search Suggestions Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/stats ────────────────────────────────────────────────
+exports.getStats = async (req, res) => {
+  try {
+    const productCount = await Product.countDocuments({ status: 'active', deleted: false });
+    const categories = await Category.find().select('_id');
+    let categoryCount = 0;
+
+    for (const cat of categories) {
+      const count = await Product.countDocuments({
+        category: cat._id,
+        status: 'active',
+        deleted: false
+      });
+      if (count > 0) categoryCount += 1;
+    }
+
+    return res.status(200).json({
+      stats: {
+        productCount,
+        categoryCount
+      }
+    });
+  } catch (error) {
+    console.error('Storefront Stats Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/promos ───────────────────────────────────────────────
+exports.getPromos = async (req, res) => {
+  try {
+    const promos = getStorefrontPromos();
+    return res.status(200).json({ promos });
+  } catch (error) {
+    console.error('Storefront Promos Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

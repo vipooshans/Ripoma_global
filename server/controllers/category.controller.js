@@ -4,8 +4,22 @@ const Product = require('../models/Product');
 // GET /api/categories
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Category.find().populate('parent');
-    return res.status(200).json(categories);
+    const categories = await Category.find().populate('parent').sort({ sortOrder: 1, name: 1 });
+
+    const enriched = await Promise.all(
+      categories.map(async (cat) => {
+        const productCount = await Product.countDocuments({
+          category: cat._id,
+          deleted: false
+        });
+        return {
+          ...cat.toObject(),
+          productCount
+        };
+      })
+    );
+
+    return res.status(200).json(enriched);
   } catch (error) {
     console.error('Get Categories Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
@@ -15,7 +29,7 @@ exports.getCategories = async (req, res) => {
 // POST /api/categories
 exports.createCategory = async (req, res) => {
   try {
-    const { name, parent, description, icon } = req.body;
+    const { name, parent, description, icon, sortOrder } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: 'Category name is required.' });
@@ -31,7 +45,8 @@ exports.createCategory = async (req, res) => {
       name: name.trim(),
       parent: parent || null,
       description,
-      icon
+      icon,
+      sortOrder: sortOrder !== undefined ? sortOrder : 0
     });
 
     await category.save();
@@ -46,7 +61,7 @@ exports.createCategory = async (req, res) => {
 exports.updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, parent, description, icon } = req.body;
+    const { name, parent, description, icon, sortOrder } = req.body;
 
     const category = await Category.findById(id);
     if (!category) {
@@ -74,6 +89,7 @@ exports.updateCategory = async (req, res) => {
 
     category.description = description !== undefined ? description : category.description;
     category.icon = icon !== undefined ? icon : category.icon;
+    if (sortOrder !== undefined) category.sortOrder = sortOrder;
 
     await category.save();
     return res.status(200).json({ message: 'Category updated successfully.', category });

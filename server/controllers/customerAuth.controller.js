@@ -254,12 +254,13 @@ exports.logout = (req, res) => {
 
 // ─── POST /api/customer-auth/refresh ──────────────────────────────────────────
 
+// POST /api/customer-auth/refresh — missing cookie returns 200 { authenticated: false }
 exports.refresh = async (req, res) => {
   try {
     const refreshToken = req.cookies.customerRefreshToken;
 
     if (!refreshToken) {
-      return res.status(401).json({ message: 'Refresh token missing.' });
+      return res.status(200).json({ authenticated: false });
     }
 
     let decoded;
@@ -291,7 +292,7 @@ exports.refresh = async (req, res) => {
     }
 
     const accessToken = generateAccessToken(customer);
-    return res.status(200).json({ accessToken });
+    return res.status(200).json({ authenticated: true, accessToken });
   } catch (error) {
     console.error('Customer Refresh Error:', error);
     return res.status(500).json({ message: 'Internal server error.' });
