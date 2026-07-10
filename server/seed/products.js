@@ -6,7 +6,7 @@ const { seedCategories } = require('./categories');
 
 /**
  * Sample catalog keyed by subcategory name (must match seed/categories.js).
- * Images use placeholder URLs — replace with real assets in production.
+ * Images: Unsplash CDN URLs suitable for demo storefront cards.
  */
 const SAMPLE_PRODUCTS = [
   {
@@ -21,7 +21,11 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'South Korea',
     tags: ['phone', 'mobile', 'electronics'],
     isFeatured: true,
-    stock: 48
+    stock: 48,
+    images: [
+      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&h=800&fit=crop',
+      'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'ELC-PHN-002',
@@ -35,7 +39,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'Finland',
     tags: ['phone', 'rugged'],
     isFeatured: false,
-    stock: 120
+    stock: 120,
+    images: [
+      'https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'ELC-PC-001',
@@ -49,7 +56,11 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'China',
     tags: ['laptop', 'computer'],
     isFeatured: true,
-    stock: 25
+    stock: 25,
+    images: [
+      'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&h=800&fit=crop',
+      'https://images.unsplash.com/photo-1525547719571-a2d4ac882e75?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'ELC-PC-002',
@@ -63,7 +74,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'China',
     tags: ['desktop', 'computer'],
     isFeatured: false,
-    stock: 0
+    stock: 0,
+    images: [
+      'https://images.unsplash.com/photo-1587831990711-23ca6441447b?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'MCH-CON-001',
@@ -77,7 +91,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'USA',
     tags: ['excavator', 'machinery'],
     isFeatured: true,
-    stock: 3
+    stock: 3,
+    images: [
+      'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'MCH-TOL-001',
@@ -91,7 +108,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'Germany',
     tags: ['cnc', 'manufacturing'],
     isFeatured: false,
-    stock: 6
+    stock: 6,
+    images: [
+      'https://images.unsplash.com/photo-1565043589221-1a6fd9ae45c7?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'FOD-GRN-001',
@@ -105,7 +125,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'India',
     tags: ['rice', 'food', 'export'],
     isFeatured: true,
-    stock: 500
+    stock: 500,
+    images: [
+      'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'FOD-BEV-001',
@@ -119,7 +142,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'France',
     tags: ['beverage', 'water'],
     isFeatured: false,
-    stock: 200
+    stock: 200,
+    images: [
+      'https://images.unsplash.com/photo-1560026301-88338bae87bb?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'TEX-COT-001',
@@ -133,7 +159,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'India',
     tags: ['cotton', 'textile'],
     isFeatured: false,
-    stock: 80
+    stock: 80,
+    images: [
+      'https://images.unsplash.com/photo-1558171813-4c0880aa3274?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'TEX-GAR-001',
@@ -147,7 +176,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'Bangladesh',
     tags: ['uniform', 'garment'],
     isFeatured: true,
-    stock: 350
+    stock: 350,
+    images: [
+      'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'AGR-SED-001',
@@ -161,7 +193,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'Netherlands',
     tags: ['seeds', 'agriculture'],
     isFeatured: false,
-    stock: 150
+    stock: 150,
+    images: [
+      'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'AGR-EQP-001',
@@ -175,7 +210,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'China',
     tags: ['pump', 'irrigation'],
     isFeatured: true,
-    stock: 22
+    stock: 22,
+    images: [
+      'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'IND-SAF-001',
@@ -189,7 +227,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'USA',
     tags: ['safety', 'ppe'],
     isFeatured: false,
-    stock: 400
+    stock: 400,
+    images: [
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'IND-PWR-001',
@@ -203,7 +244,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'Germany',
     tags: ['drill', 'power-tool'],
     isFeatured: true,
-    stock: 75
+    stock: 75,
+    images: [
+      'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=800&h=800&fit=crop'
+    ]
   },
   {
     sku: 'IND-PWR-002',
@@ -217,7 +261,10 @@ const SAMPLE_PRODUCTS = [
     countryOfOrigin: 'Japan',
     tags: ['grinder', 'power-tool'],
     isFeatured: false,
-    stock: 0
+    stock: 0,
+    images: [
+      'https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=800&h=800&fit=crop'
+    ]
   }
 ];
 
@@ -241,11 +288,32 @@ async function ensureDemoWarehouse() {
   return warehouse;
 }
 
+/** Backfill images on existing sample SKUs that have empty images arrays. */
+async function backfillSampleImages() {
+  let updated = 0;
+  for (const item of SAMPLE_PRODUCTS) {
+    if (!item.images?.length) continue;
+    const result = await Product.updateOne(
+      {
+        sku: item.sku,
+        deleted: { $ne: true },
+        $or: [{ images: { $exists: false } }, { images: { $size: 0 } }]
+      },
+      { $set: { images: item.images } }
+    );
+    if (result.modifiedCount > 0) updated += 1;
+  }
+  if (updated > 0) {
+    console.log(`[SEED] Backfilled images on ${updated} sample products.`);
+  }
+}
+
 async function seedProducts() {
   await seedCategories();
 
   const existing = await Product.countDocuments({ deleted: { $ne: true } });
   if (existing > 0) {
+    await backfillSampleImages();
     return;
   }
 
@@ -276,7 +344,7 @@ async function seedProducts() {
       tags: item.tags,
       isFeatured: item.isFeatured,
       status: 'active',
-      images: [],
+      images: item.images || [],
       lowStockThreshold: 10,
       reorderQuantity: 50
     });
