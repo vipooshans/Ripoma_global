@@ -8,6 +8,10 @@ const api = axios.create({
   }
 });
 
+let staffAccessToken = null;
+let customerAccessToken = null;
+let activeAuthType = null; // 'staff' | 'customer' | null
+
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -22,64 +26,14 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Response interceptor
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+const applyAuthorizationHeader = () => {
+  const token =
+    activeAuthType === 'customer'
+      ? customerAccessToken
+      : activeAuthType === 'staff'
+        ? staffAccessToken
+        : null;
 
-    // Check if response is 401, token expired, and not already retried
-    if (
-      error.response?.status === 401 &&
-      error.response?.data?.code === 'TOKEN_EXPIRED' &&
-      !originalRequest._retry
-    ) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers['Authorization'] = 'Bearer ' + token;
-            return api(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
-      }
-
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const response = await axios.post(
-          `${api.defaults.baseURL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-        const { accessToken } = response.data;
-
-        // Set default Authorization header
-        api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-        originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
-
-        processQueue(null, accessToken);
-        isRefreshing = false;
-
-        return api(originalRequest);
-      } catch (refreshError) {
-        processQueue(refreshError, null);
-        isRefreshing = false;
-
-        // Dispatch global logout event to let AuthContext clean up session
-        window.dispatchEvent(new Event('auth-expired'));
-        return Promise.reject(refreshError);
-      }
-    }
-
-    return Promise.reject(error);
-  }
-);
-
-// Method to update staff authentication header
-export const setAuthHeader = (token) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
@@ -87,13 +41,101 @@ export const setAuthHeader = (token) => {
   }
 };
 
-// Method to update customer portal authentication header
-export const setCustomerAuthHeader = (token) => {
-  if (token) {
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  } else {
-    delete api.defaults.headers.common['Authorization'];
+const isAuthRefreshRequest = (url) =>
+  url?.includes('/auth/refresh') || url?.includes('/customer-auth/refresh');
+
+// Response interceptor — auto-refresh expired access tokens
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    const errorCode = error.response?.data?.code;
+
+    if (
+      error.response?.status !== 401 ||
+      !errorCode ||
+      originalRequest._retry ||
+      isAuthRefreshRequest(originalRequest.url)
+    ) {
+      return Promise.reject(error);
+    }
+
+    const isCustomer = errorCode === 'CUSTOMER_TOKEN_EXPIRED';
+    const isStaff = errorCode === 'TOKEN_EXPIRED';
+
+    if (!isCustomer && !isStaff) {
+      return Promise.reject(error);
+    }
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      })
+        .then((token) => {
+          originalRequest.headers['Authorization'] = 'Bearer ' + token;
+          return api(originalRequest);
+        })
+        .catch((err) => Promise.reject(err));
+    }
+
+    originalRequest._retry = true;
+    isRefreshing = true;
+
+    try {
+      const refreshPath = isCustomer ? '/customer-auth/refresh' : '/auth/refresh';
+      const response = await axios.post(
+        `${api.defaults.baseURL}${refreshPath}`,
+        {},
+        { withCredentials: true }
+      );
+      const { accessToken } = response.data;
+
+      if (isCustomer) {
+        setCustomerAuthHeader(accessToken);
+      } else {
+        setAuthHeader(accessToken);
+      }
+
+      originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
+      processQueue(null, accessToken);
+      isRefreshing = false;
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      processQueue(refreshError, null);
+      isRefreshing = false;
+
+      if (isCustomer) {
+        setCustomerAuthHeader(null);
+        window.dispatchEvent(new Event('customer-auth-expired'));
+      } else {
+        setAuthHeader(null);
+        window.dispatchEvent(new Event('auth-expired'));
+      }
+
+      return Promise.reject(refreshError);
+    }
   }
+);
+
+export const setAuthHeader = (token) => {
+  staffAccessToken = token || null;
+  if (token) {
+    activeAuthType = 'staff';
+  } else if (activeAuthType === 'staff') {
+    activeAuthType = customerAccessToken ? 'customer' : null;
+  }
+  applyAuthorizationHeader();
+};
+
+export const setCustomerAuthHeader = (token) => {
+  customerAccessToken = token || null;
+  if (token) {
+    activeAuthType = 'customer';
+  } else if (activeAuthType === 'customer') {
+    activeAuthType = staffAccessToken ? 'staff' : null;
+  }
+  applyAuthorizationHeader();
 };
 
 export default api;

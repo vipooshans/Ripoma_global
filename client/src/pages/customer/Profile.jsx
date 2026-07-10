@@ -69,6 +69,7 @@ const CustomerProfile = () => {
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
 
   // Profile form
   const {
@@ -150,6 +151,19 @@ const CustomerProfile = () => {
     navigate('/customer/login');
   };
 
+  const handleResendVerification = async () => {
+    if (!customerUser?.email) return;
+    try {
+      setResendingVerification(true);
+      await customerAuthService.resendVerification(customerUser.email);
+      toast.success('Verification email sent. Please check your inbox.');
+    } catch {
+      toast.error('Could not resend verification email.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
   const initials = customerUser
     ? `${customerUser.firstName?.charAt(0) || ''}${customerUser.lastName?.charAt(0) || ''}`
     : 'C';
@@ -215,10 +229,20 @@ const CustomerProfile = () => {
                     Email Verified
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                    <AlertCircle size={11} />
-                    Email Not Verified
-                  </span>
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                      <AlertCircle size={11} />
+                      Email Not Verified
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleResendVerification}
+                      disabled={resendingVerification}
+                      className="text-[11px] font-bold text-teal-600 hover:text-teal-700 disabled:opacity-50"
+                    >
+                      {resendingVerification ? 'Sending…' : 'Resend verification email'}
+                    </button>
+                  </div>
                 )}
               </div>
 

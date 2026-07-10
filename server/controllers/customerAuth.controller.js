@@ -1,14 +1,37 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const CustomerAccount = require('../models/CustomerAccount');
+const { sendAuthEmail } = require('../utils/authEmailService');
+const {
+  getCustomerJwtSecret,
+  getCustomerRefreshSecret,
+  getFrontendUrl,
+  isEmailVerificationRequired
+} = require('../utils/customerAuthConfig');
+
+// ─── Safe customer payload (never includes password/hash/tokens) ─────────────
+
+const toSafeCustomer = (customer) => ({
+  id: customer._id,
+  firstName: customer.firstName,
+  lastName: customer.lastName,
+  email: customer.email,
+  phone: customer.phone,
+  companyName: customer.companyName,
+  companyDetails: customer.companyDetails,
+  shippingAddress: customer.shippingAddress,
+  emailVerified: customer.emailVerified,
+  status: customer.status,
+  lastLogin: customer.lastLogin,
+  createdAt: customer.createdAt
+});
 
 // ─── Token Helpers ────────────────────────────────────────────────────────────
 
 const generateAccessToken = (customer) => {
   return jwt.sign(
     { id: customer._id, type: 'customer' },
-    process.env.CUSTOMER_JWT_SECRET || 'ripoma_customer_access_secret_12345',
+    getCustomerJwtSecret(),
     { expiresIn: '15m' }
   );
 };
@@ -16,29 +39,16 @@ const generateAccessToken = (customer) => {
 const generateRefreshToken = (customer) => {
   return jwt.sign(
     { id: customer._id, type: 'customer' },
-    process.env.CUSTOMER_JWT_REFRESH_SECRET || 'ripoma_customer_refresh_secret_67890',
+    getCustomerRefreshSecret(),
     { expiresIn: '7d' }
   );
 };
 
-// ─── Email Helper ─────────────────────────────────────────────────────────────
-
-const sendEmail = async ({ to, subject, text, html }) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-  // Log to console always (useful for dev)
-  console.log(`\n========================================================`);
-  console.log(`[EMAIL TO: ${to}] Subject: ${subject}`);
-  console.log(text);
-  console.log(`========================================================\n`);
-
-  // Attempt nodemailer (mock JSON transport in dev; replace with real SMTP in prod)
-  try {
-    const transporter = nodemailer.createTransport({ jsonTransport: true });
-    await transporter.sendMail({ from: '"RIPOMA GLOBAL" <noreply@ripomaglobal.com>', to, subject, text, html });
-  } catch (e) {
-    // Swallow mock transport errors
-  }
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000
 };
 
 // ─── POST /api/customer-auth/register ────────────────────────────────────────
@@ -64,23 +74,23 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 8 characters.' });
     }
 
-    const existing = await CustomerAccount.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await CustomerAccount.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }
 
-    // Generate email verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    const verificationExpires = Date.now() + 24 * 60 * 60 * 1000;
 
     const customer = new CustomerAccount({
-      firstName,
-      lastName,
-      email,
-      phone,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: normalizedEmail,
+      phone: phone?.trim(),
       password,
-      companyName,
-      companyDetails,
+      companyName: companyName?.trim(),
+      companyDetails: companyDetails?.trim(),
       shippingAddress,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: verificationExpires
@@ -88,13 +98,13 @@ exports.register = async (req, res) => {
 
     await customer.save();
 
-    const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/customer/verify-email/${verificationToken}`;
+    const verifyUrl = `${getFrontendUrl()}/customer/verify-email/${verificationToken}`;
 
-    await sendEmail({
-      to: email,
+    await sendAuthEmail({
+      to: normalizedEmail,
       subject: 'Verify your RIPOMA GLOBAL account',
-      text: `Hello ${firstName},\n\nWelcome to RIPOMA GLOBAL! Please verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.\n\nIf you did not register, please ignore this email.`,
-      html: `<p>Hello <strong>${firstName}</strong>,</p><p>Welcome to <strong>RIPOMA GLOBAL</strong>! Please verify your email address:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>This link expires in 24 hours.</p>`
+      text: `Hello ${firstName.trim()},\n\nWelcome to RIPOMA GLOBAL! Please verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.\n\nIf you did not register, please ignore this email.`,
+      html: `<p>Hello <strong>${firstName.trim()}</strong>,</p><p>Welcome to <strong>RIPOMA GLOBAL</strong>! Please verify your email address:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>This link expires in 24 hours.</p>`
     });
 
     return res.status(201).json({
@@ -112,6 +122,10 @@ exports.register = async (req, res) => {
 exports.verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ message: 'Verification token is required.' });
+    }
 
     const customer = await CustomerAccount.findOne({
       emailVerificationToken: token,
@@ -131,6 +145,45 @@ exports.verifyEmail = async (req, res) => {
   } catch (error) {
     console.error('Customer Email Verify Error:', error);
     return res.status(500).json({ message: 'Internal server error during email verification.' });
+  }
+};
+
+// ─── POST /api/customer-auth/resend-verification ─────────────────────────────
+
+exports.resendVerification = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const genericMessage =
+      'If that email is registered and unverified, we have sent a new verification link.';
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    const customer = await CustomerAccount.findOne({ email: email.toLowerCase().trim() });
+
+    if (!customer || customer.emailVerified) {
+      return res.status(200).json({ message: genericMessage });
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    customer.emailVerificationToken = verificationToken;
+    customer.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+    await customer.save();
+
+    const verifyUrl = `${getFrontendUrl()}/customer/verify-email/${verificationToken}`;
+
+    await sendAuthEmail({
+      to: customer.email,
+      subject: 'Verify your RIPOMA GLOBAL account',
+      text: `Hello ${customer.firstName},\n\nPlease verify your email address by visiting:\n${verifyUrl}\n\nThis link expires in 24 hours.`,
+      html: `<p>Hello <strong>${customer.firstName}</strong>,</p><p>Please verify your email address:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>This link expires in 24 hours.</p>`
+    });
+
+    return res.status(200).json({ message: genericMessage });
+  } catch (error) {
+    console.error('Customer Resend Verification Error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -162,36 +215,25 @@ exports.login = async (req, res) => {
       return res.status(403).json({ message: 'Your account is currently inactive.' });
     }
 
-    // Update last login
+    if (isEmailVerificationRequired() && !customer.emailVerified) {
+      return res.status(403).json({
+        code: 'EMAIL_NOT_VERIFIED',
+        message:
+          'Please verify your email address before logging in. Check your inbox for the verification link.'
+      });
+    }
+
     customer.lastLogin = new Date();
     await customer.save();
 
     const accessToken = generateAccessToken(customer);
     const refreshToken = generateRefreshToken(customer);
 
-    // Set refresh token in httpOnly cookie
-    res.cookie('customerRefreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    res.cookie('customerRefreshToken', refreshToken, REFRESH_COOKIE_OPTIONS);
 
     return res.status(200).json({
       accessToken,
-      customer: {
-        id: customer._id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        email: customer.email,
-        phone: customer.phone,
-        companyName: customer.companyName,
-        companyDetails: customer.companyDetails,
-        shippingAddress: customer.shippingAddress,
-        emailVerified: customer.emailVerified,
-        status: customer.status,
-        lastLogin: customer.lastLogin
-      }
+      customer: toSafeCustomer(customer)
     });
   } catch (error) {
     console.error('Customer Login Error:', error);
@@ -222,17 +264,30 @@ exports.refresh = async (req, res) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(
-        refreshToken,
-        process.env.CUSTOMER_JWT_REFRESH_SECRET || 'ripoma_customer_refresh_secret_67890'
-      );
+      decoded = jwt.verify(refreshToken, getCustomerRefreshSecret());
     } catch (err) {
-      return res.status(401).json({ message: 'Invalid or expired refresh token.' });
+      const isExpired = err.name === 'TokenExpiredError';
+      return res.status(401).json({
+        code: isExpired ? 'CUSTOMER_TOKEN_EXPIRED' : undefined,
+        message: 'Invalid or expired refresh token.'
+      });
+    }
+
+    if (decoded.type !== 'customer') {
+      return res.status(401).json({ message: 'Invalid refresh token.' });
     }
 
     const customer = await CustomerAccount.findById(decoded.id);
-    if (!customer || customer.status !== 'active') {
-      return res.status(401).json({ message: 'Customer not found or inactive.' });
+    if (!customer) {
+      return res.status(401).json({ message: 'Customer not found.' });
+    }
+
+    if (customer.status === 'suspended') {
+      return res.status(403).json({ message: 'Your account has been suspended.' });
+    }
+
+    if (customer.status === 'inactive' || customer.status !== 'active') {
+      return res.status(401).json({ message: 'Customer account is inactive.' });
     }
 
     const accessToken = generateAccessToken(customer);
@@ -248,35 +303,32 @@ exports.refresh = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+    const genericMessage = 'If that email is registered, we have sent a password reset link.';
+
     if (!email) {
       return res.status(400).json({ message: 'Email is required.' });
     }
 
     const customer = await CustomerAccount.findOne({ email: email.toLowerCase().trim() });
     if (!customer) {
-      // Don't reveal whether account exists
-      return res.status(200).json({
-        message: 'If that email is registered, we have sent a password reset link.'
-      });
+      return res.status(200).json({ message: genericMessage });
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     customer.passwordResetToken = resetToken;
-    customer.passwordResetExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+    customer.passwordResetExpires = Date.now() + 60 * 60 * 1000;
     await customer.save();
 
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/customer/reset-password/${resetToken}`;
+    const resetUrl = `${getFrontendUrl()}/customer/reset-password/${resetToken}`;
 
-    await sendEmail({
-      to: email,
+    await sendAuthEmail({
+      to: customer.email,
       subject: 'Reset your RIPOMA GLOBAL password',
       text: `Hello ${customer.firstName},\n\nYou requested a password reset. Visit the link below to reset your password:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you did not request this, please ignore this email.`,
       html: `<p>Hello <strong>${customer.firstName}</strong>,</p><p>Reset your password by visiting:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>This link expires in 1 hour.</p>`
     });
 
-    return res.status(200).json({
-      message: 'If that email is registered, we have sent a password reset link.'
-    });
+    return res.status(200).json({ message: genericMessage });
   } catch (error) {
     console.error('Customer Forgot Password Error:', error);
     return res.status(500).json({ message: 'Internal server error.' });
@@ -306,7 +358,7 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Reset link is invalid or has expired.' });
     }
 
-    customer.password = password; // pre-save hook hashes it
+    customer.password = password;
     customer.passwordResetToken = undefined;
     customer.passwordResetExpires = undefined;
     await customer.save();
@@ -325,23 +377,7 @@ exports.getMe = async (req, res) => {
     if (!req.customerUser) {
       return res.status(401).json({ message: 'Not authenticated.' });
     }
-    const c = req.customerUser;
-    return res.status(200).json({
-      customer: {
-        id: c._id,
-        firstName: c.firstName,
-        lastName: c.lastName,
-        email: c.email,
-        phone: c.phone,
-        companyName: c.companyName,
-        companyDetails: c.companyDetails,
-        shippingAddress: c.shippingAddress,
-        emailVerified: c.emailVerified,
-        status: c.status,
-        lastLogin: c.lastLogin,
-        createdAt: c.createdAt
-      }
-    });
+    return res.status(200).json({ customer: toSafeCustomer(req.customerUser) });
   } catch (error) {
     console.error('Customer Get Me Error:', error);
     return res.status(500).json({ message: 'Internal server error.' });
@@ -370,18 +406,7 @@ exports.updateMe = async (req, res) => {
 
     return res.status(200).json({
       message: 'Profile updated successfully.',
-      customer: {
-        id: customer._id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        email: customer.email,
-        phone: customer.phone,
-        companyName: customer.companyName,
-        companyDetails: customer.companyDetails,
-        shippingAddress: customer.shippingAddress,
-        emailVerified: customer.emailVerified,
-        status: customer.status
-      }
+      customer: toSafeCustomer(customer)
     });
   } catch (error) {
     console.error('Customer Update Me Error:', error);
@@ -413,7 +438,7 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ message: 'Incorrect current password.' });
     }
 
-    customer.password = newPassword; // hashed by pre-save hook
+    customer.password = newPassword;
     await customer.save();
 
     return res.status(200).json({ message: 'Password updated successfully.' });

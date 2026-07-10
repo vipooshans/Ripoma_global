@@ -11,6 +11,7 @@ router.post('/logout', customerAuthController.logout);
 router.post('/refresh', customerAuthController.refresh);
 router.post('/forgot-password', customerAuthController.forgotPassword);
 router.post('/reset-password', customerAuthController.resetPassword);
+router.post('/resend-verification', customerAuthController.resendVerification);
 
 // Protected routes (require customer JWT)
 router.get('/me', customerAuthMiddleware, customerAuthController.getMe);
