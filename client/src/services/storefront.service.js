@@ -21,6 +21,11 @@ const storefrontService = {
     return res.data;
   },
 
+  getProductFacets: async (params = {}) => {
+    const res = await api.get('/storefront/products/facets', { params });
+    return res.data;
+  },
+
   getProductDetail: async (id) => {
     const res = await api.get(`/storefront/products/${id}`);
     return res.data;

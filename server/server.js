@@ -57,6 +57,7 @@ const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
 const { startDocumentExpiryCheck } = require('./jobs/documentExpiryCheck');
 const { initExchangeRateCron, seedExchangeRates } = require('./jobs/exchangeRateFetch');
 const { seedCategories } = require('./seed/categories');
+const { seedProducts } = require('./seed/products');
 const { initPaymentOverdueCron } = require('./jobs/paymentOverdueCheck');
 const { initTaxDutyAlertCron } = require('./jobs/taxDutyDueAlerts');
 const { initScheduledReportCron } = require('./jobs/scheduledReportRunner');
@@ -142,6 +143,7 @@ async function seedDB() {
     }
 
     await seedCategories();
+    await seedProducts();
   } catch (error) {
     console.error('[SEED ERROR] Failed to seed database:', error);
   }

@@ -34,6 +34,9 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
               {product.category && (
                 <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider">{product.category.name}</span>
               )}
+              {product.brand && (
+                <p className="text-[10px] text-slate-500 font-semibold">{product.brand}</p>
+              )}
               <h3 className="font-bold text-slate-800 text-sm mt-0.5 group-hover:text-teal-700 transition-colors">{product.name}</h3>
               <p className="text-xs text-slate-400 mt-1 font-mono">{product.sku}</p>
               {product.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{product.description}</p>}
@@ -86,7 +89,13 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
         {product.category && (
           <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider">{product.category.name}</span>
         )}
+        {product.brand && (
+          <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{product.brand}</p>
+        )}
         <h3 className="font-bold text-slate-800 text-sm mt-1 leading-tight line-clamp-2 group-hover:text-teal-700 transition-colors">{product.name}</h3>
+        {product.description && (
+          <p className="text-xs text-slate-500 mt-1 line-clamp-2">{product.description}</p>
+        )}
         <p className="text-xs text-slate-400 mt-1 font-mono">SKU: {product.sku}</p>
         <div className="flex items-center justify-between mt-3">
           <div>

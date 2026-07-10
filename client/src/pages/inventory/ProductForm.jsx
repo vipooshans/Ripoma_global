@@ -41,6 +41,7 @@ const ProductForm = () => {
     weight: 0,
     dimensions: { length: 0, width: 0, height: 0 },
     tags: '',
+    brand: '',
     status: 'active',
     isFeatured: false,
     supplier: '',
@@ -68,6 +69,7 @@ const ProductForm = () => {
         weight: p.weight || 0,
         dimensions: p.dimensions || { length: 0, width: 0, height: 0 },
         tags: p.tags ? p.tags.join(', ') : '',
+        brand: p.brand || '',
         status: p.status || 'active',
         isFeatured: Boolean(p.isFeatured),
         supplier: p.supplier?._id || p.supplier || '',
@@ -138,6 +140,8 @@ const ProductForm = () => {
       ...formData,
       tags: processedTags,
       images: cleanedImages,
+      supplier: formData.supplier || null,
+      brand: formData.brand?.trim() || undefined,
       unitCost: parseFloat(formData.unitCost) || 0,
       sellingPrice: parseFloat(formData.sellingPrice) || 0,
       weight: parseFloat(formData.weight) || 0,
@@ -265,6 +269,19 @@ const ProductForm = () => {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Brand */}
+            <div>
+              <label className="form-label">Brand</label>
+              <input
+                type="text"
+                name="brand"
+                className="form-input"
+                placeholder="Samsung, Bosch, etc."
+                value={formData.brand}
+                onChange={handleChange}
+              />
             </div>
 
             {/* Supplier */}
