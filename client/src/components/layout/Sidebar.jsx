@@ -35,6 +35,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { group: 'Inventory', items: [
       { name: 'Dashboard', to: '/inventory', icon: LayoutDashboard, show: true },
       { name: 'Products', to: '/inventory/products', icon: Package, show: true },
+      { name: 'Categories', to: '/inventory/categories', icon: Layers, show: true },
       { name: 'Warehouses', to: '/inventory/warehouses', icon: Building, show: true },
       { name: 'Movements', to: '/inventory/stock', icon: ArrowDownUp, show: true },
       { name: 'Alerts', to: '/inventory/alerts', icon: AlertTriangle, show: true },

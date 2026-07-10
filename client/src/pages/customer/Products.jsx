@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import storefrontService from '../../services/storefront.service';
 import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
 import ProductCard from '../../components/storefront/ProductCard';
+import CategoryFilter from '../../components/storefront/CategoryFilter';
 import CustomerFooter from '../../components/storefront/CustomerFooter';
+import { findStorefrontCategory } from '../../utils/categoryUtils';
 import {
   Package, Filter, ChevronRight, ArrowLeft, Grid, List,
   SlidersHorizontal, X, Home, ArrowRight
@@ -13,6 +15,7 @@ import {
 const CustomerProducts = () => {
   const { addToCart } = useStorefront();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -25,6 +28,13 @@ const CustomerProducts = () => {
   const category = searchParams.get('category') || '';
   const sort = searchParams.get('sort') || 'newest';
   const page = parseInt(searchParams.get('page') || '1');
+  const viewParam = searchParams.get('view');
+
+  useEffect(() => {
+    if (viewParam === 'categories') {
+      navigate('/customer/categories', { replace: true });
+    }
+  }, [viewParam, navigate]);
 
   useEffect(() => {
     storefrontService.getCategories().then((d) => setCategories(d.categories || [])).catch(() => {});
@@ -55,7 +65,7 @@ const CustomerProducts = () => {
     setSearchParams(params);
   };
 
-  const selectedCategory = categories.find((c) => c.id === category);
+  const selectedCategory = category ? findStorefrontCategory(categories, category) : null;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -105,33 +115,11 @@ const CustomerProducts = () => {
             </div>
 
             {categories.length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Categories</p>
-                <div className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => updateParam('category', '')}
-                    className={`w-full text-left text-xs px-3 py-2 rounded-lg transition-colors ${
-                      !category ? 'bg-teal-50 text-teal-700 font-bold' : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    All Categories
-                  </button>
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => updateParam('category', cat.id)}
-                      className={`w-full text-left text-xs px-3 py-2 rounded-lg transition-colors flex items-center justify-between ${
-                        category === cat.id ? 'bg-teal-50 text-teal-700 font-bold' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span>{cat.name}</span>
-                      <span className="text-[10px] text-slate-400">{cat.productCount}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <CategoryFilter
+                tree={categories}
+                selectedId={category}
+                onSelect={(id) => updateParam('category', id)}
+              />
             )}
 
             {(search || category) && (

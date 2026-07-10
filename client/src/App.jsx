@@ -19,6 +19,8 @@ import CustomerResetPassword from './pages/customer/ResetPassword';
 import CustomerEmailVerify from './pages/customer/EmailVerify';
 import CustomerProfile from './pages/customer/Profile';
 import CustomerProducts from './pages/customer/Products';
+import CustomerCategories from './pages/customer/Categories';
+import CustomerCategoryDetail from './pages/customer/CategoryDetail';
 import CustomerStorefrontLayout from './components/storefront/CustomerStorefrontLayout';
 
 // Old Pages
@@ -39,6 +41,8 @@ import WarehouseList from './pages/inventory/WarehouseList';
 import WarehouseDetail from './pages/inventory/WarehouseDetail';
 import StockMovementGrid from './pages/inventory/StockMovementGrid';
 import AlertsCenter from './pages/inventory/AlertsCenter';
+import CategoryList from './pages/inventory/CategoryList';
+import CategoryForm from './pages/inventory/CategoryForm';
 
 // Supplier & Customer Management Module
 import SupplierList from './pages/suppliers/SupplierList';
@@ -138,6 +142,8 @@ function App() {
         <Route element={<CustomerStorefrontLayout />}>
           <Route path="/customer" element={<CustomerHome />} />
           <Route path="/customer/products" element={<CustomerProducts />} />
+          <Route path="/customer/categories" element={<CustomerCategories />} />
+          <Route path="/customer/categories/:id" element={<CustomerCategoryDetail />} />
         </Route>
         <Route path="/customer/login" element={<PublicCustomerRoute><CustomerLogin /></PublicCustomerRoute>} />
         <Route path="/customer/register" element={<PublicCustomerRoute><CustomerRegister /></PublicCustomerRoute>} />
@@ -165,6 +171,9 @@ function App() {
           <Route path="inventory/products/add" element={<ProductForm />} />
           <Route path="inventory/products/:id" element={<ProductDetail />} />
           <Route path="inventory/products/:id/edit" element={<ProductForm />} />
+          <Route path="inventory/categories" element={<CategoryList />} />
+          <Route path="inventory/categories/add" element={<CategoryForm />} />
+          <Route path="inventory/categories/:id/edit" element={<CategoryForm />} />
           <Route path="inventory/warehouses" element={<WarehouseList />} />
           <Route path="inventory/warehouses/:id" element={<WarehouseDetail />} />
           <Route path="inventory/stock" element={<StockMovementGrid />} />

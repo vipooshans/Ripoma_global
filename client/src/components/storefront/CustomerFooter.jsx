@@ -26,7 +26,7 @@ const CustomerFooter = () => (
               { label: 'Browse Catalog', href: '/customer/products' },
               { label: 'Featured Items', href: '/customer/products' },
               { label: 'New Arrivals', href: '/customer/products?sort=newest' },
-              { label: 'Categories', href: '/customer/products?view=categories' }
+              { label: 'Categories', href: '/customer/categories' }
             ].map((l) => (
               <li key={l.label}>
                 <Link to={l.href} className="text-xs hover:text-teal-400 transition-colors">{l.label}</Link>

@@ -2,6 +2,11 @@ const Product = require('../models/Product');
 const Category = require('../models/Category');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
 const { getStorefrontPromos } = require('../config/storefrontPromos');
+const {
+  buildStorefrontCategoryTree,
+  getDescendantCategoryIds,
+  getStorefrontCategoryDetail
+} = require('../utils/categoryHelpers');
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const formatProduct = (p, stock = null) => ({
@@ -58,34 +63,30 @@ exports.getFeaturedProducts = async (req, res) => {
 };
 
 // ─── GET /api/storefront/categories ───────────────────────────────────────────
-// Returns all categories (with product counts)
+// Returns hierarchical categories with rolled-up product counts
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Category.find().sort({ name: 1 });
-
-    const enriched = await Promise.all(
-      categories.map(async (cat) => {
-        const count = await Product.countDocuments({
-          category: cat._id,
-          status: 'active',
-          deleted: false
-        });
-        return {
-          id: cat._id,
-          name: cat.name,
-          description: cat.description,
-          icon: cat.icon,
-          productCount: count
-        };
-      })
-    );
-
-    // Only return categories that have at least one product
-    const filtered = enriched.filter((c) => c.productCount > 0);
-
-    return res.status(200).json({ categories: filtered });
+    const categories = await buildStorefrontCategoryTree();
+    return res.status(200).json({ categories });
   } catch (error) {
     console.error('Storefront Categories Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/categories/:id ─────────────────────────────────────────
+exports.getCategoryDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = await getStorefrontCategoryDetail(id);
+
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found.' });
+    }
+
+    return res.status(200).json({ category });
+  } catch (error) {
+    console.error('Storefront Category Detail Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -108,7 +109,8 @@ exports.getProducts = async (req, res) => {
     }
 
     if (category) {
-      query.category = category;
+      const categoryIds = await getDescendantCategoryIds(category);
+      query.category = { $in: categoryIds };
     }
 
     // Pagination

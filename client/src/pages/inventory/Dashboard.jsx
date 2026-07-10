@@ -19,7 +19,8 @@ import {
   ArrowRight,
   Plus,
   ArrowDownUp,
-  ShieldAlert
+  ShieldAlert,
+  Layers
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -121,6 +122,13 @@ const Dashboard = () => {
           >
             <ArrowDownUp size={14} />
             <span>Record Movement</span>
+          </Link>
+          <Link
+            to="/inventory/categories"
+            className="bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 py-2 px-3.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+          >
+            <Layers size={14} className="text-teal-600" />
+            <span>Categories</span>
           </Link>
           <Link
             to="/inventory/alerts"

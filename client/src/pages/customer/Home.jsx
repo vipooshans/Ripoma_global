@@ -220,7 +220,7 @@ const CustomerHome = () => {
               <span className="text-xs font-bold text-teal-600 uppercase tracking-widest">Browse By</span>
               <h2 id="categories-heading" className="text-3xl font-extrabold text-slate-900 mt-1">Product Categories</h2>
             </div>
-            <Link to="/customer/products" className="hidden sm:flex items-center gap-1.5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors">
+            <Link to="/customer/categories" className="hidden sm:flex items-center gap-1.5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors">
               View All <ArrowRight size={14} />
             </Link>
           </div>
@@ -232,7 +232,13 @@ const CustomerHome = () => {
                 <CategoryCard
                   key={cat.id}
                   category={cat}
-                  onClick={() => navigate(`/customer/products?category=${cat.id}`)}
+                  onClick={() => {
+                    if (cat.subcategories?.length > 0) {
+                      navigate(`/customer/categories/${cat.id}`);
+                    } else {
+                      navigate(`/customer/products?category=${cat.id}`);
+                    }
+                  }}
                 />
               ))}
             </div>

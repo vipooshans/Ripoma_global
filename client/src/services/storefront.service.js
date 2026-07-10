@@ -11,6 +11,11 @@ const storefrontService = {
     return res.data;
   },
 
+  getCategoryDetail: async (id) => {
+    const res = await api.get(`/storefront/categories/${id}`);
+    return res.data;
+  },
+
   getProducts: async (params = {}) => {
     const res = await api.get('/storefront/products', { params });
     return res.data;

@@ -8,7 +8,7 @@ import SearchBar from './SearchBar';
 
 const NAV_LINKS = [
   { label: 'Products', href: '/customer/products' },
-  { label: 'Categories', href: '/customer/products?view=categories' },
+  { label: 'Categories', href: '/customer/categories' },
   { label: 'About', href: '/customer#about' },
   { label: 'Contact', href: '/customer#contact' }
 ];

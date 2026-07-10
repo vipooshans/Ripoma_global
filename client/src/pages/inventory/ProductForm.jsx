@@ -8,6 +8,7 @@ import {
   useCategories,
   useSuppliers
 } from '../../hooks/useInventory';
+import { flattenCategoryOptions } from '../../utils/categoryUtils';
 import { ArrowLeft, Save, Eye, Sparkles } from 'lucide-react';
 
 const ProductForm = () => {
@@ -158,6 +159,8 @@ const ProductForm = () => {
     }
   };
 
+  const categoryOptions = flattenCategoryOptions(categories || []);
+
   if (isEdit && isProductLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -256,9 +259,9 @@ const ProductForm = () => {
                 required
               >
                 <option value="" disabled>Select Category</option>
-                {categories?.map((cat) => (
-                  <option key={cat._id} value={cat._id}>
-                    {cat.name}
+                {categoryOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
