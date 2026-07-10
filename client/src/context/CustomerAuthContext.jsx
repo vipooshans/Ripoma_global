@@ -4,6 +4,12 @@ import { setCustomerAuthHeader } from '../services/api';
 
 export const CustomerAuthContext = createContext(null);
 
+const PUBLIC_CUSTOMER_PATHS = [
+  '/customer/login',
+  '/customer/register',
+  '/customer/forgot-password'
+];
+
 export const CustomerAuthProvider = ({ children }) => {
   const [customerUser, setCustomerUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,12 +17,13 @@ export const CustomerAuthProvider = ({ children }) => {
 
   const checkSession = async () => {
     try {
+      await customerAuthService.refresh();
       const data = await customerAuthService.getCurrentCustomer();
-      if (data && data.customer) {
+      if (data?.customer) {
         setCustomerUser(data.customer);
       }
-    } catch (err) {
-      // No active customer session — silent
+    } catch {
+      setCustomerAuthHeader(null);
     } finally {
       setLoading(false);
     }
@@ -27,7 +34,18 @@ export const CustomerAuthProvider = ({ children }) => {
 
     const handleExpired = () => {
       setCustomerUser(null);
+      setCustomerAuthHeader(null);
       setError('Your session has expired. Please log in again.');
+
+      const path = window.location.pathname;
+      const isPublic =
+        PUBLIC_CUSTOMER_PATHS.some((p) => path.startsWith(p)) ||
+        path.startsWith('/customer/reset-password') ||
+        path.startsWith('/customer/verify-email');
+
+      if (path.startsWith('/customer') && !isPublic) {
+        window.location.href = '/customer/login';
+      }
     };
 
     window.addEventListener('customer-auth-expired', handleExpired);
@@ -43,7 +61,9 @@ export const CustomerAuthProvider = ({ children }) => {
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setError(msg);
-      throw new Error(msg);
+      const loginError = new Error(msg);
+      loginError.code = err.response?.data?.code;
+      throw loginError;
     }
   };
 

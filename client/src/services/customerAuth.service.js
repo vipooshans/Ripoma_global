@@ -11,6 +11,11 @@ const customerAuthService = {
     return response.data;
   },
 
+  resendVerification: async (email) => {
+    const response = await api.post('/customer-auth/resend-verification', { email });
+    return response.data;
+  },
+
   login: async (email, password) => {
     const response = await api.post('/customer-auth/login', { email, password });
     if (response.data.accessToken) {
@@ -25,6 +30,14 @@ const customerAuthService = {
     } finally {
       setCustomerAuthHeader(null);
     }
+  },
+
+  refresh: async () => {
+    const response = await api.post('/customer-auth/refresh');
+    if (response.data.accessToken) {
+      setCustomerAuthHeader(response.data.accessToken);
+    }
+    return response.data;
   },
 
   getCurrentCustomer: async () => {
@@ -48,7 +61,10 @@ const customerAuthService = {
   },
 
   changePassword: async (currentPassword, newPassword) => {
-    const response = await api.post('/customer-auth/change-password', { currentPassword, newPassword });
+    const response = await api.post('/customer-auth/change-password', {
+      currentPassword,
+      newPassword
+    });
     return response.data;
   }
 };

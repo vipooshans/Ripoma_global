@@ -1,16 +1,14 @@
 const jwt = require('jsonwebtoken');
 const CustomerAccount = require('../models/CustomerAccount');
+const { getCustomerJwtSecret } = require('../utils/customerAuthConfig');
 
 const customerAuthMiddleware = async (req, res, next) => {
   try {
     let token = null;
 
-    // Check Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       token = req.headers.authorization.split(' ')[1];
-    }
-    // Fallback: check cookies
-    else if (req.cookies && req.cookies.customerAccessToken) {
+    } else if (req.cookies && req.cookies.customerAccessToken) {
       token = req.cookies.customerAccessToken;
     }
 
@@ -19,10 +17,12 @@ const customerAuthMiddleware = async (req, res, next) => {
     }
 
     try {
-      const decoded = jwt.verify(
-        token,
-        process.env.CUSTOMER_JWT_SECRET || 'ripoma_customer_access_secret_12345'
-      );
+      const decoded = jwt.verify(token, getCustomerJwtSecret());
+
+      if (decoded.type !== 'customer') {
+        return res.status(401).json({ message: 'Invalid token type.' });
+      }
+
       const customer = await CustomerAccount.findById(decoded.id).select('-password');
 
       if (!customer) {

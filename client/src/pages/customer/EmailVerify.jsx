@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import customerAuthService from '../../services/customerAuth.service';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Mail } from 'lucide-react';
 
 const CustomerEmailVerify = () => {
   const { token } = useParams();
   const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error'
   const [message, setMessage] = useState('');
+  const [resendEmail, setResendEmail] = useState('');
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     const verify = async () => {
@@ -24,6 +27,23 @@ const CustomerEmailVerify = () => {
     };
     verify();
   }, [token]);
+
+  const handleResend = async (e) => {
+    e.preventDefault();
+    if (!resendEmail.trim()) {
+      toast.error('Please enter your email address.');
+      return;
+    }
+    try {
+      setResending(true);
+      await customerAuthService.resendVerification(resendEmail.trim());
+      toast.success('If your account is unverified, a new link has been sent.');
+    } catch {
+      toast.error('Could not resend verification email.');
+    } finally {
+      setResending(false);
+    }
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 px-4 py-8">
@@ -79,6 +99,26 @@ const CustomerEmailVerify = () => {
             </div>
             <h3 className="text-xl font-extrabold text-slate-800">Verification Failed</h3>
             <p className="text-slate-500 text-sm leading-relaxed">{message}</p>
+            <form onSubmit={handleResend} className="text-left space-y-3 pt-2 border-t border-slate-100 mt-4">
+              <p className="text-xs font-semibold text-slate-600">Resend verification email</p>
+              <div className="relative">
+                <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="email"
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="form-input pl-9 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={resending}
+                className="btn-secondary w-full py-2 text-sm"
+              >
+                {resending ? 'Sending…' : 'Resend Link'}
+              </button>
+            </form>
             <div className="flex flex-col gap-2 pt-2">
               <Link
                 to="/customer/register"

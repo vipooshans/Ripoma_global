@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 
 /**
@@ -7,6 +7,7 @@ import { CustomerAuthContext } from '../../context/CustomerAuthContext';
  */
 const ProtectedCustomerRoute = ({ children }) => {
   const { isAuthenticated, loading } = useContext(CustomerAuthContext);
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -16,7 +17,11 @@ const ProtectedCustomerRoute = ({ children }) => {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/customer/login" replace />;
+  return isAuthenticated ? (
+    children
+  ) : (
+    <Navigate to="/customer/login" state={{ from: location }} replace />
+  );
 };
 
 export default ProtectedCustomerRoute;

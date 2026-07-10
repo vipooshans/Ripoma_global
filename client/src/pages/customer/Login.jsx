@@ -1,10 +1,11 @@
 import React, { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import toast from 'react-hot-toast';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
+import customerAuthService from '../../services/customerAuth.service';
 import {
   Eye,
   EyeOff,
@@ -24,8 +25,13 @@ const loginSchema = z.object({
 const CustomerLogin = () => {
   const { login } = useContext(CustomerAuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState(null);
+  const [resending, setResending] = useState(false);
+
+  const from = location.state?.from?.pathname || '/customer/profile';
 
   const {
     register,
@@ -39,13 +45,32 @@ const CustomerLogin = () => {
   const onSubmit = async (data) => {
     try {
       setSubmitting(true);
+      setUnverifiedEmail(null);
       await login(data.email, data.password);
       toast.success('Welcome back! You are now logged in.');
-      navigate('/customer/profile');
+      navigate(from, { replace: true });
     } catch (err) {
-      toast.error(err.message || 'Invalid email or password.');
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        setUnverifiedEmail(data.email);
+        toast.error(err.message);
+      } else {
+        toast.error(err.message || 'Invalid email or password.');
+      }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+    try {
+      setResending(true);
+      await customerAuthService.resendVerification(unverifiedEmail);
+      toast.success('Verification email sent. Please check your inbox.');
+    } catch {
+      toast.error('Could not resend verification email. Please try again.');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -110,6 +135,22 @@ const CustomerLogin = () => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {unverifiedEmail && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p className="font-semibold">Email not verified</p>
+                <p className="mt-1 text-xs text-amber-700">
+                  Check your inbox for the verification link, or request a new one.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                  className="mt-2 text-xs font-bold text-teal-700 hover:text-teal-800 disabled:opacity-50"
+                >
+                  {resending ? 'Sending…' : 'Resend verification email'}
+                </button>
+              </div>
+            )}
             {/* Email */}
             <div>
               <label className="form-label">Email Address</label>

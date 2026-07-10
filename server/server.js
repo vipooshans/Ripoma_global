@@ -1,4 +1,7 @@
 require('dotenv').config();
+const { requireProductionEnv } = require('./utils/customerAuthConfig');
+requireProductionEnv();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');

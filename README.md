@@ -111,6 +111,9 @@ JWT_REFRESH_SECRET=your_staff_refresh_secret
 CUSTOMER_JWT_SECRET=your_customer_access_secret
 CUSTOMER_JWT_REFRESH_SECRET=your_customer_refresh_secret
 
+# When "false", customers may log in before verifying email (dev convenience)
+CUSTOMER_REQUIRE_EMAIL_VERIFICATION=true
+
 # File storage: local (default) or s3
 STORAGE_PROVIDER=local
 
@@ -120,7 +123,7 @@ AWS_S3_BUCKET=ripoma-documents
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 
-# Optional — email (reports, digests, password reset)
+# Optional — email (auth verification/reset, reports, digests)
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_SECURE=false
