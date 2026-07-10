@@ -46,77 +46,81 @@ const OrderPipelineChart = ({ data, loading }) => {
       {loading ? (
         <ChartSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 min-w-0">
           {/* Import pipeline */}
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
               Imports
             </p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={importData} margin={{ top: 0, right: 4, left: -24, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 9, fill: '#94A3B8', fontWeight: 600 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 9, fill: '#94A3B8' }}
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: '0.75rem',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '11px',
-                  }}
-                />
-                <Bar dataKey="value" name="Orders" radius={[4, 4, 0, 0]}>
-                  {importData.map((_, i) => (
-                    <Cell key={i} fill={IMPORT_COLORS[i]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="w-full h-[180px]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
+                <BarChart data={importData} margin={{ top: 0, right: 4, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 9, fill: '#94A3B8', fontWeight: 600 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 9, fill: '#94A3B8' }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '0.75rem',
+                      border: '1px solid #E2E8F0',
+                      fontSize: '11px',
+                    }}
+                  />
+                  <Bar dataKey="value" name="Orders" radius={[4, 4, 0, 0]}>
+                    {importData.map((_, i) => (
+                      <Cell key={i} fill={IMPORT_COLORS[i]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {/* Export pipeline */}
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
               Exports
             </p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={exportData} margin={{ top: 0, right: 4, left: -24, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 9, fill: '#94A3B8', fontWeight: 600 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 9, fill: '#94A3B8' }}
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: '0.75rem',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '11px',
-                  }}
-                />
-                <Bar dataKey="value" name="Orders" radius={[4, 4, 0, 0]}>
-                  {exportData.map((_, i) => (
-                    <Cell key={i} fill={EXPORT_COLORS[i]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="w-full h-[180px]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
+                <BarChart data={exportData} margin={{ top: 0, right: 4, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 9, fill: '#94A3B8', fontWeight: 600 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 9, fill: '#94A3B8' }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '0.75rem',
+                      border: '1px solid #E2E8F0',
+                      fontSize: '11px',
+                    }}
+                  />
+                  <Bar dataKey="value" name="Orders" radius={[4, 4, 0, 0]}>
+                    {exportData.map((_, i) => (
+                      <Cell key={i} fill={EXPORT_COLORS[i]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}
