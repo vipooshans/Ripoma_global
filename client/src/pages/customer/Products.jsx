@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import storefrontService from '../../services/storefront.service';
 import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
 import ProductCard from '../../components/storefront/ProductCard';
-import CategoryFilter from '../../components/storefront/CategoryFilter';
+import ProductFiltersPanel from '../../components/storefront/ProductFiltersPanel';
 import CustomerFooter from '../../components/storefront/CustomerFooter';
 import { findStorefrontCategory } from '../../utils/categoryUtils';
 import {
@@ -19,6 +19,7 @@ const CustomerProducts = () => {
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [facets, setFacets] = useState({ brands: [], priceRange: { min: 0, max: 0 } });
   const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('grid');
@@ -27,8 +28,16 @@ const CustomerProducts = () => {
   const search = searchParams.get('search') || '';
   const category = searchParams.get('category') || '';
   const sort = searchParams.get('sort') || 'newest';
+  const brand = searchParams.get('brand') || '';
+  const minPrice = searchParams.get('minPrice') || '';
+  const maxPrice = searchParams.get('maxPrice') || '';
+  const availability = searchParams.get('availability') || '';
   const page = parseInt(searchParams.get('page') || '1');
   const viewParam = searchParams.get('view');
+
+  const [mobileDraft, setMobileDraft] = useState({
+    sort, category, brand, minPrice, maxPrice, availability
+  });
 
   useEffect(() => {
     if (viewParam === 'categories') {
@@ -40,11 +49,33 @@ const CustomerProducts = () => {
     storefrontService.getCategories().then((d) => setCategories(d.categories || [])).catch(() => {});
   }, []);
 
+  const facetParams = useMemo(() => ({
+    search: search || undefined,
+    category: category || undefined
+  }), [search, category]);
+
+  useEffect(() => {
+    storefrontService.getProductFacets(facetParams)
+      .then(setFacets)
+      .catch(() => {});
+  }, [facetParams]);
+
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const data = await storefrontService.getProducts({ search, category, sort, page, limit: 12 });
+        const params = {
+          search: search || undefined,
+          category: category || undefined,
+          sort,
+          page,
+          limit: 12,
+          brand: brand || undefined,
+          minPrice: minPrice || undefined,
+          maxPrice: maxPrice || undefined,
+          availability: availability || undefined
+        };
+        const data = await storefrontService.getProducts(params);
         setProducts(data.products || []);
         setPagination(data.pagination || { total: 0, page: 1, totalPages: 1 });
       } catch (err) {
@@ -55,7 +86,7 @@ const CustomerProducts = () => {
       }
     };
     fetchProducts();
-  }, [search, category, sort, page]);
+  }, [search, category, sort, page, brand, minPrice, maxPrice, availability]);
 
   const updateParam = (key, value) => {
     const params = new URLSearchParams(searchParams);
@@ -65,7 +96,57 @@ const CustomerProducts = () => {
     setSearchParams(params);
   };
 
+  const applyMultipleParams = (updates) => {
+    const params = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+    params.delete('page');
+    setSearchParams(params);
+  };
+
+  const clearAllFilters = () => setSearchParams({});
+
+  const hasActiveFilters = Boolean(search || category || brand || minPrice || maxPrice || availability);
+
   const selectedCategory = category ? findStorefrontCategory(categories, category) : null;
+
+  const openMobileFilters = () => {
+    setMobileDraft({ sort, category, brand, minPrice, maxPrice, availability });
+    setShowFilters(true);
+  };
+
+  const applyMobileFilters = () => {
+    applyMultipleParams(mobileDraft);
+    setShowFilters(false);
+  };
+
+  const filterPanelProps = {
+    categories,
+    brands: facets.brands || [],
+    priceRange: facets.priceRange || { min: 0, max: 0 },
+    hasActiveFilters
+  };
+
+  const desktopFilters = (
+    <ProductFiltersPanel
+      {...filterPanelProps}
+      sort={sort}
+      category={category}
+      brand={brand}
+      minPrice={minPrice}
+      maxPrice={maxPrice}
+      availability={availability}
+      onSortChange={(v) => updateParam('sort', v)}
+      onCategoryChange={(v) => updateParam('category', v)}
+      onBrandChange={(v) => updateParam('brand', v)}
+      onMinPriceChange={(v) => updateParam('minPrice', v)}
+      onMaxPriceChange={(v) => updateParam('maxPrice', v)}
+      onAvailabilityChange={(v) => updateParam('availability', v)}
+      onClearAll={clearAllFilters}
+    />
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -85,52 +166,12 @@ const CustomerProducts = () => {
 
       <div className="max-w-7xl mx-auto px-4 pb-12 flex gap-6 flex-1 w-full">
         <aside className="shrink-0 w-60 hidden lg:block">
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 sticky top-24 space-y-6">
-            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 sticky top-24">
+            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 mb-6">
               <SlidersHorizontal size={15} className="text-teal-600" />
               Filters
             </h3>
-
-            <div>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Sort By</p>
-              <div className="space-y-1">
-                {[
-                  { value: 'newest', label: 'Newest First' },
-                  { value: 'price_asc', label: 'Price: Low → High' },
-                  { value: 'price_desc', label: 'Price: High → Low' },
-                  { value: 'name_asc', label: 'Name A–Z' }
-                ].map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => updateParam('sort', s.value)}
-                    className={`w-full text-left text-xs px-3 py-2 rounded-lg transition-colors ${
-                      sort === s.value ? 'bg-teal-50 text-teal-700 font-bold' : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {categories.length > 0 && (
-              <CategoryFilter
-                tree={categories}
-                selectedId={category}
-                onSelect={(id) => updateParam('category', id)}
-              />
-            )}
-
-            {(search || category) && (
-              <button
-                type="button"
-                onClick={() => setSearchParams({})}
-                className="w-full flex items-center justify-center gap-2 text-xs text-rose-600 hover:text-rose-700 font-bold py-2 border border-rose-200 rounded-lg hover:bg-rose-50 transition-colors"
-              >
-                <X size={12} /> Clear All Filters
-              </button>
-            )}
+            {desktopFilters}
           </div>
         </aside>
 
@@ -145,10 +186,13 @@ const CustomerProducts = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={openMobileFilters}
                 className="lg:hidden flex items-center gap-1.5 text-xs font-bold px-3 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600"
               >
                 <Filter size={13} /> Filters
+                {hasActiveFilters && (
+                  <span className="w-2 h-2 bg-teal-500 rounded-full" />
+                )}
               </button>
               <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1">
                 <button type="button" onClick={() => setView('grid')} className={`p-1.5 rounded-lg transition-colors ${view === 'grid' ? 'bg-teal-100 text-teal-700' : 'text-slate-400 hover:text-slate-600'}`} aria-label="Grid view">
@@ -161,14 +205,7 @@ const CustomerProducts = () => {
             </div>
           </div>
 
-          {showFilters && (
-            <div className="lg:hidden mb-4 p-4 bg-white rounded-xl border border-slate-200 space-y-3">
-              <p className="text-xs font-bold text-slate-600">Sort & Category filters — use sidebar on desktop</p>
-              <button type="button" onClick={() => setShowFilters(false)} className="text-xs text-teal-600 font-bold">Close</button>
-            </div>
-          )}
-
-          {(search || category) && (
+          {hasActiveFilters && (
             <div className="flex flex-wrap gap-2 mb-4">
               {search && (
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-teal-50 text-teal-700 px-3 py-1.5 rounded-full border border-teal-200">
@@ -180,6 +217,24 @@ const CustomerProducts = () => {
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-teal-50 text-teal-700 px-3 py-1.5 rounded-full border border-teal-200">
                   {selectedCategory.name}
                   <button type="button" onClick={() => updateParam('category', '')} className="hover:text-rose-500 transition-colors"><X size={11} /></button>
+                </span>
+              )}
+              {brand && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-teal-50 text-teal-700 px-3 py-1.5 rounded-full border border-teal-200">
+                  Brand: {brand}
+                  <button type="button" onClick={() => updateParam('brand', '')} className="hover:text-rose-500 transition-colors"><X size={11} /></button>
+                </span>
+              )}
+              {(minPrice || maxPrice) && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-teal-50 text-teal-700 px-3 py-1.5 rounded-full border border-teal-200">
+                  Price: {minPrice || '0'} – {maxPrice || '∞'}
+                  <button type="button" onClick={() => applyMultipleParams({ minPrice: '', maxPrice: '' })} className="hover:text-rose-500 transition-colors"><X size={11} /></button>
+                </span>
+              )}
+              {availability && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-teal-50 text-teal-700 px-3 py-1.5 rounded-full border border-teal-200">
+                  {availability === 'in_stock' ? 'In Stock' : 'Out of Stock'}
+                  <button type="button" onClick={() => updateParam('availability', '')} className="hover:text-rose-500 transition-colors"><X size={11} /></button>
                 </span>
               )}
             </div>
@@ -204,7 +259,7 @@ const CustomerProducts = () => {
               <Package size={56} className="mx-auto mb-4 text-slate-200" />
               <p className="font-bold text-slate-600 text-lg">No products found</p>
               <p className="text-sm mt-1">Try adjusting your search or filters</p>
-              <button type="button" onClick={() => setSearchParams({})} className="mt-5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors flex items-center gap-1.5 mx-auto">
+              <button type="button" onClick={clearAllFilters} className="mt-5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors flex items-center gap-1.5 mx-auto">
                 <X size={14} /> Clear filters
               </button>
             </div>
@@ -255,6 +310,63 @@ const CustomerProducts = () => {
           )}
         </div>
       </div>
+
+      {showFilters && (
+        <>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setShowFilters(false)} />
+          <div className="fixed inset-y-0 right-0 w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col lg:hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                <SlidersHorizontal size={15} className="text-teal-600" />
+                Filters
+              </h3>
+              <button type="button" onClick={() => setShowFilters(false)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <ProductFiltersPanel
+                {...filterPanelProps}
+                sort={mobileDraft.sort}
+                category={mobileDraft.category}
+                brand={mobileDraft.brand}
+                minPrice={mobileDraft.minPrice}
+                maxPrice={mobileDraft.maxPrice}
+                availability={mobileDraft.availability}
+                onSortChange={(v) => setMobileDraft((d) => ({ ...d, sort: v }))}
+                onCategoryChange={(v) => setMobileDraft((d) => ({ ...d, category: v }))}
+                onBrandChange={(v) => setMobileDraft((d) => ({ ...d, brand: v }))}
+                onMinPriceChange={(v) => setMobileDraft((d) => ({ ...d, minPrice: v }))}
+                onMaxPriceChange={(v) => setMobileDraft((d) => ({ ...d, maxPrice: v }))}
+                onAvailabilityChange={(v) => setMobileDraft((d) => ({ ...d, availability: v }))}
+                onClearAll={() => {
+                  setMobileDraft({ sort: 'newest', category: '', brand: '', minPrice: '', maxPrice: '', availability: '' });
+                }}
+                hasActiveFilters={Boolean(
+                  mobileDraft.category || mobileDraft.brand || mobileDraft.minPrice ||
+                  mobileDraft.maxPrice || mobileDraft.availability
+                )}
+              />
+            </div>
+            <div className="border-t border-slate-100 p-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowFilters(false)}
+                className="flex-1 text-sm font-bold py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyMobileFilters}
+                className="flex-1 text-sm font-bold py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       <CustomerFooter />
     </div>

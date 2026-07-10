@@ -19,6 +19,7 @@ import CustomerResetPassword from './pages/customer/ResetPassword';
 import CustomerEmailVerify from './pages/customer/EmailVerify';
 import CustomerProfile from './pages/customer/Profile';
 import CustomerProducts from './pages/customer/Products';
+import CustomerProductDetail from './pages/customer/ProductDetail';
 import CustomerCategories from './pages/customer/Categories';
 import CustomerCategoryDetail from './pages/customer/CategoryDetail';
 import CustomerStorefrontLayout from './components/storefront/CustomerStorefrontLayout';
@@ -142,6 +143,7 @@ function App() {
         <Route element={<CustomerStorefrontLayout />}>
           <Route path="/customer" element={<CustomerHome />} />
           <Route path="/customer/products" element={<CustomerProducts />} />
+          <Route path="/customer/products/:id" element={<CustomerProductDetail />} />
           <Route path="/customer/categories" element={<CustomerCategories />} />
           <Route path="/customer/categories/:id" element={<CustomerCategoryDetail />} />
         </Route>

@@ -8,12 +8,14 @@ const {
   getStorefrontCategoryDetail
 } = require('../utils/categoryHelpers');
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+const ACTIVE_QUERY = { status: 'active', deleted: false };
+
 const formatProduct = (p, stock = null) => ({
   id: p._id,
   sku: p.sku,
   name: p.name,
   description: p.description,
+  brand: p.brand || null,
   category: p.category
     ? { id: p.category._id, name: p.category.name }
     : null,
@@ -28,6 +30,58 @@ const formatProduct = (p, stock = null) => ({
   totalStock: stock,
   isFeatured: Boolean(p.isFeatured)
 });
+
+const getSortOption = (sort) => {
+  if (sort === 'price_asc') return { sellingPrice: 1 };
+  if (sort === 'price_desc') return { sellingPrice: -1 };
+  if (sort === 'name_asc') return { name: 1 };
+  if (sort === 'name_desc') return { name: -1 };
+  if (sort === 'popularity') return { isFeatured: -1, createdAt: -1 };
+  return { createdAt: -1 };
+};
+
+const buildProductListQuery = async (queryParams) => {
+  const { search, category, minPrice, maxPrice, brand } = queryParams;
+  const query = { ...ACTIVE_QUERY };
+
+  if (search && search.trim()) {
+    query.$or = [
+      { name: { $regex: search.trim(), $options: 'i' } },
+      { description: { $regex: search.trim(), $options: 'i' } },
+      { tags: { $regex: search.trim(), $options: 'i' } },
+      { sku: { $regex: search.trim(), $options: 'i' } },
+      { brand: { $regex: search.trim(), $options: 'i' } }
+    ];
+  }
+
+  if (category) {
+    const categoryIds = await getDescendantCategoryIds(category);
+    query.category = { $in: categoryIds };
+  }
+
+  if (minPrice !== undefined && minPrice !== '' && !Number.isNaN(Number(minPrice))) {
+    query.sellingPrice = { ...query.sellingPrice, $gte: Number(minPrice) };
+  }
+
+  if (maxPrice !== undefined && maxPrice !== '' && !Number.isNaN(Number(maxPrice))) {
+    query.sellingPrice = { ...query.sellingPrice, $lte: Number(maxPrice) };
+  }
+
+  if (brand && brand.trim()) {
+    query.brand = { $regex: `^${brand.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
+  }
+
+  return query;
+};
+
+const enrichProductsWithStock = async (products) => {
+  return Promise.all(
+    products.map(async (p) => {
+      const stock = await getTotalStockForProduct(p._id);
+      return formatProduct(p, stock.quantityOnHand);
+    })
+  );
+};
 
 // ─── GET /api/storefront/featured ─────────────────────────────────────────────
 // Returns active products marked isFeatured; falls back to newest if none featured
@@ -91,54 +145,90 @@ exports.getCategoryDetail = async (req, res) => {
   }
 };
 
+// ─── GET /api/storefront/products/facets ──────────────────────────────────────
+exports.getProductFacets = async (req, res) => {
+  try {
+    const query = await buildProductListQuery(req.query);
+
+    const brands = await Product.distinct('brand', {
+      ...query,
+      brand: { $exists: true, $nin: [null, ''] }
+    });
+
+    const priceAgg = await Product.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: null,
+          min: { $min: '$sellingPrice' },
+          max: { $max: '$sellingPrice' }
+        }
+      }
+    ]);
+
+    const priceRange = priceAgg[0]
+      ? { min: priceAgg[0].min ?? 0, max: priceAgg[0].max ?? 0 }
+      : { min: 0, max: 0 };
+
+    return res.status(200).json({
+      brands: brands.filter(Boolean).sort((a, b) => a.localeCompare(b)),
+      priceRange
+    });
+  } catch (error) {
+    console.error('Storefront Product Facets Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // ─── GET /api/storefront/products ─────────────────────────────────────────────
 // Public product listing with search, filter, pagination
 exports.getProducts = async (req, res) => {
   try {
-    const { search, category, sort, page, limit } = req.query;
+    const { sort, page, limit, availability } = req.query;
 
-    const query = { status: 'active', deleted: false };
-
-    if (search && search.trim()) {
-      query.$or = [
-        { name: { $regex: search.trim(), $options: 'i' } },
-        { description: { $regex: search.trim(), $options: 'i' } },
-        { tags: { $regex: search.trim(), $options: 'i' } },
-        { sku: { $regex: search.trim(), $options: 'i' } }
-      ];
-    }
-
-    if (category) {
-      const categoryIds = await getDescendantCategoryIds(category);
-      query.category = { $in: categoryIds };
-    }
-
-    // Pagination
+    const query = await buildProductListQuery(req.query);
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 12;
-    const skip = (pageNum - 1) * limitNum;
+    const sortOption = getSortOption(sort);
+    const needsStockFilter = availability === 'in_stock' || availability === 'out_of_stock';
 
-    // Sorting
-    let sortOption = { createdAt: -1 };
-    if (sort === 'price_asc') sortOption = { sellingPrice: 1 };
-    else if (sort === 'price_desc') sortOption = { sellingPrice: -1 };
-    else if (sort === 'name_asc') sortOption = { name: 1 };
-    else if (sort === 'name_desc') sortOption = { name: -1 };
-    else if (sort === 'newest') sortOption = { createdAt: -1 };
+    if (needsStockFilter) {
+      const products = await Product.find(query)
+        .populate('category', 'name')
+        .sort(sortOption);
+
+      let enriched = await enrichProductsWithStock(products);
+
+      if (availability === 'in_stock') {
+        enriched = enriched.filter((p) => p.totalStock > 0);
+      } else {
+        enriched = enriched.filter((p) => p.totalStock <= 0);
+      }
+
+      const total = enriched.length;
+      const skip = (pageNum - 1) * limitNum;
+      const pageProducts = enriched.slice(skip, skip + limitNum);
+
+      return res.status(200).json({
+        products: pageProducts,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: Math.ceil(total / limitNum) || 1
+        }
+      });
+    }
 
     const total = await Product.countDocuments(query);
+    const skip = (pageNum - 1) * limitNum;
     const products = await Product.find(query)
       .populate('category', 'name')
       .sort(sortOption)
       .skip(skip)
       .limit(limitNum);
 
-    const enriched = await Promise.all(
-      products.map(async (p) => {
-        const stock = await getTotalStockForProduct(p._id);
-        return formatProduct(p, stock.quantityOnHand);
-      })
-    );
+    const enriched = await enrichProductsWithStock(products);
 
     return res.status(200).json({
       products: enriched,
@@ -146,7 +236,7 @@ exports.getProducts = async (req, res) => {
         total,
         page: pageNum,
         limit: limitNum,
-        totalPages: Math.ceil(total / limitNum)
+        totalPages: Math.ceil(total / limitNum) || 1
       }
     });
   } catch (error) {
