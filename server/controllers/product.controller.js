@@ -132,6 +132,7 @@ exports.createProduct = async (req, res) => {
       weight,
       dimensions,
       tags,
+      brand,
       status,
       isFeatured,
       supplier,
@@ -180,6 +181,7 @@ exports.createProduct = async (req, res) => {
       weight: parseFloat(weight) || 0,
       dimensions: dimensions || { length: 0, width: 0, height: 0 },
       tags: tags || [],
+      brand: brand || undefined,
       status: status || 'active',
       isFeatured: Boolean(isFeatured),
       supplier: supplier || null,
@@ -229,19 +231,31 @@ exports.updateProduct = async (req, res) => {
     const fieldsToUpdate = [
       'name', 'description', 'category', 'unit', 'unitCost', 'sellingPrice',
       'currency', 'images', 'barcode', 'hsCode', 'countryOfOrigin', 'weight',
-      'dimensions', 'tags', 'status', 'isFeatured', 'supplier', 'lowStockThreshold', 'reorderQuantity'
+      'dimensions', 'tags', 'brand', 'status', 'isFeatured', 'supplier',
+      'lowStockThreshold', 'reorderQuantity'
     ];
 
-    fieldsToUpdate.forEach(field => {
-      if (updates[field] !== undefined) {
-        product[field] = updates[field];
+    const objectIdFields = new Set(['supplier', 'category']);
+
+    fieldsToUpdate.forEach((field) => {
+      if (updates[field] === undefined) return;
+      let value = updates[field];
+      if (objectIdFields.has(field) && (value === '' || value === null)) {
+        value = null;
       }
+      if (field === 'isFeatured') {
+        value = Boolean(value);
+      }
+      product[field] = value;
     });
 
     await product.save();
     return res.status(200).json({ message: 'Product updated successfully.', product });
   } catch (error) {
     console.error('Update Product Error:', error);
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({ message: error.message });
+    }
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

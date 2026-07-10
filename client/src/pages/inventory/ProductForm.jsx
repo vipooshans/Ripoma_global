@@ -140,6 +140,8 @@ const ProductForm = () => {
       ...formData,
       tags: processedTags,
       images: cleanedImages,
+      supplier: formData.supplier || null,
+      brand: formData.brand?.trim() || undefined,
       unitCost: parseFloat(formData.unitCost) || 0,
       sellingPrice: parseFloat(formData.sellingPrice) || 0,
       weight: parseFloat(formData.weight) || 0,
