@@ -133,6 +133,7 @@ exports.createProduct = async (req, res) => {
       dimensions,
       tags,
       status,
+      isFeatured,
       supplier,
       lowStockThreshold,
       reorderQuantity
@@ -180,6 +181,7 @@ exports.createProduct = async (req, res) => {
       dimensions: dimensions || { length: 0, width: 0, height: 0 },
       tags: tags || [],
       status: status || 'active',
+      isFeatured: Boolean(isFeatured),
       supplier: supplier || null,
       lowStockThreshold: parseInt(lowStockThreshold) || 10,
       reorderQuantity: parseInt(reorderQuantity) || 50,
@@ -227,7 +229,7 @@ exports.updateProduct = async (req, res) => {
     const fieldsToUpdate = [
       'name', 'description', 'category', 'unit', 'unitCost', 'sellingPrice',
       'currency', 'images', 'barcode', 'hsCode', 'countryOfOrigin', 'weight',
-      'dimensions', 'tags', 'status', 'supplier', 'lowStockThreshold', 'reorderQuantity'
+      'dimensions', 'tags', 'status', 'isFeatured', 'supplier', 'lowStockThreshold', 'reorderQuantity'
     ];
 
     fieldsToUpdate.forEach(field => {

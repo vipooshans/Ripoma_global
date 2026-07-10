@@ -21,6 +21,7 @@ const ProductSchema = new mongoose.Schema(
       height: { type: Number }
     }, // in cm
     tags: [{ type: String }],
+    isFeatured: { type: Boolean, default: false },
     status: { type: String, enum: ['active', 'inactive', 'discontinued'], default: 'active' },
     supplier: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
     lowStockThreshold: { type: Number, default: 10 },

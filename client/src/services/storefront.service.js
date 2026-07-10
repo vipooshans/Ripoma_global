@@ -24,6 +24,16 @@ const storefrontService = {
   getSearchSuggestions: async (q) => {
     const res = await api.get('/storefront/search-suggestions', { params: { q } });
     return res.data;
+  },
+
+  getStats: async () => {
+    const res = await api.get('/storefront/stats');
+    return res.data;
+  },
+
+  getPromos: async () => {
+    const res = await api.get('/storefront/promos');
+    return res.data;
   }
 };
 

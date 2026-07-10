@@ -41,6 +41,7 @@ const ProductForm = () => {
     dimensions: { length: 0, width: 0, height: 0 },
     tags: '',
     status: 'active',
+    isFeatured: false,
     supplier: '',
     lowStockThreshold: 10,
     reorderQuantity: 50
@@ -67,6 +68,7 @@ const ProductForm = () => {
         dimensions: p.dimensions || { length: 0, width: 0, height: 0 },
         tags: p.tags ? p.tags.join(', ') : '',
         status: p.status || 'active',
+        isFeatured: Boolean(p.isFeatured),
         supplier: p.supplier?._id || p.supplier || '',
         lowStockThreshold: p.lowStockThreshold || 10,
         reorderQuantity: p.reorderQuantity || 50
@@ -294,6 +296,20 @@ const ProductForm = () => {
                 <option value="discontinued">Discontinued</option>
               </select>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              type="checkbox"
+              id="isFeatured"
+              name="isFeatured"
+              checked={formData.isFeatured}
+              onChange={(e) => setFormData((prev) => ({ ...prev, isFeatured: e.target.checked }))}
+              className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            <label htmlFor="isFeatured" className="text-sm font-semibold text-slate-700 cursor-pointer">
+              Feature on customer storefront homepage
+            </label>
           </div>
         </div>
 

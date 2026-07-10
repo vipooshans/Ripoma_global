@@ -6,6 +6,8 @@ const storefrontController = require('../controllers/storefront.controller');
 
 router.get('/featured', storefrontController.getFeaturedProducts);
 router.get('/categories', storefrontController.getCategories);
+router.get('/stats', storefrontController.getStats);
+router.get('/promos', storefrontController.getPromos);
 router.get('/products', storefrontController.getProducts);
 router.get('/products/:id', storefrontController.getProductDetail);
 router.get('/search-suggestions', storefrontController.getSearchSuggestions);
