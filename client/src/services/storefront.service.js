@@ -91,7 +91,7 @@ const storefrontService = {
   },
 
   downloadOrderInvoice: async (id, orderNumber = 'order') => {
-    const res = await api.get(`/storefront/orders/${id}/invoice.pdf`, {
+    const res = await api.get(`/storefront/orders/${id}/invoice`, {
       responseType: 'blob'
     });
     const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
