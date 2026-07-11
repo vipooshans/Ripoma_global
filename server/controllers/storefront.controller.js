@@ -2,9 +2,12 @@ const Product = require('../models/Product');
 const Category = require('../models/Category');
 const ProductReview = require('../models/ProductReview');
 const Coupon = require('../models/Coupon');
+const StorefrontOrder = require('../models/StorefrontOrder');
+const CustomerAccount = require('../models/CustomerAccount');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
 const { getStorefrontPromos } = require('../config/storefrontPromos');
 const { getStorefrontCartRules, round2 } = require('../config/storefrontCartRules');
+const generateExportNumber = require('../utils/soNumberGenerator');
 const {
   buildStorefrontCategoryTree,
   getDescendantCategoryIds,
@@ -666,6 +669,229 @@ exports.estimateCart = async (req, res) => {
     return res.status(200).json(estimate);
   } catch (error) {
     console.error('Cart Estimate Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const formatStorefrontOrder = (order) => ({
+  id: order._id,
+  orderNumber: order.orderNumber,
+  items: (order.items || []).map((i) => ({
+    productId: i.product,
+    sku: i.sku,
+    name: i.name,
+    qty: i.qty,
+    unitPrice: i.unitPrice,
+    lineTotal: i.lineTotal,
+    image: i.image || null
+  })),
+  subtotal: order.subtotal,
+  discount: order.discount,
+  shipping: order.shipping,
+  tax: order.tax,
+  grandTotal: order.grandTotal,
+  currency: order.currency,
+  couponCode: order.couponCode || null,
+  coupon: order.couponSnapshot || null,
+  shippingAddress: order.shippingAddress,
+  contact: order.contact,
+  paymentMethod: order.paymentMethod,
+  paymentStatus: order.paymentStatus,
+  orderStatus: order.orderStatus,
+  customerNote: order.customerNote || '',
+  paymentReference: order.paymentReference || null,
+  placedAt: order.placedAt || order.createdAt
+});
+
+const resolvePaymentFields = (paymentMethod) => {
+  if (paymentMethod === 'card_mock') {
+    return {
+      paymentStatus: 'paid',
+      paymentReference: `MOCK-${Date.now().toString(36).toUpperCase()}`
+    };
+  }
+  if (paymentMethod === 'bank_transfer') {
+    return { paymentStatus: 'awaiting_transfer', paymentReference: null };
+  }
+  return { paymentStatus: 'pending', paymentReference: null };
+};
+
+// ─── POST /api/storefront/orders ──────────────────────────────────────────────
+exports.placeOrder = async (req, res) => {
+  try {
+    const customer = req.customerUser;
+    const {
+      items = [],
+      couponCode,
+      shippingAddress,
+      paymentMethod,
+      customerNote,
+      saveAddressToProfile
+    } = req.body || {};
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Cart is empty. Add products before checkout.' });
+    }
+
+    const allowedMethods = ['cod', 'bank_transfer', 'card_mock'];
+    if (!allowedMethods.includes(paymentMethod)) {
+      return res.status(400).json({ message: 'Invalid payment method.' });
+    }
+
+    const street = shippingAddress?.street?.trim();
+    const city = shippingAddress?.city?.trim();
+    const country = shippingAddress?.country?.trim();
+    if (!street || !city || !country) {
+      return res.status(400).json({
+        message: 'Shipping address requires street, city, and country.'
+      });
+    }
+
+    const productIds = items.map((i) => i.id).filter(Boolean);
+    if (productIds.length !== items.length) {
+      return res.status(400).json({ message: 'Each cart item must include a product id.' });
+    }
+
+    const products = await Product.find({
+      _id: { $in: productIds },
+      ...ACTIVE_QUERY
+    });
+
+    if (products.length !== productIds.length) {
+      return res.status(400).json({
+        message: 'One or more products are unavailable. Please refresh your cart.'
+      });
+    }
+
+    const productMap = new Map(products.map((p) => [String(p._id), p]));
+    const orderItems = [];
+    const estimateItems = [];
+
+    for (const line of items) {
+      const product = productMap.get(String(line.id));
+      if (!product) {
+        return res.status(400).json({ message: 'One or more products are unavailable.' });
+      }
+      const qty = Math.max(1, parseInt(line.qty, 10) || 1);
+      const stock = await getTotalStockForProduct(product._id);
+      if (!stock || stock.quantityOnHand <= 0) {
+        return res.status(400).json({
+          message: `"${product.name}" is out of stock and cannot be ordered.`
+        });
+      }
+
+      const unitPrice = Number(product.sellingPrice) || 0;
+      const lineTotal = round2(unitPrice * qty);
+      orderItems.push({
+        product: product._id,
+        sku: product.sku,
+        name: product.name,
+        qty,
+        unitPrice,
+        lineTotal,
+        image: product.images?.[0] || null
+      });
+      estimateItems.push({ id: product._id, qty, sellingPrice: unitPrice });
+    }
+
+    const subtotal = round2(
+      estimateItems.reduce((sum, i) => sum + i.sellingPrice * i.qty, 0)
+    );
+
+    let coupon = null;
+    if (couponCode && String(couponCode).trim()) {
+      const result = await findValidCoupon(couponCode, subtotal);
+      if (result.error) {
+        return res.status(400).json({ message: result.error });
+      }
+      coupon = result.coupon;
+    }
+
+    const estimate = computeCartEstimate(estimateItems, coupon);
+    const { paymentStatus, paymentReference } = resolvePaymentFields(paymentMethod);
+    const orderNumber = await generateExportNumber('storefrontOrder');
+
+    const order = await StorefrontOrder.create({
+      orderNumber,
+      customerAccount: customer._id,
+      items: orderItems,
+      subtotal: estimate.subtotal,
+      discount: estimate.discount,
+      shipping: estimate.shipping,
+      tax: estimate.tax,
+      grandTotal: estimate.total,
+      currency: estimate.currency,
+      couponCode: estimate.coupon?.code || null,
+      couponSnapshot: estimate.coupon || null,
+      shippingAddress: {
+        street,
+        city,
+        state: shippingAddress?.state?.trim() || '',
+        postalCode: shippingAddress?.postalCode?.trim() || '',
+        country
+      },
+      contact: {
+        email: customer.email,
+        phone: customer.phone || '',
+        firstName: customer.firstName,
+        lastName: customer.lastName
+      },
+      paymentMethod,
+      paymentStatus,
+      orderStatus: 'placed',
+      customerNote: (customerNote || '').trim().slice(0, 1000),
+      paymentReference,
+      placedAt: new Date()
+    });
+
+    if (saveAddressToProfile) {
+      await CustomerAccount.findByIdAndUpdate(customer._id, {
+        shippingAddress: {
+          street,
+          city,
+          state: shippingAddress?.state?.trim() || '',
+          postalCode: shippingAddress?.postalCode?.trim() || '',
+          country
+        }
+      });
+    }
+
+    return res.status(201).json({ order: formatStorefrontOrder(order) });
+  } catch (error) {
+    console.error('Place Storefront Order Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/orders ───────────────────────────────────────────────
+exports.listMyOrders = async (req, res) => {
+  try {
+    const orders = await StorefrontOrder.find({ customerAccount: req.customerUser._id })
+      .sort({ placedAt: -1 })
+      .limit(50);
+
+    return res.status(200).json({
+      orders: orders.map(formatStorefrontOrder)
+    });
+  } catch (error) {
+    console.error('List Storefront Orders Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/orders/:id ───────────────────────────────────────────
+exports.getMyOrder = async (req, res) => {
+  try {
+    const order = await StorefrontOrder.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+    if (String(order.customerAccount) !== String(req.customerUser._id)) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+    return res.status(200).json({ order: formatStorefrontOrder(order) });
+  } catch (error) {
+    console.error('Get Storefront Order Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

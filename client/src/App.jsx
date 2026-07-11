@@ -24,6 +24,8 @@ import CustomerCategories from './pages/customer/Categories';
 import CustomerCategoryDetail from './pages/customer/CategoryDetail';
 import CustomerCart from './pages/customer/Cart';
 import CustomerCheckout from './pages/customer/Checkout';
+import CustomerOrders from './pages/customer/Orders';
+import CustomerOrderConfirmation from './pages/customer/OrderConfirmation';
 import CustomerStorefrontLayout from './components/storefront/CustomerStorefrontLayout';
 
 // Old Pages
@@ -150,6 +152,8 @@ function App() {
           <Route path="/customer/categories/:id" element={<CustomerCategoryDetail />} />
           <Route path="/customer/cart" element={<CustomerCart />} />
           <Route path="/customer/checkout" element={<CustomerCheckout />} />
+          <Route path="/customer/orders" element={<CustomerOrders />} />
+          <Route path="/customer/orders/:id" element={<CustomerOrderConfirmation />} />
         </Route>
         <Route path="/customer/login" element={<PublicCustomerRoute><CustomerLogin /></PublicCustomerRoute>} />
         <Route path="/customer/register" element={<PublicCustomerRoute><CustomerRegister /></PublicCustomerRoute>} />

@@ -1,8 +1,8 @@
 const Counter = require('../models/Counter');
 
 /**
- * Generates year-aware sequential code numbers for export orders, invoices, and dispatches.
- * Format: PREFIX-YYYY-XXXXX (e.g. SO-2026-00001, INV-2026-00001, DSP-2026-00001)
+ * Generates year-aware sequential code numbers for export orders, invoices, dispatches, and storefront orders.
+ * Format: PREFIX-YYYY-XXXXX (e.g. SO-2026-00001, WEB-2026-00001)
  */
 const generateExportNumber = async (type) => {
   const currentYear = new Date().getFullYear();
@@ -21,6 +21,8 @@ const generateExportNumber = async (type) => {
     prefix = 'INV';
   } else if (type === 'dispatch') {
     prefix = 'DSP';
+  } else if (type === 'storefrontOrder') {
+    prefix = 'WEB';
   }
 
   const paddedSeq = String(counter.seq).padStart(5, '0');

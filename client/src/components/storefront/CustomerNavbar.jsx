@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  ShoppingCart, User, Menu, X, ChevronDown, LogOut
+  ShoppingCart, User, Menu, X, ChevronDown, LogOut, Package
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import SearchBar from './SearchBar';
@@ -122,6 +122,14 @@ const CustomerNavbar = ({
                   >
                     <User size={14} />
                     My Profile
+                  </Link>
+                  <Link
+                    to="/customer/orders"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-slate-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
+                  >
+                    <Package size={14} />
+                    Orders
                   </Link>
                   <button
                     type="button"
