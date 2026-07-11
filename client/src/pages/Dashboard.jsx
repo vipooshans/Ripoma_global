@@ -38,16 +38,20 @@ const Dashboard = () => {
       {/* Module quick access */}
       <ModuleQuickAccess />
 
-      {/* Charts section */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-        <RevenueExpensesChart
-          data={chartData?.revenueVsExpenses}
-          loading={chartLoading}
-        />
-        <OrderPipelineChart
-          data={chartData?.orderPipeline}
-          loading={chartLoading}
-        />
+      {/* Charts section — min-w-0 so Recharts can measure grid children */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6 min-w-0">
+        <div className="min-w-0">
+          <RevenueExpensesChart
+            data={chartData?.revenueVsExpenses}
+            loading={chartLoading}
+          />
+        </div>
+        <div className="min-w-0">
+          <OrderPipelineChart
+            data={chartData?.orderPipeline}
+            loading={chartLoading}
+          />
+        </div>
       </div>
 
       {/* Bottom section: Activity + Needs attention */}

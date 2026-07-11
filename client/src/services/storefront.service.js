@@ -43,7 +43,11 @@ const storefrontService = {
 
   getSearchSuggestions: async (q) => {
     const res = await api.get('/storefront/search-suggestions', { params: { q } });
-    return res.data;
+    // { suggestions: ProductHit[], categories?: CategoryHit[] }
+    return {
+      suggestions: res.data?.suggestions || [],
+      categories: res.data?.categories || []
+    };
   },
 
   getStats: async () => {

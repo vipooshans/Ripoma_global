@@ -5,6 +5,7 @@ import storefrontService from '../../services/storefront.service';
 import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
 import ProductCard from '../../components/storefront/ProductCard';
 import ProductFiltersPanel from '../../components/storefront/ProductFiltersPanel';
+import SearchBar from '../../components/storefront/SearchBar';
 import CustomerFooter from '../../components/storefront/CustomerFooter';
 import { findStorefrontCategory } from '../../utils/categoryUtils';
 import {
@@ -176,12 +177,27 @@ const CustomerProducts = () => {
         </aside>
 
         <div className="flex-1 min-w-0">
+          <div className="mb-4">
+            <SearchBar
+              compact
+              className="w-full max-w-xl"
+              initialQuery={search}
+              onSearch={(q) => updateParam('search', q)}
+            />
+          </div>
+
           <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
             <div>
               <h1 className="text-lg font-extrabold text-slate-800">
-                {search ? `Results for "${search}"` : selectedCategory ? selectedCategory.name : 'All Products'}
+                {search
+                  ? `${pagination.total} result${pagination.total !== 1 ? 's' : ''} for "${search}"`
+                  : selectedCategory
+                    ? selectedCategory.name
+                    : 'All Products'}
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">{pagination.total} product{pagination.total !== 1 ? 's' : ''} found</p>
+              {!search && (
+                <p className="text-xs text-slate-400 mt-0.5">{pagination.total} product{pagination.total !== 1 ? 's' : ''} found</p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -258,10 +274,39 @@ const CustomerProducts = () => {
             <div className="text-center py-24 text-slate-400">
               <Package size={56} className="mx-auto mb-4 text-slate-200" />
               <p className="font-bold text-slate-600 text-lg">No products found</p>
-              <p className="text-sm mt-1">Try adjusting your search or filters</p>
-              <button type="button" onClick={clearAllFilters} className="mt-5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors flex items-center gap-1.5 mx-auto">
-                <X size={14} /> Clear filters
-              </button>
+              <p className="text-sm mt-1 max-w-sm mx-auto">
+                {search
+                  ? `Nothing matched "${search}". Try different keywords or clear filters.`
+                  : 'Try adjusting your search or filters'}
+              </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                  >
+                    <X size={14} /> Clear all filters
+                  </button>
+                )}
+                {search && (
+                  <Link
+                    to="/customer/categories"
+                    className="text-sm font-bold text-teal-700 hover:text-teal-800 px-4 py-2 rounded-xl border border-teal-200 bg-teal-50 transition-colors"
+                  >
+                    Browse categories
+                  </Link>
+                )}
+                {category && !search && (
+                  <button
+                    type="button"
+                    onClick={() => updateParam('category', '')}
+                    className="text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors"
+                  >
+                    Clear category filter
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
