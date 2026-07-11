@@ -10,6 +10,8 @@ router.get('/categories', storefrontController.getCategories);
 router.get('/categories/:id', storefrontController.getCategoryDetail);
 router.get('/stats', storefrontController.getStats);
 router.get('/promos', storefrontController.getPromos);
+router.post('/cart/estimate', storefrontController.estimateCart);
+router.post('/coupons/validate', storefrontController.validateCoupon);
 router.get('/products/facets', storefrontController.getProductFacets);
 router.get('/products', storefrontController.getProducts);
 router.get('/products/:id/reviews', storefrontController.getProductReviews);

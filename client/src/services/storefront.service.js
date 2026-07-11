@@ -58,6 +58,16 @@ const storefrontService = {
   getPromos: async () => {
     const res = await api.get('/storefront/promos');
     return res.data;
+  },
+
+  estimateCart: async (payload) => {
+    const res = await api.post('/storefront/cart/estimate', payload);
+    return res.data;
+  },
+
+  validateCoupon: async (payload) => {
+    const res = await api.post('/storefront/coupons/validate', payload);
+    return res.data;
   }
 };
 

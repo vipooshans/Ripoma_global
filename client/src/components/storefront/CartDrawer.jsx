@@ -3,12 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Package, X, ArrowRight } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import { formatPrice } from '../../utils/formatPrice';
+import { getCartSubtotal } from '../../utils/cart';
 
 const CartDrawer = ({ open, onClose, cart, onRemove, onUpdateQty }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useContext(CustomerAuthContext);
   const closeButtonRef = useRef(null);
-  const total = cart.reduce((sum, item) => sum + item.sellingPrice * item.qty, 0);
+  const subtotal = getCartSubtotal(cart);
 
   const handleClose = useCallback(() => {
     if (closeButtonRef.current?.contains(document.activeElement)) {
@@ -33,12 +34,17 @@ const CartDrawer = ({ open, onClose, cart, onRemove, onUpdateQty }) => {
     }
   }, [open]);
 
+  const goToCart = () => {
+    handleClose();
+    navigate('/customer/cart');
+  };
+
   const handleCheckout = () => {
     handleClose();
     if (isAuthenticated) {
-      navigate('/customer/products');
+      navigate('/customer/checkout');
     } else {
-      navigate('/customer/login', { state: { from: { pathname: '/customer/products' } } });
+      navigate('/customer/login', { state: { from: { pathname: '/customer/checkout' } } });
     }
   };
 
@@ -133,11 +139,25 @@ const CartDrawer = ({ open, onClose, cart, onRemove, onUpdateQty }) => {
         {cart.length > 0 && (
           <div className="border-t border-slate-100 p-5 space-y-3">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-slate-700 text-sm">Total</span>
-              <span className="font-extrabold text-slate-900 text-lg">{formatPrice(total)}</span>
+              <span className="font-bold text-slate-700 text-sm">Subtotal</span>
+              <span className="font-extrabold text-slate-900 text-lg">{formatPrice(subtotal)}</span>
             </div>
-            <button type="button" onClick={handleCheckout} className="btn-primary w-full py-3 text-sm">
-              <span>Proceed to Checkout</span>
+            <p className="text-[11px] text-slate-400">
+              Shipping &amp; tax calculated on the cart page
+            </p>
+            <button
+              type="button"
+              onClick={goToCart}
+              className="w-full py-2.5 text-sm font-bold rounded-xl border border-slate-200 text-slate-700 hover:border-teal-300 hover:text-teal-700 transition-colors"
+            >
+              View cart
+            </button>
+            <button
+              type="button"
+              onClick={handleCheckout}
+              className="w-full py-3 text-sm font-bold rounded-xl bg-teal-600 hover:bg-teal-700 text-white transition-colors flex items-center justify-center gap-2"
+            >
+              <span>Checkout</span>
               <ArrowRight size={16} />
             </button>
           </div>
