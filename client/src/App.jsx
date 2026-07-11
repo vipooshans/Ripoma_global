@@ -48,6 +48,7 @@ import StockMovementGrid from './pages/inventory/StockMovementGrid';
 import AlertsCenter from './pages/inventory/AlertsCenter';
 import CategoryList from './pages/inventory/CategoryList';
 import CategoryForm from './pages/inventory/CategoryForm';
+import StorefrontOrderList from './pages/inventory/StorefrontOrderList';
 
 // Supplier & Customer Management Module
 import SupplierList from './pages/suppliers/SupplierList';
@@ -188,6 +189,7 @@ function App() {
           <Route path="inventory/warehouses/:id" element={<WarehouseDetail />} />
           <Route path="inventory/stock" element={<StockMovementGrid />} />
           <Route path="inventory/alerts" element={<AlertsCenter />} />
+          <Route path="inventory/storefront-orders" element={<StorefrontOrderList />} />
 
           {/* Supplier & Customer Management Module */}
           <Route path="suppliers" element={<SupplierList />} />

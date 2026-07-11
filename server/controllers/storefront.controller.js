@@ -4,10 +4,14 @@ const ProductReview = require('../models/ProductReview');
 const Coupon = require('../models/Coupon');
 const StorefrontOrder = require('../models/StorefrontOrder');
 const CustomerAccount = require('../models/CustomerAccount');
+const User = require('../models/User');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
 const { getStorefrontPromos } = require('../config/storefrontPromos');
 const { getStorefrontCartRules, round2 } = require('../config/storefrontCartRules');
 const generateExportNumber = require('../utils/soNumberGenerator');
+const generateStorefrontOrderPdf = require('../utils/storefrontOrderPdfGenerator');
+const { sendNotification } = require('../utils/notifyService');
+const { formatStorefrontOrder } = require('../utils/storefrontOrderFormat');
 const {
   buildStorefrontCategoryTree,
   getDescendantCategoryIds,
@@ -673,36 +677,6 @@ exports.estimateCart = async (req, res) => {
   }
 };
 
-const formatStorefrontOrder = (order) => ({
-  id: order._id,
-  orderNumber: order.orderNumber,
-  items: (order.items || []).map((i) => ({
-    productId: i.product,
-    sku: i.sku,
-    name: i.name,
-    qty: i.qty,
-    unitPrice: i.unitPrice,
-    lineTotal: i.lineTotal,
-    image: i.image || null
-  })),
-  subtotal: order.subtotal,
-  discount: order.discount,
-  shipping: order.shipping,
-  tax: order.tax,
-  grandTotal: order.grandTotal,
-  currency: order.currency,
-  couponCode: order.couponCode || null,
-  coupon: order.couponSnapshot || null,
-  shippingAddress: order.shippingAddress,
-  contact: order.contact,
-  paymentMethod: order.paymentMethod,
-  paymentStatus: order.paymentStatus,
-  orderStatus: order.orderStatus,
-  customerNote: order.customerNote || '',
-  paymentReference: order.paymentReference || null,
-  placedAt: order.placedAt || order.createdAt
-});
-
 const resolvePaymentFields = (paymentMethod) => {
   if (paymentMethod === 'card_mock') {
     return {
@@ -841,7 +815,15 @@ exports.placeOrder = async (req, res) => {
       orderStatus: 'placed',
       customerNote: (customerNote || '').trim().slice(0, 1000),
       paymentReference,
-      placedAt: new Date()
+      placedAt: new Date(),
+      statusHistory: [
+        {
+          status: 'placed',
+          note: 'Order placed by customer',
+          at: new Date(),
+          byRole: 'customer'
+        }
+      ]
     });
 
     if (saveAddressToProfile) {
@@ -892,6 +874,84 @@ exports.getMyOrder = async (req, res) => {
     return res.status(200).json({ order: formatStorefrontOrder(order) });
   } catch (error) {
     console.error('Get Storefront Order Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/storefront/orders/:id/invoice.pdf ───────────────────────────────
+exports.downloadOrderInvoice = async (req, res) => {
+  try {
+    const order = await StorefrontOrder.findById(req.params.id);
+    if (!order || String(order.customerAccount) !== String(req.customerUser._id)) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+    const pdf = generateStorefrontOrderPdf(order);
+    const filename = `invoice-${order.orderNumber}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(pdf);
+  } catch (error) {
+    console.error('Storefront Invoice PDF Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── POST /api/storefront/orders/:id/cancel-request ───────────────────────────
+exports.requestOrderCancel = async (req, res) => {
+  try {
+    const order = await StorefrontOrder.findById(req.params.id);
+    if (!order || String(order.customerAccount) !== String(req.customerUser._id)) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    if (!['placed', 'confirmed'].includes(order.orderStatus)) {
+      return res.status(400).json({
+        message: `Cannot request cancellation while order is ${order.orderStatus}.`
+      });
+    }
+
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
+    order.previousStatusBeforeCancelRequest = order.orderStatus;
+    order.orderStatus = 'cancellation_requested';
+    order.cancelReason = reason;
+    order.cancellationRequestedAt = new Date();
+    order.statusHistory = order.statusHistory || [];
+    order.statusHistory.push({
+      status: 'cancellation_requested',
+      note: reason || 'Customer requested cancellation',
+      at: new Date(),
+      byRole: 'customer'
+    });
+    await order.save();
+
+    try {
+      const staff = await User.find({
+        role: { $in: ['admin', 'manager'] },
+        deleted: { $ne: true },
+        status: 'active'
+      }).select('_id');
+
+      for (const user of staff) {
+        await sendNotification({
+          recipientId: user._id,
+          type: 'storefront_cancel_requested',
+          severity: 'warning',
+          title: `Cancel request: ${order.orderNumber}`,
+          body: reason || 'Customer requested cancellation of a storefront order.',
+          actionUrl: '/inventory/storefront-orders',
+          actionLabel: 'Review orders',
+          entityType: 'StorefrontOrder',
+          entityId: order._id,
+          entityRef: order.orderNumber
+        });
+      }
+    } catch (notifyErr) {
+      console.error('Cancel request notify error:', notifyErr);
+    }
+
+    return res.status(200).json({ order: formatStorefrontOrder(order) });
+  } catch (error) {
+    console.error('Request Order Cancel Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

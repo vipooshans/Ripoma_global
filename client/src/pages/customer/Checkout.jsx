@@ -212,7 +212,7 @@ const CustomerCheckout = () => {
         }
       }
       toast.success(`Order ${data.order.orderNumber} placed`);
-      navigate(`/customer/orders/${data.order.id}`);
+      navigate(`/customer/orders/${data.order.id}`, { state: { justPlaced: true } });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not place order');
     } finally {

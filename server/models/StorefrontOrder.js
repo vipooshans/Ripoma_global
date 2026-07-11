@@ -47,6 +47,16 @@ const CouponSnapshotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const StatusHistorySchema = new mongoose.Schema(
+  {
+    status: { type: String, required: true },
+    note: { type: String, trim: true, default: '' },
+    at: { type: Date, default: Date.now },
+    byRole: { type: String, enum: ['customer', 'staff'], default: 'staff' }
+  },
+  { _id: false }
+);
+
 const StorefrontOrderSchema = new mongoose.Schema(
   {
     orderNumber: {
@@ -87,12 +97,26 @@ const StorefrontOrderSchema = new mongoose.Schema(
     },
     orderStatus: {
       type: String,
-      enum: ['placed', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+      enum: [
+        'placed',
+        'confirmed',
+        'processing',
+        'shipped',
+        'delivered',
+        'cancellation_requested',
+        'cancelled'
+      ],
       default: 'placed'
     },
     customerNote: { type: String, trim: true, default: '' },
     paymentReference: { type: String, trim: true, default: null },
-    placedAt: { type: Date, default: Date.now }
+    placedAt: { type: Date, default: Date.now },
+    cancelReason: { type: String, trim: true, default: '' },
+    cancellationRequestedAt: { type: Date, default: null },
+    previousStatusBeforeCancelRequest: { type: String, default: null },
+    trackingNumber: { type: String, trim: true, default: null },
+    carrier: { type: String, trim: true, default: null },
+    statusHistory: { type: [StatusHistorySchema], default: [] }
   },
   { timestamps: true }
 );
