@@ -1,8 +1,10 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const ProductReview = require('../models/ProductReview');
+const Coupon = require('../models/Coupon');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
 const { getStorefrontPromos } = require('../config/storefrontPromos');
+const { getStorefrontCartRules, round2 } = require('../config/storefrontCartRules');
 const {
   buildStorefrontCategoryTree,
   getDescendantCategoryIds,
@@ -524,6 +526,146 @@ exports.getPromos = async (req, res) => {
     return res.status(200).json({ promos });
   } catch (error) {
     console.error('Storefront Promos Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const couponLabel = (coupon) => {
+  if (coupon.type === 'percent') return `${coupon.value}% off`;
+  if (coupon.type === 'fixed') return `$${coupon.value} off`;
+  if (coupon.type === 'free_shipping') return 'Free shipping';
+  return coupon.code;
+};
+
+const findValidCoupon = async (rawCode, subtotal) => {
+  const code = String(rawCode || '').trim().toUpperCase();
+  if (!code) return { error: 'Coupon code is required' };
+
+  const coupon = await Coupon.findOne({ code });
+  if (!coupon || !coupon.active) {
+    return { error: 'Invalid or inactive coupon code' };
+  }
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+    return { error: 'This coupon has expired' };
+  }
+  if (subtotal < (coupon.minSubtotal || 0)) {
+    return {
+      error: `Minimum subtotal of $${coupon.minSubtotal} required for this coupon`
+    };
+  }
+  return { coupon };
+};
+
+const computeCartEstimate = (items, coupon) => {
+  const rules = getStorefrontCartRules();
+  const subtotal = round2(
+    (items || []).reduce(
+      (sum, item) => sum + (Number(item.sellingPrice) || 0) * (Number(item.qty) || 0),
+      0
+    )
+  );
+
+  let discount = 0;
+  let freeShippingCoupon = false;
+  let couponSummary = null;
+
+  if (coupon) {
+    if (coupon.type === 'percent') {
+      discount = round2(subtotal * (Number(coupon.value) || 0) / 100);
+    } else if (coupon.type === 'fixed') {
+      discount = round2(Math.min(subtotal, Number(coupon.value) || 0));
+    } else if (coupon.type === 'free_shipping') {
+      freeShippingCoupon = true;
+    }
+    couponSummary = {
+      code: coupon.code,
+      type: coupon.type,
+      label: couponLabel(coupon)
+    };
+  }
+
+  discount = Math.min(discount, subtotal);
+  const merchandise = round2(subtotal - discount);
+  const shipping =
+    freeShippingCoupon || merchandise >= rules.freeShippingMin
+      ? 0
+      : round2(rules.flatShipping);
+  const tax = round2(merchandise * rules.taxRate);
+  const total = round2(merchandise + shipping + tax);
+
+  const messages = [];
+  if (shipping > 0) {
+    const remaining = round2(rules.freeShippingMin - merchandise);
+    if (remaining > 0) {
+      messages.push(`Add $${remaining.toFixed(2)} more for free shipping`);
+    }
+  } else if (freeShippingCoupon) {
+    messages.push('Free shipping applied via coupon');
+  } else if (merchandise >= rules.freeShippingMin) {
+    messages.push('You qualify for free shipping');
+  }
+
+  return {
+    subtotal,
+    discount,
+    shipping,
+    tax,
+    total,
+    currency: rules.currency,
+    freeShippingMin: rules.freeShippingMin,
+    coupon: couponSummary,
+    messages
+  };
+};
+
+// ─── POST /api/storefront/coupons/validate ────────────────────────────────────
+exports.validateCoupon = async (req, res) => {
+  try {
+    const { code, subtotal = 0 } = req.body || {};
+    const result = await findValidCoupon(code, Number(subtotal) || 0);
+    if (result.error) {
+      return res.status(400).json({ message: result.error });
+    }
+    const { coupon } = result;
+    return res.status(200).json({
+      coupon: {
+        code: coupon.code,
+        type: coupon.type,
+        value: coupon.value,
+        label: couponLabel(coupon),
+        minSubtotal: coupon.minSubtotal || 0
+      }
+    });
+  } catch (error) {
+    console.error('Validate Coupon Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── POST /api/storefront/cart/estimate ───────────────────────────────────────
+exports.estimateCart = async (req, res) => {
+  try {
+    const { items = [], couponCode } = req.body || {};
+    const subtotal = round2(
+      items.reduce(
+        (sum, item) => sum + (Number(item.sellingPrice) || 0) * (Number(item.qty) || 0),
+        0
+      )
+    );
+
+    let coupon = null;
+    if (couponCode && String(couponCode).trim()) {
+      const result = await findValidCoupon(couponCode, subtotal);
+      if (result.error) {
+        return res.status(400).json({ message: result.error });
+      }
+      coupon = result.coupon;
+    }
+
+    const estimate = computeCartEstimate(items, coupon);
+    return res.status(200).json(estimate);
+  } catch (error) {
+    console.error('Cart Estimate Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
