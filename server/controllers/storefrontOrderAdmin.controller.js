@@ -86,7 +86,15 @@ exports.updateStatus = async (req, res) => {
     const order = await StorefrontOrder.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found.' });
 
-    const { orderStatus, trackingNumber, carrier, note } = req.body || {};
+    const {
+      orderStatus,
+      trackingNumber,
+      carrier,
+      note,
+      estimatedDeliveryDate,
+      trackingUrl,
+      shipmentNote
+    } = req.body || {};
 
     if (order.orderStatus === 'cancelled') {
       return res.status(400).json({ message: 'Cannot change status of a cancelled order.' });
@@ -97,6 +105,20 @@ exports.updateStatus = async (req, res) => {
       });
     }
 
+    const prev = {
+      status: order.orderStatus,
+      trackingNumber: order.trackingNumber || null,
+      carrier: order.carrier || null,
+      estimatedDeliveryDate: order.estimatedDeliveryDate
+        ? new Date(order.estimatedDeliveryDate).toISOString().slice(0, 10)
+        : null,
+      trackingUrl: order.trackingUrl || null
+    };
+
+    let statusChanged = false;
+    order.shipmentUpdates = order.shipmentUpdates || [];
+    order.statusHistory = order.statusHistory || [];
+
     if (orderStatus) {
       if (!STAFF_STATUSES.includes(orderStatus) || orderStatus === 'cancelled') {
         return res.status(400).json({
@@ -105,10 +127,10 @@ exports.updateStatus = async (req, res) => {
       }
       if (orderStatus !== order.orderStatus) {
         order.orderStatus = orderStatus;
-        order.statusHistory = order.statusHistory || [];
+        statusChanged = true;
         order.statusHistory.push({
           status: orderStatus,
-          note: note || `Status updated by staff`,
+          note: note || 'Status updated by staff',
           at: new Date(),
           byRole: 'staff'
         });
@@ -120,6 +142,94 @@ exports.updateStatus = async (req, res) => {
     }
     if (carrier !== undefined) {
       order.carrier = String(carrier || '').trim() || null;
+    }
+    if (trackingUrl !== undefined) {
+      order.trackingUrl = String(trackingUrl || '').trim() || null;
+    }
+    if (estimatedDeliveryDate !== undefined) {
+      if (estimatedDeliveryDate === null || estimatedDeliveryDate === '') {
+        order.estimatedDeliveryDate = null;
+      } else {
+        const d = new Date(estimatedDeliveryDate);
+        order.estimatedDeliveryDate = Number.isNaN(d.getTime()) ? order.estimatedDeliveryDate : d;
+      }
+    }
+
+    const addDays = (base, days) => {
+      const d = new Date(base);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + days);
+      return d;
+    };
+
+    if (statusChanged && order.orderStatus === 'shipped') {
+      if (!order.estimatedDeliveryDate) {
+        const base = order.placedAt || new Date();
+        order.estimatedDeliveryDate = addDays(base, 5);
+      }
+      const shipMsg = [
+        'Shipped',
+        order.carrier ? `via ${order.carrier}` : null,
+        order.trackingNumber ? `· ${order.trackingNumber}` : null
+      ]
+        .filter(Boolean)
+        .join(' ');
+      order.shipmentUpdates.push({
+        message: shipMsg,
+        at: new Date(),
+        byRole: 'staff'
+      });
+    }
+
+    if (statusChanged && order.orderStatus === 'delivered') {
+      order.actualDeliveredAt = new Date();
+      order.shipmentUpdates.push({
+        message: 'Delivered',
+        at: new Date(),
+        byRole: 'staff'
+      });
+    }
+
+    const noteText = String(shipmentNote || '').trim();
+    if (noteText) {
+      order.shipmentUpdates.push({
+        message: noteText,
+        at: new Date(),
+        byRole: 'staff'
+      });
+    }
+
+    const nextEta = order.estimatedDeliveryDate
+      ? new Date(order.estimatedDeliveryDate).toISOString().slice(0, 10)
+      : null;
+    const trackingChanged =
+      (trackingNumber !== undefined && (order.trackingNumber || null) !== prev.trackingNumber) ||
+      (carrier !== undefined && (order.carrier || null) !== prev.carrier) ||
+      (trackingUrl !== undefined && (order.trackingUrl || null) !== prev.trackingUrl) ||
+      (estimatedDeliveryDate !== undefined && nextEta !== prev.estimatedDeliveryDate);
+
+    const alreadyLoggedShipOrDeliver =
+      statusChanged && (order.orderStatus === 'shipped' || order.orderStatus === 'delivered');
+
+    if (trackingChanged && !noteText && !alreadyLoggedShipOrDeliver) {
+      const parts = [];
+      if (order.carrier && order.carrier !== prev.carrier) parts.push(`Carrier: ${order.carrier}`);
+      if (order.trackingNumber && order.trackingNumber !== prev.trackingNumber) {
+        parts.push(`Tracking: ${order.trackingNumber}`);
+      }
+      if (order.trackingUrl && order.trackingUrl !== prev.trackingUrl) {
+        parts.push('Tracking link updated');
+      }
+      if (nextEta && nextEta !== prev.estimatedDeliveryDate) {
+        parts.push(`ETA: ${nextEta}`);
+      }
+      if (parts.length) {
+        order.shipmentUpdates.push({
+          message: parts.join(' · '),
+          at: new Date(),
+          byRole: 'staff'
+        });
+      }
     }
 
     await order.save();

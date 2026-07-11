@@ -55,7 +55,12 @@ const StorefrontOrderList = () => {
             ? 'confirmed'
             : o.orderStatus,
           trackingNumber: o.trackingNumber || '',
-          carrier: o.carrier || ''
+          carrier: o.carrier || '',
+          trackingUrl: o.trackingUrl || '',
+          estimatedDeliveryDate: o.estimatedDeliveryDate
+            ? new Date(o.estimatedDeliveryDate).toISOString().slice(0, 10)
+            : '',
+          shipmentNote: ''
         };
       });
       setDrafts(nextDrafts);
@@ -86,7 +91,10 @@ const StorefrontOrderList = () => {
       await storefrontOrderAdminService.updateStatus(order.id, {
         orderStatus: draft.orderStatus,
         trackingNumber: draft.trackingNumber,
-        carrier: draft.carrier
+        carrier: draft.carrier,
+        trackingUrl: draft.trackingUrl,
+        estimatedDeliveryDate: draft.estimatedDeliveryDate || null,
+        shipmentNote: draft.shipmentNote || undefined
       });
       toast.success('Order updated');
       await load();
@@ -199,6 +207,12 @@ const StorefrontOrderList = () => {
                         <span className={`inline-block mt-1 px-2 py-0.5 rounded-full font-bold capitalize ${statusClass(order.orderStatus)}`}>
                           {order.orderStatus.replace(/_/g, ' ')}
                         </span>
+                        {order.estimatedDeliveryDate &&
+                          !['cancelled', 'cancellation_requested'].includes(order.orderStatus) && (
+                          <p className="text-[10px] text-teal-700 font-semibold mt-1">
+                            ETA {new Date(order.estimatedDeliveryDate).toLocaleDateString()}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-700">
                         <p className="font-semibold">
@@ -240,6 +254,25 @@ const StorefrontOrderList = () => {
                               value={draft.trackingNumber || ''}
                               onChange={(e) => updateDraft(order.id, { trackingNumber: e.target.value })}
                               placeholder="Tracking #"
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
+                            />
+                            <input
+                              type="date"
+                              value={draft.estimatedDeliveryDate || ''}
+                              onChange={(e) => updateDraft(order.id, { estimatedDeliveryDate: e.target.value })}
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
+                              title="Estimated delivery"
+                            />
+                            <input
+                              value={draft.trackingUrl || ''}
+                              onChange={(e) => updateDraft(order.id, { trackingUrl: e.target.value })}
+                              placeholder="Tracking URL"
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
+                            />
+                            <input
+                              value={draft.shipmentNote || ''}
+                              onChange={(e) => updateDraft(order.id, { shipmentNote: e.target.value })}
+                              placeholder="Shipment note (optional)"
                               className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
                             />
                           </>

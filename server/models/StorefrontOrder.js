@@ -57,6 +57,15 @@ const StatusHistorySchema = new mongoose.Schema(
   { _id: false }
 );
 
+const ShipmentUpdateSchema = new mongoose.Schema(
+  {
+    message: { type: String, required: true, trim: true },
+    at: { type: Date, default: Date.now },
+    byRole: { type: String, enum: ['staff', 'system'], default: 'staff' }
+  },
+  { _id: false }
+);
+
 const StorefrontOrderSchema = new mongoose.Schema(
   {
     orderNumber: {
@@ -116,7 +125,11 @@ const StorefrontOrderSchema = new mongoose.Schema(
     previousStatusBeforeCancelRequest: { type: String, default: null },
     trackingNumber: { type: String, trim: true, default: null },
     carrier: { type: String, trim: true, default: null },
-    statusHistory: { type: [StatusHistorySchema], default: [] }
+    estimatedDeliveryDate: { type: Date, default: null },
+    trackingUrl: { type: String, trim: true, default: null },
+    actualDeliveredAt: { type: Date, default: null },
+    statusHistory: { type: [StatusHistorySchema], default: [] },
+    shipmentUpdates: { type: [ShipmentUpdateSchema], default: [] }
   },
   { timestamps: true }
 );

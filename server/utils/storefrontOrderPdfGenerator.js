@@ -63,6 +63,17 @@ const generateStorefrontOrderPdf = (order) => {
     );
     if (order.couponCode) textLines.push(`Coupon applied: ${order.couponCode}`);
     if (order.paymentReference) textLines.push(`Payment reference: ${order.paymentReference}`);
+    if (order.carrier || order.trackingNumber || order.estimatedDeliveryDate) {
+      textLines.push(``, `SHIPPING:`, `----------------------------------------`);
+      if (order.carrier) textLines.push(`Carrier         : ${order.carrier}`);
+      if (order.trackingNumber) textLines.push(`Tracking Number : ${order.trackingNumber}`);
+      if (order.estimatedDeliveryDate) {
+        textLines.push(
+          `Est. Delivery   : ${new Date(order.estimatedDeliveryDate).toLocaleDateString()}`
+        );
+      }
+      if (order.trackingUrl) textLines.push(`Tracking URL    : ${order.trackingUrl}`);
+    }
 
   const contentStreamLines = ['BT', '/F1 10 Tf', '12 TL', '50 730 Td'];
 

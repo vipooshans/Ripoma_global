@@ -3,7 +3,7 @@ import { Link, Navigate, useParams, useLocation, useNavigate } from 'react-route
 import toast from 'react-hot-toast';
 import {
   Home, ChevronRight, Package, CheckCircle2, ArrowRight, Loader2, ShoppingBag,
-  Download, RotateCcw, XCircle, Truck
+  Download, RotateCcw, XCircle, Truck, ExternalLink, Calendar
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import CustomerFooter from '../../components/storefront/CustomerFooter';
@@ -226,29 +226,74 @@ const CustomerOrderDetail = () => {
                   })}
                 </div>
               )}
-              {(order.trackingNumber || order.carrier) && (
-                <div className="mt-4 flex items-start gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
-                  <Truck size={14} className="text-teal-600 mt-0.5 shrink-0" />
-                  <div>
-                    {order.carrier && <p className="font-bold text-slate-800">{order.carrier}</p>}
-                    {order.trackingNumber && <p>Tracking: {order.trackingNumber}</p>}
-                  </div>
+              {(order.trackingNumber || order.carrier || order.trackingUrl || order.estimatedDeliveryDate || order.actualDeliveredAt) && (
+                <div className="mt-4 space-y-2">
+                  {!isCancelled && !isCancelRequested && order.estimatedDeliveryDate &&
+                    ['processing', 'shipped'].includes(order.orderStatus) && (
+                    <div className="flex items-center gap-2 text-sm font-bold text-teal-800 bg-teal-50 border border-teal-100 rounded-lg px-3 py-2">
+                      <Calendar size={14} className="shrink-0" />
+                      Estimated delivery:{' '}
+                      {new Date(order.estimatedDeliveryDate).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </div>
+                  )}
+                  {order.orderStatus === 'delivered' && order.actualDeliveredAt && (
+                    <div className="flex items-center gap-2 text-sm font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                      <CheckCircle2 size={14} className="shrink-0" />
+                      Delivered on {new Date(order.actualDeliveredAt).toLocaleString()}
+                    </div>
+                  )}
+                  {(order.trackingNumber || order.carrier || order.trackingUrl) && (
+                    <div className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
+                      <Truck size={14} className="text-teal-600 mt-0.5 shrink-0" />
+                      <div className="space-y-1">
+                        {order.carrier && <p className="font-bold text-slate-800">{order.carrier}</p>}
+                        {order.trackingNumber && <p>Tracking: {order.trackingNumber}</p>}
+                        {order.trackingUrl && (
+                          <a
+                            href={order.trackingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-bold text-teal-700 hover:text-teal-800"
+                          >
+                            Track with carrier <ExternalLink size={11} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              {order.statusHistory?.length > 0 && (
+
+              {(order.shipmentUpdates?.length > 0 || order.statusHistory?.length > 0) && (
                 <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">History</p>
-                  {[...order.statusHistory].reverse().slice(0, 6).map((h, i) => (
-                    <div key={`${h.status}-${i}`} className="flex justify-between gap-2 text-xs">
-                      <span className="font-semibold text-slate-700 capitalize">
-                        {h.status.replace(/_/g, ' ')}
-                        {h.note ? ` — ${h.note}` : ''}
-                      </span>
-                      <span className="text-slate-400 shrink-0">
-                        {h.at ? new Date(h.at).toLocaleString() : ''}
-                      </span>
-                    </div>
-                  ))}
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    {order.shipmentUpdates?.length ? 'Shipment updates' : 'History'}
+                  </p>
+                  {order.shipmentUpdates?.length > 0
+                    ? [...order.shipmentUpdates].reverse().slice(0, 10).map((u, i) => (
+                        <div key={`su-${i}`} className="flex justify-between gap-2 text-xs">
+                          <span className="font-semibold text-slate-700">{u.message}</span>
+                          <span className="text-slate-400 shrink-0">
+                            {u.at ? new Date(u.at).toLocaleString() : ''}
+                          </span>
+                        </div>
+                      ))
+                    : [...order.statusHistory].reverse().slice(0, 6).map((h, i) => (
+                        <div key={`${h.status}-${i}`} className="flex justify-between gap-2 text-xs">
+                          <span className="font-semibold text-slate-700 capitalize">
+                            {h.status.replace(/_/g, ' ')}
+                            {h.note ? ` — ${h.note}` : ''}
+                          </span>
+                          <span className="text-slate-400 shrink-0">
+                            {h.at ? new Date(h.at).toLocaleString() : ''}
+                          </span>
+                        </div>
+                      ))}
                 </div>
               )}
             </div>

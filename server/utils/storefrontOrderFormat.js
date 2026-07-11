@@ -30,11 +30,19 @@ const formatStorefrontOrder = (order) => ({
   cancellationRequestedAt: order.cancellationRequestedAt || null,
   trackingNumber: order.trackingNumber || null,
   carrier: order.carrier || null,
+  estimatedDeliveryDate: order.estimatedDeliveryDate || null,
+  trackingUrl: order.trackingUrl || null,
+  actualDeliveredAt: order.actualDeliveredAt || null,
   statusHistory: (order.statusHistory || []).map((h) => ({
     status: h.status,
     note: h.note || '',
     at: h.at,
     byRole: h.byRole
+  })),
+  shipmentUpdates: (order.shipmentUpdates || []).map((u) => ({
+    message: u.message,
+    at: u.at,
+    byRole: u.byRole
   }))
 });
 

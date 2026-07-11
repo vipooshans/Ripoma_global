@@ -166,6 +166,17 @@ const CustomerOrders = () => {
                       {' · '}
                       <span className="capitalize">{order.paymentStatus?.replace(/_/g, ' ')}</span>
                     </p>
+                    {['processing', 'shipped'].includes(order.orderStatus) &&
+                      order.estimatedDeliveryDate && (
+                      <p className="text-[11px] font-bold text-teal-700 mt-1">
+                        ETA{' '}
+                        {new Date(order.estimatedDeliveryDate).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="font-extrabold text-slate-900 text-sm">
