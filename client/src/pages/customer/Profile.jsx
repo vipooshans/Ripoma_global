@@ -161,6 +161,8 @@ const CustomerProfile = () => {
 
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [wishlist, setWishlist] = useState(getWishlist);
   const [personalSubmitting, setPersonalSubmitting] = useState(false);
   const [addressSubmitting, setAddressSubmitting] = useState(false);
@@ -174,7 +176,14 @@ const CustomerProfile = () => {
   const prefs = {
     orderUpdates: customerUser?.notificationPrefs?.orderUpdates ?? true,
     shipmentUpdates: customerUser?.notificationPrefs?.shipmentUpdates ?? true,
-    marketing: customerUser?.notificationPrefs?.marketing ?? false
+    paymentUpdates: customerUser?.notificationPrefs?.paymentUpdates ?? true,
+    reminders: customerUser?.notificationPrefs?.reminders ?? true,
+    marketing: customerUser?.notificationPrefs?.marketing ?? false,
+    channels: {
+      email: customerUser?.notificationPrefs?.channels?.email ?? true,
+      sms: customerUser?.notificationPrefs?.channels?.sms ?? false,
+      inApp: customerUser?.notificationPrefs?.channels?.inApp ?? true
+    }
   };
 
   const {
@@ -242,49 +251,27 @@ const CustomerProfile = () => {
     }
   }, []);
 
+  const loadNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const data = await storefrontService.getMyNotifications(40);
+      setNotifications(data.notifications || []);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+    loadNotifications();
+  }, [loadOrders, loadNotifications]);
 
   const openOrderCount = useMemo(
     () => orders.filter((o) => OPEN_STATUSES.includes(o.orderStatus)).length,
     [orders]
   );
-
-  const activityFeed = useMemo(() => {
-    const events = [];
-    orders.forEach((order) => {
-      if (prefs.orderUpdates) {
-        (order.statusHistory || []).forEach((h, idx) => {
-          events.push({
-            id: `${order.id}-status-${idx}`,
-            type: 'order',
-            at: h.at,
-            title: `Order ${order.orderNumber}: ${statusLabel(h.status)}`,
-            detail: h.note || '',
-            orderId: order.id
-          });
-        });
-      }
-      if (prefs.shipmentUpdates) {
-        (order.shipmentUpdates || []).forEach((u, idx) => {
-          events.push({
-            id: `${order.id}-ship-${idx}`,
-            type: 'shipment',
-            at: u.at,
-            title: `Shipment · ${order.orderNumber}`,
-            detail: u.message || '',
-            orderId: order.id
-          });
-        });
-      }
-    });
-    return events
-      .filter((e) => e.at)
-      .sort((a, b) => new Date(b.at) - new Date(a.at))
-      .slice(0, 40);
-  }, [orders, prefs.orderUpdates, prefs.shipmentUpdates]);
-
   const onPersonalSubmit = async (data) => {
     try {
       setPersonalSubmitting(true);
@@ -601,29 +588,28 @@ const CustomerProfile = () => {
                     </button>
                   }
                 >
-                  {ordersLoading ? (
+                  {notificationsLoading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 size={20} className="animate-spin text-teal-500" />
                     </div>
-                  ) : activityFeed.length === 0 ? (
-                    <p className="text-sm text-slate-500">No recent order updates yet.</p>
+                  ) : notifications.length === 0 ? (
+                    <p className="text-sm text-slate-500">No recent alerts yet.</p>
                   ) : (
                     <ul className="space-y-3">
-                      {activityFeed.slice(0, 5).map((ev) => (
-                        <li key={ev.id} className="flex items-start justify-between gap-3 text-sm">
+                      {notifications.slice(0, 5).map((n) => (
+                        <li key={n.id} className="flex items-start justify-between gap-3 text-sm">
                           <div>
-                            <p className="font-semibold text-slate-800">{ev.title}</p>
-                            {ev.detail && <p className="text-xs text-slate-500 mt-0.5">{ev.detail}</p>}
+                            <p className="font-semibold text-slate-800">{n.title}</p>
+                            {n.body && <p className="text-xs text-slate-500 mt-0.5">{n.body}</p>}
                             <p className="text-[10px] text-slate-400 mt-1">
-                              {new Date(ev.at).toLocaleString()}
+                              {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
                             </p>
                           </div>
-                          <Link
-                            to={`/customer/orders/${ev.orderId}`}
-                            className="text-xs font-bold text-teal-600 shrink-0"
-                          >
-                            View
-                          </Link>
+                          {n.actionUrl && (
+                            <Link to={n.actionUrl} className="text-xs font-bold text-teal-600 shrink-0">
+                              View
+                            </Link>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -922,7 +908,7 @@ const CustomerProfile = () => {
                       {
                         key: 'orderUpdates',
                         label: 'Order updates',
-                        desc: 'Status changes like confirmed, processing, cancelled'
+                        desc: 'Placed, confirmed, cancelled, and other status changes'
                       },
                       {
                         key: 'shipmentUpdates',
@@ -930,9 +916,19 @@ const CustomerProfile = () => {
                         desc: 'Carrier notes, tracking, and delivery messages'
                       },
                       {
+                        key: 'paymentUpdates',
+                        label: 'Payment updates',
+                        desc: 'Payment status changes on your orders'
+                      },
+                      {
+                        key: 'reminders',
+                        label: 'Reminders',
+                        desc: 'Payment due and upcoming delivery reminders'
+                      },
+                      {
                         key: 'marketing',
-                        label: 'Marketing',
-                        desc: 'Promotions and product news (email when enabled)'
+                        label: 'Promotions',
+                        desc: 'Marketing offers and product news'
                       }
                     ].map((item) => (
                       <label
@@ -960,42 +956,123 @@ const CustomerProfile = () => {
                   </div>
                 </ProfileSection>
 
-                <ProfileSection title="Activity feed" icon={Bell}>
-                  {ordersLoading ? (
+                <ProfileSection title="Delivery channels" icon={Bell}>
+                  <div className="space-y-4">
+                    {[
+                      { key: 'inApp', label: 'In-system', desc: 'Show alerts in your account and navbar bell' },
+                      { key: 'email', label: 'Email', desc: 'Send alerts to your account email' },
+                      { key: 'sms', label: 'SMS', desc: 'Text alerts to your phone (stub until SMS provider is configured)' }
+                    ].map((item) => (
+                      <label
+                        key={item.key}
+                        className="flex items-start justify-between gap-4 cursor-pointer"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{item.label}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="mt-1 w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                          checked={Boolean(prefs.channels[item.key])}
+                          disabled={prefsSaving}
+                          onChange={(e) =>
+                            savePrefs({
+                              ...prefs,
+                              channels: {
+                                ...prefs.channels,
+                                [item.key]: e.target.checked
+                              }
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </ProfileSection>
+
+                <ProfileSection
+                  title="Inbox"
+                  icon={Bell}
+                  action={
+                    notifications.some((n) => !n.isRead) ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await storefrontService.markAllNotificationsRead();
+                            setNotifications((list) =>
+                              list.map((n) => ({ ...n, isRead: true }))
+                            );
+                            toast.success('All marked as read');
+                          } catch {
+                            toast.error('Could not mark notifications read');
+                          }
+                        }}
+                        className="text-xs font-bold text-teal-600 hover:text-teal-700"
+                      >
+                        Mark all read
+                      </button>
+                    ) : null
+                  }
+                >
+                  {notificationsLoading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 size={20} className="animate-spin text-teal-500" />
                     </div>
-                  ) : activityFeed.length === 0 ? (
+                  ) : notifications.length === 0 ? (
                     <p className="text-sm text-slate-500">
-                      No notifications to show. Enable preferences above or place an order.
+                      No notifications yet. Place an order or wait for shipment updates.
                     </p>
                   ) : (
                     <ul className="space-y-4">
-                      {activityFeed.map((ev) => (
+                      {notifications.map((n) => (
                         <li
-                          key={ev.id}
-                          className="flex gap-3 border-b border-slate-50 pb-3 last:border-0 last:pb-0"
+                          key={n.id}
+                          className={`flex gap-3 border-b border-slate-50 pb-3 last:border-0 last:pb-0 ${
+                            !n.isRead ? 'bg-teal-50/30 -mx-2 px-2 rounded-lg' : ''
+                          }`}
                         >
                           <div
                             className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                              ev.type === 'shipment' ? 'bg-teal-50 text-teal-600' : 'bg-slate-100 text-slate-600'
+                              n.type === 'shipment_update'
+                                ? 'bg-teal-50 text-teal-600'
+                                : n.type === 'promotion'
+                                  ? 'bg-amber-50 text-amber-600'
+                                  : 'bg-slate-100 text-slate-600'
                             }`}
                           >
-                            {ev.type === 'shipment' ? <Package size={14} /> : <Bell size={14} />}
+                            {n.type === 'shipment_update' ? <Package size={14} /> : <Bell size={14} />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800">{ev.title}</p>
-                            {ev.detail && <p className="text-xs text-slate-500 mt-0.5">{ev.detail}</p>}
+                            <p className="text-sm font-semibold text-slate-800">{n.title}</p>
+                            {n.body && <p className="text-xs text-slate-500 mt-0.5">{n.body}</p>}
                             <p className="text-[10px] text-slate-400 mt-1">
-                              {new Date(ev.at).toLocaleString()}
+                              {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
                             </p>
                           </div>
-                          <Link
-                            to={`/customer/orders/${ev.orderId}`}
-                            className="text-xs font-bold text-teal-600 shrink-0 self-start"
-                          >
-                            View
-                          </Link>
+                          {n.actionUrl && (
+                            <Link
+                              to={n.actionUrl}
+                              onClick={async () => {
+                                if (!n.isRead) {
+                                  try {
+                                    await storefrontService.markNotificationRead(n.id);
+                                    setNotifications((list) =>
+                                      list.map((x) =>
+                                        x.id === n.id ? { ...x, isRead: true } : x
+                                      )
+                                    );
+                                  } catch {
+                                    /* ignore */
+                                  }
+                                }
+                              }}
+                              className="text-xs font-bold text-teal-600 shrink-0 self-start"
+                            >
+                              View
+                            </Link>
+                          )}
                         </li>
                       ))}
                     </ul>

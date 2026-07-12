@@ -11,6 +11,7 @@ const { getStorefrontCartRules, round2 } = require('../config/storefrontCartRule
 const generateExportNumber = require('../utils/soNumberGenerator');
 const generateStorefrontOrderPdf = require('../utils/storefrontOrderPdfGenerator');
 const { sendNotification } = require('../utils/notifyService');
+const { notifyCustomer } = require('../utils/customerNotifyService');
 const { formatStorefrontOrder } = require('../utils/storefrontOrderFormat');
 const {
   buildStorefrontCategoryTree,
@@ -837,6 +838,19 @@ exports.placeOrder = async (req, res) => {
         }
       });
     }
+
+    await notifyCustomer({
+      customer,
+      type: 'order_placed',
+      title: `Order ${order.orderNumber} placed`,
+      body: `Thanks for your order. Total ${order.currency || 'USD'} ${Number(order.grandTotal).toFixed(2)}. We'll update you as it progresses.`,
+      severity: 'success',
+      actionUrl: `/customer/orders/${order._id}`,
+      actionLabel: 'View order',
+      entityType: 'StorefrontOrder',
+      entityId: order._id,
+      entityRef: order.orderNumber
+    });
 
     return res.status(201).json({ order: formatStorefrontOrder(order) });
   } catch (error) {

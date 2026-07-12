@@ -11,11 +11,7 @@ const {
 
 // ─── Safe customer payload (never includes password/hash/tokens) ─────────────
 
-const defaultNotificationPrefs = {
-  orderUpdates: true,
-  shipmentUpdates: true,
-  marketing: false
-};
+const { normalizePrefs } = require('../utils/customerNotifyService');
 
 const toSafeCustomer = (customer) => ({
   id: customer._id,
@@ -27,12 +23,7 @@ const toSafeCustomer = (customer) => ({
   companyDetails: customer.companyDetails,
   shippingAddress: customer.shippingAddress,
   billingAddress: customer.billingAddress,
-  notificationPrefs: {
-    ...defaultNotificationPrefs,
-    ...(customer.notificationPrefs?.toObject
-      ? customer.notificationPrefs.toObject()
-      : customer.notificationPrefs || {})
-  },
+  notificationPrefs: normalizePrefs(customer.notificationPrefs),
   emailVerified: customer.emailVerified,
   status: customer.status,
   lastLogin: customer.lastLogin,
@@ -426,19 +417,43 @@ exports.updateMe = async (req, res) => {
     if (shippingAddress !== undefined) customer.shippingAddress = shippingAddress;
     if (billingAddress !== undefined) customer.billingAddress = billingAddress;
     if (notificationPrefs !== undefined) {
+      const current = normalizePrefs(customer.notificationPrefs);
+      const nextChannels = notificationPrefs.channels || {};
       customer.notificationPrefs = {
         orderUpdates:
           notificationPrefs.orderUpdates !== undefined
             ? Boolean(notificationPrefs.orderUpdates)
-            : customer.notificationPrefs?.orderUpdates ?? true,
+            : current.orderUpdates,
         shipmentUpdates:
           notificationPrefs.shipmentUpdates !== undefined
             ? Boolean(notificationPrefs.shipmentUpdates)
-            : customer.notificationPrefs?.shipmentUpdates ?? true,
+            : current.shipmentUpdates,
+        paymentUpdates:
+          notificationPrefs.paymentUpdates !== undefined
+            ? Boolean(notificationPrefs.paymentUpdates)
+            : current.paymentUpdates,
+        reminders:
+          notificationPrefs.reminders !== undefined
+            ? Boolean(notificationPrefs.reminders)
+            : current.reminders,
         marketing:
           notificationPrefs.marketing !== undefined
             ? Boolean(notificationPrefs.marketing)
-            : customer.notificationPrefs?.marketing ?? false
+            : current.marketing,
+        channels: {
+          email:
+            nextChannels.email !== undefined
+              ? Boolean(nextChannels.email)
+              : current.channels.email,
+          sms:
+            nextChannels.sms !== undefined
+              ? Boolean(nextChannels.sms)
+              : current.channels.sms,
+          inApp:
+            nextChannels.inApp !== undefined
+              ? Boolean(nextChannels.inApp)
+              : current.channels.inApp
+        }
       };
     }
 

@@ -102,6 +102,26 @@ const storefrontService = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  getMyNotifications: async (limit = 30) => {
+    const res = await api.get('/storefront/notifications', { params: { limit } });
+    return res.data;
+  },
+
+  getUnreadNotificationCount: async () => {
+    const res = await api.get('/storefront/notifications/unread-count');
+    return res.data;
+  },
+
+  markNotificationRead: async (id) => {
+    const res = await api.patch(`/storefront/notifications/${id}/read`);
+    return res.data;
+  },
+
+  markAllNotificationsRead: async () => {
+    const res = await api.post('/storefront/notifications/read-all');
+    return res.data;
   }
 };
 

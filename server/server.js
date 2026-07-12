@@ -65,6 +65,7 @@ const { initTaxDutyAlertCron } = require('./jobs/taxDutyDueAlerts');
 const { initScheduledReportCron } = require('./jobs/scheduledReportRunner');
 const { initScheduledReminderCron } = require('./jobs/reminderCheck');
 const { initScheduledDigestCron } = require('./jobs/notificationDigest');
+const { initCustomerOrderReminderCron } = require('./jobs/customerOrderReminders');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -168,6 +169,7 @@ mongoose
     initScheduledReportCron();
     initScheduledReminderCron();
     initScheduledDigestCron();
+    initCustomerOrderReminderCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);

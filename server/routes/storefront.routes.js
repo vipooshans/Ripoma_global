@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const storefrontController = require('../controllers/storefront.controller');
+const customerNotificationController = require('../controllers/customerNotification.controller');
 const customerAuthMiddleware = require('../middleware/customerAuthMiddleware');
 
 // All routes are PUBLIC unless noted
@@ -17,6 +18,12 @@ router.get('/orders', customerAuthMiddleware, storefrontController.listMyOrders)
 router.get('/orders/:id/invoice', customerAuthMiddleware, storefrontController.downloadOrderInvoice);
 router.post('/orders/:id/cancel-request', customerAuthMiddleware, storefrontController.requestOrderCancel);
 router.get('/orders/:id', customerAuthMiddleware, storefrontController.getMyOrder);
+
+router.get('/notifications', customerAuthMiddleware, customerNotificationController.listMyNotifications);
+router.get('/notifications/unread-count', customerAuthMiddleware, customerNotificationController.getUnreadCount);
+router.patch('/notifications/:id/read', customerAuthMiddleware, customerNotificationController.markRead);
+router.post('/notifications/read-all', customerAuthMiddleware, customerNotificationController.markAllRead);
+
 router.get('/products/facets', storefrontController.getProductFacets);
 router.get('/products', storefrontController.getProducts);
 router.get('/products/:id/reviews', storefrontController.getProductReviews);
