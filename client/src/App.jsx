@@ -157,13 +157,20 @@ function App() {
           <Route path="/customer/checkout" element={<CustomerCheckout />} />
           <Route path="/customer/orders" element={<CustomerOrders />} />
           <Route path="/customer/orders/:id" element={<CustomerOrderConfirmation />} />
+          <Route
+            path="/customer/profile"
+            element={
+              <ProtectedCustomerRoute>
+                <CustomerProfile />
+              </ProtectedCustomerRoute>
+            }
+          />
         </Route>
         <Route path="/customer/login" element={<PublicCustomerRoute><CustomerLogin /></PublicCustomerRoute>} />
         <Route path="/customer/register" element={<PublicCustomerRoute><CustomerRegister /></PublicCustomerRoute>} />
         <Route path="/customer/forgot-password" element={<CustomerForgotPassword />} />
         <Route path="/customer/reset-password/:token" element={<CustomerResetPassword />} />
         <Route path="/customer/verify-email/:token" element={<CustomerEmailVerify />} />
-        <Route path="/customer/profile" element={<ProtectedCustomerRoute><CustomerProfile /></ProtectedCustomerRoute>} />
 
         {/* Protected Dashboard Layout Routes */}
         <Route path="/" element={<AdminLayout />}>

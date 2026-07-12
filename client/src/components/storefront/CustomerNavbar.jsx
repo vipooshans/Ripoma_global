@@ -135,7 +135,7 @@ const CustomerNavbar = ({
                     className="flex items-center gap-2.5 px-4 py-3 text-sm text-slate-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
                   >
                     <User size={14} />
-                    My Profile
+                    Account
                   </Link>
                   <Link
                     to="/customer/orders"

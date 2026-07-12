@@ -11,6 +11,12 @@ const {
 
 // ─── Safe customer payload (never includes password/hash/tokens) ─────────────
 
+const defaultNotificationPrefs = {
+  orderUpdates: true,
+  shipmentUpdates: true,
+  marketing: false
+};
+
 const toSafeCustomer = (customer) => ({
   id: customer._id,
   firstName: customer.firstName,
@@ -20,6 +26,13 @@ const toSafeCustomer = (customer) => ({
   companyName: customer.companyName,
   companyDetails: customer.companyDetails,
   shippingAddress: customer.shippingAddress,
+  billingAddress: customer.billingAddress,
+  notificationPrefs: {
+    ...defaultNotificationPrefs,
+    ...(customer.notificationPrefs?.toObject
+      ? customer.notificationPrefs.toObject()
+      : customer.notificationPrefs || {})
+  },
   emailVerified: customer.emailVerified,
   status: customer.status,
   lastLogin: customer.lastLogin,
@@ -389,7 +402,16 @@ exports.getMe = async (req, res) => {
 
 exports.updateMe = async (req, res) => {
   try {
-    const { firstName, lastName, phone, companyName, companyDetails, shippingAddress } = req.body;
+    const {
+      firstName,
+      lastName,
+      phone,
+      companyName,
+      companyDetails,
+      shippingAddress,
+      billingAddress,
+      notificationPrefs
+    } = req.body;
 
     const customer = await CustomerAccount.findById(req.customerUser._id);
     if (!customer) {
@@ -402,6 +424,23 @@ exports.updateMe = async (req, res) => {
     if (companyName !== undefined) customer.companyName = companyName.trim();
     if (companyDetails !== undefined) customer.companyDetails = companyDetails.trim();
     if (shippingAddress !== undefined) customer.shippingAddress = shippingAddress;
+    if (billingAddress !== undefined) customer.billingAddress = billingAddress;
+    if (notificationPrefs !== undefined) {
+      customer.notificationPrefs = {
+        orderUpdates:
+          notificationPrefs.orderUpdates !== undefined
+            ? Boolean(notificationPrefs.orderUpdates)
+            : customer.notificationPrefs?.orderUpdates ?? true,
+        shipmentUpdates:
+          notificationPrefs.shipmentUpdates !== undefined
+            ? Boolean(notificationPrefs.shipmentUpdates)
+            : customer.notificationPrefs?.shipmentUpdates ?? true,
+        marketing:
+          notificationPrefs.marketing !== undefined
+            ? Boolean(notificationPrefs.marketing)
+            : customer.notificationPrefs?.marketing ?? false
+      };
+    }
 
     await customer.save();
 
