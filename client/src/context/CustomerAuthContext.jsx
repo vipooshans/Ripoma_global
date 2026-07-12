@@ -16,6 +16,12 @@ export const CustomerAuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   const checkSession = async () => {
+    // Don't restore customer session while browsing staff admin routes
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/customer')) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const refreshData = await customerAuthService.refresh();
       if (!refreshData.accessToken) {

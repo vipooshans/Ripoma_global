@@ -41,6 +41,31 @@ const applyAuthorizationHeader = () => {
   }
 };
 
+/** Pick the correct JWT for this request (staff vs customer APIs can coexist). */
+const resolveTokenForUrl = (url = '') => {
+  const path = String(url);
+  const isStaffStorefrontAdmin =
+    path.includes('/storefront-orders') || path.includes('/storefront-reviews');
+  const isCustomerApi =
+    path.includes('/customer-auth') ||
+    (path.includes('/storefront') && !isStaffStorefrontAdmin);
+
+  if (isCustomerApi) {
+    return customerAccessToken || null;
+  }
+  if (staffAccessToken) return staffAccessToken;
+  return customerAccessToken || null;
+};
+
+api.interceptors.request.use((config) => {
+  const token = resolveTokenForUrl(config.url || '');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 const isAuthRefreshRequest = (url) =>
   url?.includes('/auth/refresh') || url?.includes('/customer-auth/refresh');
 
