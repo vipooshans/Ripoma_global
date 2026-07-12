@@ -56,6 +56,20 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
               {product.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{product.description}</p>}
             </div>
             <div className="text-right shrink-0">
+              <div className="flex items-center justify-end gap-2 mb-1">
+                <button
+                  type="button"
+                  onClick={handleWishlist}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border ${
+                    wishlisted
+                      ? 'bg-rose-500 border-rose-500 text-white'
+                      : 'bg-white border-slate-200 text-slate-400 hover:text-rose-500 hover:border-rose-200'
+                  }`}
+                  aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+                >
+                  <Heart size={14} className={wishlisted ? 'fill-white' : ''} />
+                </button>
+              </div>
               <p className="text-lg font-extrabold text-slate-900">{formatPrice(product.sellingPrice, product.currency)}</p>
               <p className="text-[10px] text-slate-400">per {product.unit}</p>
               <button

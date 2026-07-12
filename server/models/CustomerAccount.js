@@ -50,6 +50,14 @@ const CustomerAccountSchema = new mongoose.Schema(
     },
     // Shipping address
     shippingAddress: ShippingAddressSchema,
+    // Billing address
+    billingAddress: ShippingAddressSchema,
+    // Customer notification preferences
+    notificationPrefs: {
+      orderUpdates: { type: Boolean, default: true },
+      shipmentUpdates: { type: Boolean, default: true },
+      marketing: { type: Boolean, default: false }
+    },
     // Account status
     status: {
       type: String,

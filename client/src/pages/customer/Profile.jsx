@@ -1,11 +1,9 @@
-import React, { useState, useContext, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import toast from 'react-hot-toast';
-import { CustomerAuthContext } from '../../context/CustomerAuthContext';
-import customerAuthService from '../../services/customerAuth.service';
 import {
   User,
   Mail,
@@ -15,28 +13,76 @@ import {
   Lock,
   Eye,
   EyeOff,
-  LogOut,
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
   Globe,
-  Edit2,
   Save,
-  ArrowLeft
+  Package,
+  CreditCard,
+  Bell,
+  Heart,
+  LayoutDashboard,
+  ArrowRight,
+  Download,
+  ShoppingCart,
+  Trash2,
+  Copy,
+  Loader2
 } from 'lucide-react';
+import { CustomerAuthContext } from '../../context/CustomerAuthContext';
+import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
+import CustomerFooter from '../../components/storefront/CustomerFooter';
+import customerAuthService from '../../services/customerAuth.service';
+import storefrontService from '../../services/storefront.service';
+import { formatPrice } from '../../utils/formatPrice';
+import {
+  getWishlist,
+  getWishlistCount,
+  removeFromWishlist,
+  moveWishlistItemToCart
+} from '../../utils/wishlist';
 
-// ─── Schemas ──────────────────────────────────────────────────────────────────
-const profileSchema = z.object({
+const TABS = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'personal', label: 'Personal', icon: User },
+  { id: 'addresses', label: 'Addresses', icon: MapPin },
+  { id: 'orders', label: 'Orders', icon: Package },
+  { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'wishlist', label: 'Wishlist', icon: Heart },
+  { id: 'security', label: 'Security', icon: Lock }
+];
+
+const OPEN_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'cancellation_requested'];
+
+const personalSchema = z.object({
   firstName: z.string().min(1, 'First name is required').trim(),
   lastName: z.string().min(1, 'Last name is required').trim(),
   phone: z.string().optional(),
   companyName: z.string().optional(),
-  companyDetails: z.string().optional(),
+  companyDetails: z.string().optional()
+});
+
+const addressFields = {
   street: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional()
+};
+
+const addressesSchema = z.object({
+  shipStreet: addressFields.street,
+  shipCity: addressFields.city,
+  shipState: addressFields.state,
+  shipPostalCode: addressFields.postalCode,
+  shipCountry: addressFields.country,
+  billStreet: addressFields.street,
+  billCity: addressFields.city,
+  billState: addressFields.state,
+  billPostalCode: addressFields.postalCode,
+  billCountry: addressFields.country
 });
 
 const passwordSchema = z
@@ -50,36 +96,102 @@ const passwordSchema = z
     path: ['confirmPassword']
   });
 
-// ─── Profile Section ──────────────────────────────────────────────────────────
-const ProfileSection = ({ title, icon: Icon, children }) => (
+const ProfileSection = ({ title, icon: Icon, children, action }) => (
   <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-      <Icon size={16} className="text-teal-600" />
-      <h3 className="font-extrabold text-slate-800 text-sm">{title}</h3>
+    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <Icon size={16} className="text-teal-600" />
+        <h3 className="font-extrabold text-slate-800 text-sm">{title}</h3>
+      </div>
+      {action}
     </div>
     <div className="p-6">{children}</div>
   </div>
 );
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+const statusClass = (status) => {
+  const map = {
+    pending: 'bg-amber-50 text-amber-700 border-amber-200',
+    confirmed: 'bg-sky-50 text-sky-700 border-sky-200',
+    processing: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    shipped: 'bg-teal-50 text-teal-700 border-teal-200',
+    delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+    cancellation_requested: 'bg-orange-50 text-orange-700 border-orange-200'
+  };
+  return map[status] || 'bg-slate-50 text-slate-600 border-slate-200';
+};
+
+const statusLabel = (status) =>
+  String(status || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+const paymentMethodLabel = (method) => {
+  const map = {
+    cod: 'Cash on delivery',
+    bank_transfer: 'Bank transfer',
+    card_mock: 'Card'
+  };
+  return map[method] || method || '—';
+};
+
+const isAddressComplete = (addr) =>
+  Boolean(addr?.street?.trim() && addr?.city?.trim() && addr?.country?.trim());
+
+const emptyAddress = () => ({
+  street: '',
+  city: '',
+  state: '',
+  postalCode: '',
+  country: ''
+});
+
 const CustomerProfile = () => {
-  const { customerUser, setCustomerUser, logout } = useContext(CustomerAuthContext);
-  const navigate = useNavigate();
-  const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const { customerUser, setCustomerUser } = useContext(CustomerAuthContext);
+  const { setCartOpen } = useStorefront();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = TABS.some((t) => t.id === searchParams.get('tab'))
+    ? searchParams.get('tab')
+    : 'overview';
+
+  const setTab = (id) => {
+    setSearchParams(id === 'overview' ? {} : { tab: id }, { replace: true });
+  };
+
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [wishlist, setWishlist] = useState(getWishlist);
+  const [personalSubmitting, setPersonalSubmitting] = useState(false);
+  const [addressSubmitting, setAddressSubmitting] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [resendingVerification, setResendingVerification] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
-  // Profile form
+  const prefs = {
+    orderUpdates: customerUser?.notificationPrefs?.orderUpdates ?? true,
+    shipmentUpdates: customerUser?.notificationPrefs?.shipmentUpdates ?? true,
+    marketing: customerUser?.notificationPrefs?.marketing ?? false
+  };
+
   const {
-    register: regProfile,
-    handleSubmit: handleProfile,
-    reset: resetProfile,
-    formState: { errors: profileErrors }
-  } = useForm({ resolver: zodResolver(profileSchema) });
+    register: regPersonal,
+    handleSubmit: handlePersonal,
+    reset: resetPersonal,
+    formState: { errors: personalErrors }
+  } = useForm({ resolver: zodResolver(personalSchema) });
 
-  // Password form
+  const {
+    register: regAddr,
+    handleSubmit: handleAddr,
+    reset: resetAddr,
+    getValues: getAddrValues,
+    setValue: setAddrValue
+  } = useForm({ resolver: zodResolver(addressesSchema) });
+
   const {
     register: regPw,
     handleSubmit: handlePw,
@@ -87,56 +199,154 @@ const CustomerProfile = () => {
     formState: { errors: pwErrors }
   } = useForm({ resolver: zodResolver(passwordSchema) });
 
-  // Populate form when user loads
   useEffect(() => {
-    if (customerUser) {
-      resetProfile({
-        firstName: customerUser.firstName || '',
-        lastName: customerUser.lastName || '',
-        phone: customerUser.phone || '',
-        companyName: customerUser.companyName || '',
-        companyDetails: customerUser.companyDetails || '',
-        street: customerUser.shippingAddress?.street || '',
-        city: customerUser.shippingAddress?.city || '',
-        state: customerUser.shippingAddress?.state || '',
-        postalCode: customerUser.shippingAddress?.postalCode || '',
-        country: customerUser.shippingAddress?.country || ''
-      });
-    }
-  }, [customerUser, resetProfile]);
+    if (!customerUser) return;
+    resetPersonal({
+      firstName: customerUser.firstName || '',
+      lastName: customerUser.lastName || '',
+      phone: customerUser.phone || '',
+      companyName: customerUser.companyName || '',
+      companyDetails: customerUser.companyDetails || ''
+    });
+    const ship = customerUser.shippingAddress || emptyAddress();
+    const bill = customerUser.billingAddress || emptyAddress();
+    resetAddr({
+      shipStreet: ship.street || '',
+      shipCity: ship.city || '',
+      shipState: ship.state || '',
+      shipPostalCode: ship.postalCode || '',
+      shipCountry: ship.country || '',
+      billStreet: bill.street || '',
+      billCity: bill.city || '',
+      billState: bill.state || '',
+      billPostalCode: bill.postalCode || '',
+      billCountry: bill.country || ''
+    });
+  }, [customerUser, resetPersonal, resetAddr]);
 
-  const onProfileSubmit = async (data) => {
+  useEffect(() => {
+    const sync = () => setWishlist(getWishlist());
+    window.addEventListener('wishlist-updated', sync);
+    return () => window.removeEventListener('wishlist-updated', sync);
+  }, []);
+
+  const loadOrders = useCallback(async () => {
+    setOrdersLoading(true);
     try {
-      setProfileSubmitting(true);
-      const payload = {
+      const data = await storefrontService.getMyOrders();
+      setOrders(data.orders || []);
+    } catch {
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  const openOrderCount = useMemo(
+    () => orders.filter((o) => OPEN_STATUSES.includes(o.orderStatus)).length,
+    [orders]
+  );
+
+  const activityFeed = useMemo(() => {
+    const events = [];
+    orders.forEach((order) => {
+      if (prefs.orderUpdates) {
+        (order.statusHistory || []).forEach((h, idx) => {
+          events.push({
+            id: `${order.id}-status-${idx}`,
+            type: 'order',
+            at: h.at,
+            title: `Order ${order.orderNumber}: ${statusLabel(h.status)}`,
+            detail: h.note || '',
+            orderId: order.id
+          });
+        });
+      }
+      if (prefs.shipmentUpdates) {
+        (order.shipmentUpdates || []).forEach((u, idx) => {
+          events.push({
+            id: `${order.id}-ship-${idx}`,
+            type: 'shipment',
+            at: u.at,
+            title: `Shipment · ${order.orderNumber}`,
+            detail: u.message || '',
+            orderId: order.id
+          });
+        });
+      }
+    });
+    return events
+      .filter((e) => e.at)
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+      .slice(0, 40);
+  }, [orders, prefs.orderUpdates, prefs.shipmentUpdates]);
+
+  const onPersonalSubmit = async (data) => {
+    try {
+      setPersonalSubmitting(true);
+      const res = await customerAuthService.updateProfile({
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone,
         companyName: data.companyName,
-        companyDetails: data.companyDetails,
-        shippingAddress: {
-          street: data.street,
-          city: data.city,
-          state: data.state,
-          postalCode: data.postalCode,
-          country: data.country
-        }
-      };
-      const res = await customerAuthService.updateProfile(payload);
+        companyDetails: data.companyDetails
+      });
       setCustomerUser(res.customer);
-      toast.success('Profile updated successfully!');
+      toast.success('Personal info updated');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update profile.');
     } finally {
-      setProfileSubmitting(false);
+      setPersonalSubmitting(false);
     }
+  };
+
+  const onAddressSubmit = async (data) => {
+    try {
+      setAddressSubmitting(true);
+      const res = await customerAuthService.updateProfile({
+        shippingAddress: {
+          street: data.shipStreet,
+          city: data.shipCity,
+          state: data.shipState,
+          postalCode: data.shipPostalCode,
+          country: data.shipCountry
+        },
+        billingAddress: {
+          street: data.billStreet,
+          city: data.billCity,
+          state: data.billState,
+          postalCode: data.billPostalCode,
+          country: data.billCountry
+        }
+      });
+      setCustomerUser(res.customer);
+      toast.success('Addresses saved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save addresses.');
+    } finally {
+      setAddressSubmitting(false);
+    }
+  };
+
+  const copyShippingToBilling = () => {
+    const v = getAddrValues();
+    setAddrValue('billStreet', v.shipStreet || '');
+    setAddrValue('billCity', v.shipCity || '');
+    setAddrValue('billState', v.shipState || '');
+    setAddrValue('billPostalCode', v.shipPostalCode || '');
+    setAddrValue('billCountry', v.shipCountry || '');
+    toast.success('Copied shipping to billing');
   };
 
   const onPasswordSubmit = async (data) => {
     try {
       setPasswordSubmitting(true);
       await customerAuthService.changePassword(data.currentPassword, data.newPassword);
-      toast.success('Password changed successfully!');
+      toast.success('Password changed successfully');
       resetPw({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Incorrect current password.');
@@ -145,10 +355,17 @@ const CustomerProfile = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    toast.success('You have been logged out.');
-    navigate('/customer/login');
+  const savePrefs = async (next) => {
+    try {
+      setPrefsSaving(true);
+      const res = await customerAuthService.updateProfile({ notificationPrefs: next });
+      setCustomerUser(res.customer);
+      toast.success('Notification preferences saved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save preferences.');
+    } finally {
+      setPrefsSaving(false);
+    }
   };
 
   const handleResendVerification = async () => {
@@ -156,7 +373,7 @@ const CustomerProfile = () => {
     try {
       setResendingVerification(true);
       await customerAuthService.resendVerification(customerUser.email);
-      toast.success('Verification email sent. Please check your inbox.');
+      toast.success('Verification email sent.');
     } catch {
       toast.error('Could not resend verification email.');
     } finally {
@@ -164,349 +381,785 @@ const CustomerProfile = () => {
     }
   };
 
+  const handleInvoice = async (order) => {
+    try {
+      setDownloadingId(order.id);
+      await storefrontService.downloadOrderInvoice(order.id, order.orderNumber);
+    } catch {
+      toast.error('Could not download invoice.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleWishMove = (id) => {
+    moveWishlistItemToCart(id);
+    setWishlist(getWishlist());
+    toast.success('Moved to cart');
+    setCartOpen(true);
+  };
+
+  const handleWishRemove = (id) => {
+    removeFromWishlist(id);
+    setWishlist(getWishlist());
+    toast.success('Removed from wishlist');
+  };
+
   const initials = customerUser
     ? `${customerUser.firstName?.charAt(0) || ''}${customerUser.lastName?.charAt(0) || ''}`
     : 'C';
 
+  const wishlistCount = getWishlistCount(wishlist);
+  const shipComplete = isAddressComplete(customerUser?.shippingAddress);
+  const recentOrders = orders.slice(0, 8);
+
+  const inputClass =
+    'w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400';
+  const labelClass = 'block text-xs font-bold text-slate-500 mb-1';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-teal-50/30">
-      {/* Top Nav */}
-      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-500 text-slate-950 font-extrabold text-base shadow-sm">
-              R
-            </div>
-            <div>
-              <p className="text-sm font-extrabold tracking-wider leading-none text-slate-800">RIPOMA</p>
-              <span className="text-[9px] text-teal-600 font-bold tracking-widest uppercase">CUSTOMER PORTAL</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-xs text-slate-500 font-medium">
-              {customerUser?.email}
-            </span>
-            <button
-              id="customer-logout-btn"
-              onClick={handleLogout}
-              className="btn-secondary py-1.5 px-3 text-xs"
-            >
-              <LogOut size={13} />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Profile</h1>
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      <div className="max-w-7xl mx-auto w-full px-4 lg:px-8 py-8 flex-1">
+        <div className="mb-6">
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Account</h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            Manage your personal information, address, and account security.
+            Manage your profile, addresses, orders, payments, notifications, and wishlist.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left column: Avatar card */}
-          <div className="lg:col-span-1 space-y-5">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center text-center">
-              {/* Avatar initials */}
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-3xl font-extrabold shadow-lg shadow-teal-500/20 mb-4">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Sidebar */}
+          <aside className="lg:w-56 shrink-0 space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-sm font-extrabold shrink-0">
                 {initials.toUpperCase()}
               </div>
-              <h3 className="font-extrabold text-slate-800 text-base leading-tight">
-                {customerUser?.firstName} {customerUser?.lastName}
-              </h3>
-              <span className="text-xs text-slate-500 mt-1">{customerUser?.email}</span>
-
-              {/* Verification badge */}
-              <div className="mt-3">
-                {customerUser?.emailVerified ? (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
-                    <CheckCircle2 size={11} />
-                    Email Verified
-                  </span>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                      <AlertCircle size={11} />
-                      Email Not Verified
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleResendVerification}
-                      disabled={resendingVerification}
-                      className="text-[11px] font-bold text-teal-600 hover:text-teal-700 disabled:opacity-50"
-                    >
-                      {resendingVerification ? 'Sending…' : 'Resend verification email'}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Info */}
-              <div className="w-full mt-5 pt-5 border-t border-slate-100 space-y-3 text-xs text-left">
-                {customerUser?.phone && (
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Phone size={13} className="text-teal-500 shrink-0" />
-                    <span>{customerUser.phone}</span>
-                  </div>
-                )}
-                {customerUser?.companyName && (
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Building2 size={13} className="text-teal-500 shrink-0" />
-                    <span className="font-medium">{customerUser.companyName}</span>
-                  </div>
-                )}
-                {customerUser?.shippingAddress?.country && (
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Globe size={13} className="text-teal-500 shrink-0" />
-                    <span>
-                      {customerUser.shippingAddress.city
-                        ? `${customerUser.shippingAddress.city}, `
-                        : ''}
-                      {customerUser.shippingAddress.country}
-                    </span>
-                  </div>
-                )}
-                {customerUser?.lastLogin && (
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <ShieldCheck size={13} className="shrink-0" />
-                    <span>Last login: {new Date(customerUser.lastLogin).toLocaleDateString()}</span>
-                  </div>
-                )}
+              <div className="min-w-0">
+                <p className="text-sm font-extrabold text-slate-800 truncate">
+                  {customerUser?.firstName} {customerUser?.lastName}
+                </p>
+                <p className="text-[11px] text-slate-500 truncate">{customerUser?.email}</p>
               </div>
             </div>
-          </div>
 
-          {/* Right column: Forms */}
-          <div className="lg:col-span-2 space-y-5">
-            {/* Profile Edit Form */}
-            <ProfileSection title="Personal & Company Information" icon={Edit2}>
-              <form onSubmit={handleProfile(onProfileSubmit)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="form-label">First Name</label>
-                    <div className="relative">
-                      <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        id="profile-firstname"
-                        type="text"
-                        className={`form-input pl-9 ${profileErrors.firstName ? 'border-rose-500' : ''}`}
-                        {...regProfile('firstName')}
-                      />
-                    </div>
-                    {profileErrors.firstName && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">{profileErrors.firstName.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="form-label">Last Name</label>
-                    <div className="relative">
-                      <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        id="profile-lastname"
-                        type="text"
-                        className={`form-input pl-9 ${profileErrors.lastName ? 'border-rose-500' : ''}`}
-                        {...regProfile('lastName')}
-                      />
-                    </div>
-                    {profileErrors.lastName && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">{profileErrors.lastName.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="form-label">Phone Number</label>
-                    <div className="relative">
-                      <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        id="profile-phone"
-                        type="tel"
-                        className="form-input pl-9"
-                        placeholder="+1 (555) 000-0000"
-                        {...regProfile('phone')}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="form-label">Email Address</label>
-                    <div className="relative">
-                      <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="email"
-                        className="form-input pl-9 bg-slate-50 text-slate-500 cursor-not-allowed"
-                        value={customerUser?.email || ''}
-                        disabled
-                      />
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-1">Email cannot be changed.</p>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="form-label">Company Name</label>
-                    <div className="relative">
-                      <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        id="profile-company"
-                        type="text"
-                        className="form-input pl-9"
-                        placeholder="Optional"
-                        {...regProfile('companyName')}
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="form-label">Company Details</label>
-                    <textarea
-                      id="profile-company-details"
-                      className="form-input"
-                      rows={2}
-                      placeholder="Brief description of your business..."
-                      {...regProfile('companyDetails')}
-                    />
-                  </div>
+            <nav className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hidden lg:block">
+              {TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setTab(tab.id)}
+                    className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold border-b border-slate-50 last:border-0 transition-colors ${
+                      active
+                        ? 'bg-teal-50 text-teal-700'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon size={15} className={active ? 'text-teal-600' : 'text-slate-400'} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="lg:hidden flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {TABS.map((tab) => {
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setTab(tab.id)}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                      active
+                        ? 'bg-teal-600 text-white border-teal-600'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          {/* Main panel */}
+          <div className="flex-1 min-w-0 space-y-5">
+            {activeTab === 'overview' && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Orders', value: ordersLoading ? '—' : orders.length, tab: 'orders', icon: Package },
+                    { label: 'Open', value: ordersLoading ? '—' : openOrderCount, tab: 'orders', icon: Package },
+                    { label: 'Wishlist', value: wishlistCount, tab: 'wishlist', icon: Heart },
+                    {
+                      label: 'Shipping',
+                      value: shipComplete ? 'Set' : 'Incomplete',
+                      tab: 'addresses',
+                      icon: MapPin
+                    }
+                  ].map((card) => {
+                    const Icon = card.icon;
+                    return (
+                      <button
+                        key={card.label}
+                        type="button"
+                        onClick={() => setTab(card.tab)}
+                        className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-left hover:border-teal-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            {card.label}
+                          </span>
+                          <Icon size={14} className="text-teal-500" />
+                        </div>
+                        <p className="text-xl font-extrabold text-slate-900">{card.value}</p>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* Shipping Address */}
-                <div className="border-t border-slate-100 pt-4">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <MapPin size={12} className="text-teal-500" />
-                    Shipping Address
-                  </p>
+                <ProfileSection title="Account snapshot" icon={User}>
+                  <div className="flex flex-wrap items-start gap-6">
+                    <div className="space-y-2 text-sm text-slate-600 flex-1 min-w-[200px]">
+                      {customerUser?.emailVerified ? (
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
+                          <CheckCircle2 size={11} /> Email verified
+                        </span>
+                      ) : (
+                        <div className="space-y-2">
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                            <AlertCircle size={11} /> Email not verified
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleResendVerification}
+                            disabled={resendingVerification}
+                            className="block text-[11px] font-bold text-teal-600 hover:text-teal-700 disabled:opacity-50"
+                          >
+                            {resendingVerification ? 'Sending…' : 'Resend verification email'}
+                          </button>
+                        </div>
+                      )}
+                      {customerUser?.phone && (
+                        <p className="flex items-center gap-2">
+                          <Phone size={13} className="text-teal-500" /> {customerUser.phone}
+                        </p>
+                      )}
+                      {customerUser?.companyName && (
+                        <p className="flex items-center gap-2">
+                          <Building2 size={13} className="text-teal-500" /> {customerUser.companyName}
+                        </p>
+                      )}
+                      {customerUser?.shippingAddress?.country && (
+                        <p className="flex items-center gap-2">
+                          <Globe size={13} className="text-teal-500" />
+                          {[customerUser.shippingAddress.city, customerUser.shippingAddress.country]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTab('personal')}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600 hover:text-teal-700"
+                      >
+                        Edit personal info <ArrowRight size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTab('orders')}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600 hover:text-teal-700"
+                      >
+                        View orders <ArrowRight size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTab('notifications')}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600 hover:text-teal-700"
+                      >
+                        Notifications <ArrowRight size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </ProfileSection>
+
+                <ProfileSection
+                  title="Recent activity"
+                  icon={Bell}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setTab('notifications')}
+                      className="text-xs font-bold text-teal-600 hover:text-teal-700"
+                    >
+                      See all
+                    </button>
+                  }
+                >
+                  {ordersLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 size={20} className="animate-spin text-teal-500" />
+                    </div>
+                  ) : activityFeed.length === 0 ? (
+                    <p className="text-sm text-slate-500">No recent order updates yet.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {activityFeed.slice(0, 5).map((ev) => (
+                        <li key={ev.id} className="flex items-start justify-between gap-3 text-sm">
+                          <div>
+                            <p className="font-semibold text-slate-800">{ev.title}</p>
+                            {ev.detail && <p className="text-xs text-slate-500 mt-0.5">{ev.detail}</p>}
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {new Date(ev.at).toLocaleString()}
+                            </p>
+                          </div>
+                          <Link
+                            to={`/customer/orders/${ev.orderId}`}
+                            className="text-xs font-bold text-teal-600 shrink-0"
+                          >
+                            View
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </ProfileSection>
+              </>
+            )}
+
+            {activeTab === 'personal' && (
+              <ProfileSection title="Personal & company information" icon={User}>
+                <form onSubmit={handlePersonal(onPersonalSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>First name</label>
+                      <input
+                        type="text"
+                        className={`${inputClass} ${personalErrors.firstName ? 'border-rose-500' : ''}`}
+                        {...regPersonal('firstName')}
+                      />
+                      {personalErrors.firstName && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {personalErrors.firstName.message}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>Last name</label>
+                      <input
+                        type="text"
+                        className={`${inputClass} ${personalErrors.lastName ? 'border-rose-500' : ''}`}
+                        {...regPersonal('lastName')}
+                      />
+                      {personalErrors.lastName && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {personalErrors.lastName.message}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>Phone</label>
+                      <input type="tel" className={inputClass} placeholder="+1 (555) 000-0000" {...regPersonal('phone')} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Email</label>
+                      <div className="relative">
+                        <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="email"
+                          className={`${inputClass} pl-9 bg-slate-50 text-slate-500 cursor-not-allowed`}
+                          value={customerUser?.email || ''}
+                          disabled
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">Email cannot be changed.</p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={labelClass}>Company name</label>
+                      <input type="text" className={inputClass} placeholder="Optional" {...regPersonal('companyName')} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={labelClass}>Company details</label>
+                      <textarea
+                        className={inputClass}
+                        rows={2}
+                        placeholder="Brief description of your business..."
+                        {...regPersonal('companyDetails')}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={personalSubmitting}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                    >
+                      {personalSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      Save changes
+                    </button>
+                  </div>
+                </form>
+              </ProfileSection>
+            )}
+
+            {activeTab === 'addresses' && (
+              <form onSubmit={handleAddr(onAddressSubmit)} className="space-y-5">
+                <ProfileSection title="Shipping address" icon={MapPin}>
                   <div className="space-y-3">
                     <div>
-                      <label className="form-label">Street</label>
-                      <input id="profile-street" type="text" className="form-input" placeholder="123 Commerce St." {...regProfile('street')} />
+                      <label className={labelClass}>Street</label>
+                      <input type="text" className={inputClass} {...regAddr('shipStreet')} />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="form-label">City</label>
-                        <input id="profile-city" type="text" className="form-input" {...regProfile('city')} />
+                        <label className={labelClass}>City</label>
+                        <input type="text" className={inputClass} {...regAddr('shipCity')} />
                       </div>
                       <div>
-                        <label className="form-label">State / Region</label>
-                        <input id="profile-state" type="text" className="form-input" {...regProfile('state')} />
+                        <label className={labelClass}>State / region</label>
+                        <input type="text" className={inputClass} {...regAddr('shipState')} />
                       </div>
                       <div>
-                        <label className="form-label">Postal Code</label>
-                        <input id="profile-postal" type="text" className="form-input" {...regProfile('postalCode')} />
+                        <label className={labelClass}>Postal code</label>
+                        <input type="text" className={inputClass} {...regAddr('shipPostalCode')} />
                       </div>
                       <div>
-                        <label className="form-label">Country</label>
-                        <div className="relative">
-                          <Globe size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input id="profile-country" type="text" className="form-input pl-9" {...regProfile('country')} />
-                        </div>
+                        <label className={labelClass}>Country</label>
+                        <input type="text" className={inputClass} {...regAddr('shipCountry')} />
                       </div>
                     </div>
                   </div>
-                </div>
+                </ProfileSection>
+
+                <ProfileSection
+                  title="Billing address"
+                  icon={CreditCard}
+                  action={
+                    <button
+                      type="button"
+                      onClick={copyShippingToBilling}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-teal-600 hover:text-teal-700"
+                    >
+                      <Copy size={12} /> Copy shipping → billing
+                    </button>
+                  }
+                >
+                  <div className="space-y-3">
+                    <div>
+                      <label className={labelClass}>Street</label>
+                      <input type="text" className={inputClass} {...regAddr('billStreet')} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelClass}>City</label>
+                        <input type="text" className={inputClass} {...regAddr('billCity')} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>State / region</label>
+                        <input type="text" className={inputClass} {...regAddr('billState')} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Postal code</label>
+                        <input type="text" className={inputClass} {...regAddr('billPostalCode')} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Country</label>
+                        <input type="text" className={inputClass} {...regAddr('billCountry')} />
+                      </div>
+                    </div>
+                  </div>
+                </ProfileSection>
 
                 <div className="flex justify-end">
                   <button
-                    id="profile-save-btn"
                     type="submit"
-                    disabled={profileSubmitting}
-                    className="btn-primary py-2 px-5 text-xs"
+                    disabled={addressSubmitting}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
                   >
-                    {profileSubmitting ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Save size={14} />
-                        <span>Save Changes</span>
-                      </>
-                    )}
+                    {addressSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    Save addresses
                   </button>
                 </div>
               </form>
-            </ProfileSection>
+            )}
 
-            {/* Change Password */}
-            <ProfileSection title="Change Password" icon={Lock}>
-              <form onSubmit={handlePw(onPasswordSubmit)} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {activeTab === 'orders' && (
+              <ProfileSection
+                title="Recent orders"
+                icon={Package}
+                action={
+                  <Link to="/customer/orders" className="text-xs font-bold text-teal-600 hover:text-teal-700">
+                    View all orders
+                  </Link>
+                }
+              >
+                {ordersLoading ? (
+                  <div className="flex justify-center py-10">
+                    <Loader2 size={22} className="animate-spin text-teal-500" />
+                  </div>
+                ) : recentOrders.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-slate-500 mb-3">You have not placed any orders yet.</p>
+                    <Link
+                      to="/customer/products"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600"
+                    >
+                      Browse products <ArrowRight size={12} />
+                    </Link>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {recentOrders.map((order) => (
+                      <li key={order.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <Link
+                            to={`/customer/orders/${order.id}`}
+                            className="text-sm font-bold text-slate-800 hover:text-teal-700"
+                          >
+                            {order.orderNumber}
+                          </Link>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {order.placedAt ? new Date(order.placedAt).toLocaleDateString() : '—'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-extrabold text-slate-900">
+                            {formatPrice(order.grandTotal, order.currency)}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${statusClass(order.orderStatus)}`}
+                          >
+                            {statusLabel(order.orderStatus)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </ProfileSection>
+            )}
+
+            {activeTab === 'payments' && (
+              <ProfileSection title="Payment history" icon={CreditCard}>
+                {ordersLoading ? (
+                  <div className="flex justify-center py-10">
+                    <Loader2 size={22} className="animate-spin text-teal-500" />
+                  </div>
+                ) : orders.length === 0 ? (
+                  <p className="text-sm text-slate-500">No payments yet — place an order to see history here.</p>
+                ) : (
+                  <div className="overflow-x-auto -mx-2">
+                    <table className="w-full text-sm text-left min-w-[560px]">
+                      <thead>
+                        <tr className="text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                          <th className="px-2 py-2 font-bold">Date</th>
+                          <th className="px-2 py-2 font-bold">Order</th>
+                          <th className="px-2 py-2 font-bold">Method</th>
+                          <th className="px-2 py-2 font-bold">Status</th>
+                          <th className="px-2 py-2 font-bold text-right">Amount</th>
+                          <th className="px-2 py-2 font-bold text-right">Invoice</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orders.map((order) => (
+                          <tr key={order.id} className="border-b border-slate-50">
+                            <td className="px-2 py-3 text-slate-600 whitespace-nowrap">
+                              {order.placedAt ? new Date(order.placedAt).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="px-2 py-3">
+                              <Link
+                                to={`/customer/orders/${order.id}`}
+                                className="font-bold text-slate-800 hover:text-teal-700"
+                              >
+                                {order.orderNumber}
+                              </Link>
+                            </td>
+                            <td className="px-2 py-3 text-slate-600">
+                              {paymentMethodLabel(order.paymentMethod)}
+                            </td>
+                            <td className="px-2 py-3">
+                              <span className="text-[10px] font-bold uppercase text-slate-600">
+                                {statusLabel(order.paymentStatus)}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3 text-right font-extrabold text-slate-900">
+                              {formatPrice(order.grandTotal, order.currency)}
+                            </td>
+                            <td className="px-2 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleInvoice(order)}
+                                disabled={downloadingId === order.id}
+                                className="inline-flex items-center gap-1 text-xs font-bold text-teal-600 hover:text-teal-700 disabled:opacity-50"
+                              >
+                                {downloadingId === order.id ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <Download size={12} />
+                                )}
+                                PDF
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </ProfileSection>
+            )}
+
+            {activeTab === 'notifications' && (
+              <>
+                <ProfileSection title="Notification preferences" icon={Bell}>
+                  <div className="space-y-4">
+                    {[
+                      {
+                        key: 'orderUpdates',
+                        label: 'Order updates',
+                        desc: 'Status changes like confirmed, processing, cancelled'
+                      },
+                      {
+                        key: 'shipmentUpdates',
+                        label: 'Shipment updates',
+                        desc: 'Carrier notes, tracking, and delivery messages'
+                      },
+                      {
+                        key: 'marketing',
+                        label: 'Marketing',
+                        desc: 'Promotions and product news (email when enabled)'
+                      }
+                    ].map((item) => (
+                      <label
+                        key={item.key}
+                        className="flex items-start justify-between gap-4 cursor-pointer"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{item.label}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="mt-1 w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                          checked={Boolean(prefs[item.key])}
+                          disabled={prefsSaving}
+                          onChange={(e) =>
+                            savePrefs({
+                              ...prefs,
+                              [item.key]: e.target.checked
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </ProfileSection>
+
+                <ProfileSection title="Activity feed" icon={Bell}>
+                  {ordersLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 size={20} className="animate-spin text-teal-500" />
+                    </div>
+                  ) : activityFeed.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      No notifications to show. Enable preferences above or place an order.
+                    </p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {activityFeed.map((ev) => (
+                        <li
+                          key={ev.id}
+                          className="flex gap-3 border-b border-slate-50 pb-3 last:border-0 last:pb-0"
+                        >
+                          <div
+                            className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                              ev.type === 'shipment' ? 'bg-teal-50 text-teal-600' : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {ev.type === 'shipment' ? <Package size={14} /> : <Bell size={14} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800">{ev.title}</p>
+                            {ev.detail && <p className="text-xs text-slate-500 mt-0.5">{ev.detail}</p>}
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {new Date(ev.at).toLocaleString()}
+                            </p>
+                          </div>
+                          <Link
+                            to={`/customer/orders/${ev.orderId}`}
+                            className="text-xs font-bold text-teal-600 shrink-0 self-start"
+                          >
+                            View
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </ProfileSection>
+              </>
+            )}
+
+            {activeTab === 'wishlist' && (
+              <ProfileSection
+                title="Wishlist"
+                icon={Heart}
+                action={
+                  <Link to="/customer/wishlist" className="text-xs font-bold text-teal-600 hover:text-teal-700">
+                    Open full wishlist
+                  </Link>
+                }
+              >
+                {wishlist.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Heart size={28} className="text-rose-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500 mb-3">No saved products yet.</p>
+                    <Link
+                      to="/customer/products"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600"
+                    >
+                      Browse products <ArrowRight size={12} />
+                    </Link>
+                  </div>
+                ) : (
+                  <ul className="space-y-3">
+                    {wishlist.slice(0, 10).map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50"
+                      >
+                        <Link
+                          to={`/customer/products/${item.id}`}
+                          className="w-14 h-14 rounded-lg bg-slate-50 border border-slate-100 overflow-hidden flex items-center justify-center shrink-0"
+                        >
+                          {item.images?.[0] ? (
+                            <img src={item.images[0]} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Package size={18} className="text-slate-300" />
+                          )}
+                        </Link>
+                        <div className="flex-1 min-w-0">
+                          <Link
+                            to={`/customer/products/${item.id}`}
+                            className="text-sm font-bold text-slate-800 hover:text-teal-700 line-clamp-1"
+                          >
+                            {item.name}
+                          </Link>
+                          <p className="text-xs font-extrabold text-teal-600 mt-0.5">
+                            {formatPrice(item.sellingPrice, item.currency)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleWishMove(item.id)}
+                            className="p-2 rounded-lg text-teal-600 hover:bg-teal-50"
+                            aria-label="Add to cart"
+                          >
+                            <ShoppingCart size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleWishRemove(item.id)}
+                            className="p-2 rounded-lg text-rose-500 hover:bg-rose-50"
+                            aria-label="Remove"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </ProfileSection>
+            )}
+
+            {activeTab === 'security' && (
+              <ProfileSection title="Change password" icon={Lock}>
+                <form onSubmit={handlePw(onPasswordSubmit)} className="space-y-4 max-w-xl">
                   <div>
-                    <label className="form-label">Current Password</label>
+                    <label className={labelClass}>Current password</label>
                     <div className="relative">
-                      <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
-                        id="pw-current"
                         type={showCurrentPw ? 'text' : 'password'}
-                        className={`form-input pl-9 pr-9 ${pwErrors.currentPassword ? 'border-rose-500' : ''}`}
-                        placeholder="••••••••"
+                        className={`${inputClass} pr-9 ${pwErrors.currentPassword ? 'border-rose-500' : ''}`}
                         {...regPw('currentPassword')}
                       />
-                      <button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPw(!showCurrentPw)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      >
                         {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
                     {pwErrors.currentPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">{pwErrors.currentPassword.message}</p>
+                      <p className="text-rose-500 text-xs mt-1 font-semibold">
+                        {pwErrors.currentPassword.message}
+                      </p>
                     )}
                   </div>
-
                   <div>
-                    <label className="form-label">New Password</label>
+                    <label className={labelClass}>New password</label>
                     <div className="relative">
-                      <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
-                        id="pw-new"
                         type={showNewPw ? 'text' : 'password'}
-                        className={`form-input pl-9 pr-9 ${pwErrors.newPassword ? 'border-rose-500' : ''}`}
-                        placeholder="Min. 8 chars"
+                        className={`${inputClass} pr-9 ${pwErrors.newPassword ? 'border-rose-500' : ''}`}
+                        placeholder="Min. 8 characters"
                         {...regPw('newPassword')}
                       />
-                      <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPw(!showNewPw)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      >
                         {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
                     {pwErrors.newPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">{pwErrors.newPassword.message}</p>
+                      <p className="text-rose-500 text-xs mt-1 font-semibold">
+                        {pwErrors.newPassword.message}
+                      </p>
                     )}
                   </div>
-
                   <div>
-                    <label className="form-label">Confirm New Password</label>
-                    <div className="relative">
-                      <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        id="pw-confirm"
-                        type={showNewPw ? 'text' : 'password'}
-                        className={`form-input pl-9 ${pwErrors.confirmPassword ? 'border-rose-500' : ''}`}
-                        placeholder="••••••••"
-                        {...regPw('confirmPassword')}
-                      />
-                    </div>
+                    <label className={labelClass}>Confirm new password</label>
+                    <input
+                      type={showNewPw ? 'text' : 'password'}
+                      className={`${inputClass} ${pwErrors.confirmPassword ? 'border-rose-500' : ''}`}
+                      {...regPw('confirmPassword')}
+                    />
                     {pwErrors.confirmPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">{pwErrors.confirmPassword.message}</p>
+                      <p className="text-rose-500 text-xs mt-1 font-semibold">
+                        {pwErrors.confirmPassword.message}
+                      </p>
                     )}
                   </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    id="pw-save-btn"
-                    type="submit"
-                    disabled={passwordSubmitting}
-                    className="btn-primary py-2 px-5 text-xs"
-                  >
-                    {passwordSubmitting ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={passwordSubmitting}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                    >
+                      {passwordSubmitting ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
                         <ShieldCheck size={14} />
-                        <span>Update Password</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </ProfileSection>
+                      )}
+                      Update password
+                    </button>
+                  </div>
+                </form>
+              </ProfileSection>
+            )}
           </div>
         </div>
-      </main>
+      </div>
+      <CustomerFooter />
     </div>
   );
 };

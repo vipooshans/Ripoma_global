@@ -41,7 +41,7 @@ const CustomerFooter = () => (
             {[
               { label: 'Register', href: '/customer/register' },
               { label: 'Sign In', href: '/customer/login' },
-              { label: 'My Profile', href: '/customer/profile' }
+              { label: 'Account', href: '/customer/profile' }
             ].map((l) => (
               <li key={l.label}>
                 <Link to={l.href} className="text-xs hover:text-teal-400 transition-colors">{l.label}</Link>
