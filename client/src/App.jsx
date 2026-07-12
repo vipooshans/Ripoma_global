@@ -23,6 +23,7 @@ import CustomerProductDetail from './pages/customer/ProductDetail';
 import CustomerCategories from './pages/customer/Categories';
 import CustomerCategoryDetail from './pages/customer/CategoryDetail';
 import CustomerCart from './pages/customer/Cart';
+import CustomerWishlist from './pages/customer/Wishlist';
 import CustomerCheckout from './pages/customer/Checkout';
 import CustomerOrders from './pages/customer/Orders';
 import CustomerOrderConfirmation from './pages/customer/OrderConfirmation';
@@ -152,6 +153,7 @@ function App() {
           <Route path="/customer/categories" element={<CustomerCategories />} />
           <Route path="/customer/categories/:id" element={<CustomerCategoryDetail />} />
           <Route path="/customer/cart" element={<CustomerCart />} />
+          <Route path="/customer/wishlist" element={<CustomerWishlist />} />
           <Route path="/customer/checkout" element={<CustomerCheckout />} />
           <Route path="/customer/orders" element={<CustomerOrders />} />
           <Route path="/customer/orders/:id" element={<CustomerOrderConfirmation />} />

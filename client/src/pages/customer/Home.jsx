@@ -77,7 +77,7 @@ const FeatureHighlights = () => {
 const CustomerHome = () => {
   const navigate = useNavigate();
   const { isAuthenticated, logout } = useContext(CustomerAuthContext);
-  const { cartCount, setCartOpen, addToCart } = useStorefront();
+  const { cartCount, wishlistCount, setCartOpen, addToCart } = useStorefront();
 
   const [featured, setFeatured] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -137,6 +137,7 @@ const CustomerHome = () => {
         <CustomerNavbar
           variant="transparent"
           cartCount={cartCount}
+          wishlistCount={wishlistCount}
           onCartOpen={() => setCartOpen(true)}
           onLogout={handleLogout}
         />

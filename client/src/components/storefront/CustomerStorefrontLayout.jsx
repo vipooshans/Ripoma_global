@@ -4,6 +4,7 @@ import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import CustomerNavbar from './CustomerNavbar';
 import CartDrawer from './CartDrawer';
 import { getCart, addToCart as addItem, removeFromCart, updateCartQty, getCartCount } from '../../utils/cart';
+import { getWishlist, getWishlistCount } from '../../utils/wishlist';
 
 const StorefrontContext = createContext(null);
 
@@ -18,15 +19,23 @@ const CustomerStorefrontLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [cart, setCart] = useState(getCart);
+  const [wishlist, setWishlist] = useState(getWishlist);
   const [cartOpen, setCartOpen] = useState(false);
 
   const isHome = location.pathname === '/customer';
   const cartCount = getCartCount(cart);
+  const wishlistCount = getWishlistCount(wishlist);
 
   useEffect(() => {
     const sync = () => setCart(getCart());
     window.addEventListener('cart-updated', sync);
     return () => window.removeEventListener('cart-updated', sync);
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setWishlist(getWishlist());
+    window.addEventListener('wishlist-updated', sync);
+    return () => window.removeEventListener('wishlist-updated', sync);
   }, []);
 
   const handleAddToCart = useCallback((product, openDrawer = true, qty = 1) => {
@@ -53,6 +62,7 @@ const CustomerStorefrontLayout = () => {
   const value = {
     cart,
     cartCount,
+    wishlistCount,
     cartOpen,
     setCartOpen,
     addToCart: handleAddToCart,
@@ -67,6 +77,7 @@ const CustomerStorefrontLayout = () => {
           <CustomerNavbar
             variant="solid"
             cartCount={cartCount}
+            wishlistCount={wishlistCount}
             onCartOpen={() => setCartOpen(true)}
             onLogout={handleLogout}
             showSearch

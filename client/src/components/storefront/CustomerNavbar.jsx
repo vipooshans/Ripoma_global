@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  ShoppingCart, User, Menu, X, ChevronDown, LogOut, Package
+  ShoppingCart, User, Menu, X, ChevronDown, LogOut, Package, Heart
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import SearchBar from './SearchBar';
@@ -16,6 +16,7 @@ const NAV_LINKS = [
 const CustomerNavbar = ({
   variant = 'solid',
   cartCount = 0,
+  wishlistCount = 0,
   onCartOpen,
   onLogout,
   showSearch = false
@@ -81,6 +82,19 @@ const CustomerNavbar = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to="/customer/wishlist"
+            className={iconBtnClass}
+            aria-label={`Wishlist, ${wishlistCount} items`}
+          >
+            <Heart size={20} className={wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : ''} />
+            {wishlistCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center">
+                {wishlistCount > 9 ? '9+' : wishlistCount}
+              </span>
+            )}
+          </Link>
+
           <button
             id="cart-icon-btn"
             type="button"
@@ -130,6 +144,14 @@ const CustomerNavbar = ({
                   >
                     <Package size={14} />
                     Orders
+                  </Link>
+                  <Link
+                    to="/customer/wishlist"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-slate-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
+                  >
+                    <Heart size={14} />
+                    Wishlist
                   </Link>
                   <button
                     type="button"
@@ -193,6 +215,16 @@ const CustomerNavbar = ({
               {l.label}
             </Link>
           ))}
+          <Link
+            to="/customer/wishlist"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`flex items-center gap-2 text-sm font-medium py-2 transition-colors ${
+              isTransparent ? 'text-slate-300 hover:text-teal-400' : 'text-slate-600 hover:text-teal-600'
+            }`}
+          >
+            <Heart size={14} />
+            Wishlist{wishlistCount > 0 ? ` (${wishlistCount})` : ''}
+          </Link>
         </div>
       )}
     </header>
