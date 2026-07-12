@@ -54,3 +54,33 @@ const customerAuthMiddleware = async (req, res, next) => {
 };
 
 module.exports = customerAuthMiddleware;
+module.exports.optionalCustomerAuth = async (req, res, next) => {
+  try {
+    let token = null;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.customerAccessToken) {
+      token = req.cookies.customerAccessToken;
+    }
+    if (!token) return next();
+
+    try {
+      const decoded = jwt.verify(token, getCustomerJwtSecret());
+      if (decoded.type !== 'customer') return next();
+      const customer = await CustomerAccount.findById(decoded.id).select('-password');
+      if (
+        customer &&
+        customer.status !== 'suspended' &&
+        customer.status !== 'inactive'
+      ) {
+        req.customerUser = customer;
+      }
+    } catch {
+      /* ignore invalid optional token */
+    }
+    return next();
+  } catch (error) {
+    console.error('Optional Customer Auth Error:', error);
+    return next();
+  }
+};

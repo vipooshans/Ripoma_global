@@ -24,6 +24,7 @@ import {
   Wallet,
   Home,
   ShoppingBag,
+  Star,
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -41,6 +42,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Movements', to: '/inventory/stock', icon: ArrowDownUp, show: true },
       { name: 'Alerts', to: '/inventory/alerts', icon: AlertTriangle, show: true },
       { name: 'Web Orders', to: '/inventory/storefront-orders', icon: ShoppingBag, show: true },
+      { name: 'Product Reviews', to: '/inventory/storefront-reviews', icon: Star, show: true },
     ]},
     { group: 'CRM', items: [
       { name: 'Suppliers', to: '/suppliers', icon: Truck, show: true },

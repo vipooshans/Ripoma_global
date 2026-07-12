@@ -22,7 +22,8 @@ const TYPE_PREF_KEY = {
   shipment_update: 'shipmentUpdates',
   payment_update: 'paymentUpdates',
   reminder: 'reminders',
-  promotion: 'marketing'
+  promotion: 'marketing',
+  review_update: 'orderUpdates'
 };
 
 const normalizePrefs = (raw) => {

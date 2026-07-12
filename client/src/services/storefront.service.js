@@ -41,6 +41,16 @@ const storefrontService = {
     return res.data;
   },
 
+  updateMyProductReview: async (id, payload) => {
+    const res = await api.put(`/storefront/products/${id}/reviews/mine`, payload);
+    return res.data;
+  },
+
+  deleteMyProductReview: async (id) => {
+    const res = await api.delete(`/storefront/products/${id}/reviews/mine`);
+    return res.data;
+  },
+
   getSearchSuggestions: async (q) => {
     const res = await api.get('/storefront/search-suggestions', { params: { q } });
     // { suggestions: ProductHit[], categories?: CategoryHit[] }

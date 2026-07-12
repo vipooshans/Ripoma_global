@@ -22,22 +22,31 @@ const ProductReviewSchema = new mongoose.Schema(
     },
     title: {
       type: String,
-      trim: true
+      trim: true,
+      maxlength: 120
     },
     comment: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      minlength: 20,
+      maxlength: 2000
     },
     status: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],
-      default: 'approved'
+      default: 'pending',
+      index: true
+    },
+    verifiedPurchase: {
+      type: Boolean,
+      default: false
     }
   },
   { timestamps: true }
 );
 
 ProductReviewSchema.index({ product: 1, customer: 1 }, { unique: true });
+ProductReviewSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('ProductReview', ProductReviewSchema);

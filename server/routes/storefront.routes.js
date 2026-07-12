@@ -3,6 +3,7 @@ const router = express.Router();
 const storefrontController = require('../controllers/storefront.controller');
 const customerNotificationController = require('../controllers/customerNotification.controller');
 const customerAuthMiddleware = require('../middleware/customerAuthMiddleware');
+const { optionalCustomerAuth } = customerAuthMiddleware;
 
 // All routes are PUBLIC unless noted
 
@@ -26,8 +27,10 @@ router.post('/notifications/read-all', customerAuthMiddleware, customerNotificat
 
 router.get('/products/facets', storefrontController.getProductFacets);
 router.get('/products', storefrontController.getProducts);
-router.get('/products/:id/reviews', storefrontController.getProductReviews);
+router.get('/products/:id/reviews', optionalCustomerAuth, storefrontController.getProductReviews);
 router.post('/products/:id/reviews', customerAuthMiddleware, storefrontController.createProductReview);
+router.put('/products/:id/reviews/mine', customerAuthMiddleware, storefrontController.updateMyProductReview);
+router.delete('/products/:id/reviews/mine', customerAuthMiddleware, storefrontController.deleteMyProductReview);
 router.get('/products/:id', storefrontController.getProductDetail);
 router.get('/search-suggestions', storefrontController.getSearchSuggestions);
 

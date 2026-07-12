@@ -50,6 +50,7 @@ import AlertsCenter from './pages/inventory/AlertsCenter';
 import CategoryList from './pages/inventory/CategoryList';
 import CategoryForm from './pages/inventory/CategoryForm';
 import StorefrontOrderList from './pages/inventory/StorefrontOrderList';
+import StorefrontReviewList from './pages/inventory/StorefrontReviewList';
 
 // Supplier & Customer Management Module
 import SupplierList from './pages/suppliers/SupplierList';
@@ -199,6 +200,7 @@ function App() {
           <Route path="inventory/stock" element={<StockMovementGrid />} />
           <Route path="inventory/alerts" element={<AlertsCenter />} />
           <Route path="inventory/storefront-orders" element={<StorefrontOrderList />} />
+          <Route path="inventory/storefront-reviews" element={<StorefrontReviewList />} />
 
           {/* Supplier & Customer Management Module */}
           <Route path="suppliers" element={<SupplierList />} />

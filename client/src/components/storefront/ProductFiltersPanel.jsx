@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest First' },
   { value: 'popularity', label: 'Most Popular' },
+  { value: 'rating', label: 'Highest Rated' },
   { value: 'price_asc', label: 'Price: Low → High' },
   { value: 'price_desc', label: 'Price: High → Low' }
 ];
