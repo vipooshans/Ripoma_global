@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -28,7 +28,9 @@ import {
   ShoppingCart,
   Trash2,
   Copy,
-  Loader2
+  Loader2,
+  Monitor,
+  LogOut
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
@@ -88,7 +90,11 @@ const addressesSchema = z.object({
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+    newPassword: z
+      .string()
+      .min(8, 'New password must be at least 8 characters')
+      .regex(/[A-Za-z]/, 'Must include a letter')
+      .regex(/[0-9]/, 'Must include a number'),
     confirmPassword: z.string().min(1, 'Please confirm your new password')
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
@@ -148,8 +154,9 @@ const emptyAddress = () => ({
 });
 
 const CustomerProfile = () => {
-  const { customerUser, setCustomerUser } = useContext(CustomerAuthContext);
+  const { customerUser, setCustomerUser, logout } = useContext(CustomerAuthContext);
   const { setCartOpen } = useStorefront();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = TABS.some((t) => t.id === searchParams.get('tab'))
     ? searchParams.get('tab')
@@ -161,6 +168,8 @@ const CustomerProfile = () => {
 
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [wishlist, setWishlist] = useState(getWishlist);
   const [personalSubmitting, setPersonalSubmitting] = useState(false);
   const [addressSubmitting, setAddressSubmitting] = useState(false);
@@ -170,11 +179,25 @@ const CustomerProfile = () => {
   const [showNewPw, setShowNewPw] = useState(false);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const prefs = {
     orderUpdates: customerUser?.notificationPrefs?.orderUpdates ?? true,
     shipmentUpdates: customerUser?.notificationPrefs?.shipmentUpdates ?? true,
-    marketing: customerUser?.notificationPrefs?.marketing ?? false
+    paymentUpdates: customerUser?.notificationPrefs?.paymentUpdates ?? true,
+    reminders: customerUser?.notificationPrefs?.reminders ?? true,
+    marketing: customerUser?.notificationPrefs?.marketing ?? false,
+    channels: {
+      email: customerUser?.notificationPrefs?.channels?.email ?? true,
+      sms: customerUser?.notificationPrefs?.channels?.sms ?? false,
+      inApp: customerUser?.notificationPrefs?.channels?.inApp ?? true
+    }
   };
 
   const {
@@ -242,49 +265,27 @@ const CustomerProfile = () => {
     }
   }, []);
 
+  const loadNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const data = await storefrontService.getMyNotifications(40);
+      setNotifications(data.notifications || []);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+    loadNotifications();
+  }, [loadOrders, loadNotifications]);
 
   const openOrderCount = useMemo(
     () => orders.filter((o) => OPEN_STATUSES.includes(o.orderStatus)).length,
     [orders]
   );
-
-  const activityFeed = useMemo(() => {
-    const events = [];
-    orders.forEach((order) => {
-      if (prefs.orderUpdates) {
-        (order.statusHistory || []).forEach((h, idx) => {
-          events.push({
-            id: `${order.id}-status-${idx}`,
-            type: 'order',
-            at: h.at,
-            title: `Order ${order.orderNumber}: ${statusLabel(h.status)}`,
-            detail: h.note || '',
-            orderId: order.id
-          });
-        });
-      }
-      if (prefs.shipmentUpdates) {
-        (order.shipmentUpdates || []).forEach((u, idx) => {
-          events.push({
-            id: `${order.id}-ship-${idx}`,
-            type: 'shipment',
-            at: u.at,
-            title: `Shipment · ${order.orderNumber}`,
-            detail: u.message || '',
-            orderId: order.id
-          });
-        });
-      }
-    });
-    return events
-      .filter((e) => e.at)
-      .sort((a, b) => new Date(b.at) - new Date(a.at))
-      .slice(0, 40);
-  }, [orders, prefs.orderUpdates, prefs.shipmentUpdates]);
-
   const onPersonalSubmit = async (data) => {
     try {
       setPersonalSubmitting(true);
@@ -345,13 +346,102 @@ const CustomerProfile = () => {
   const onPasswordSubmit = async (data) => {
     try {
       setPasswordSubmitting(true);
-      await customerAuthService.changePassword(data.currentPassword, data.newPassword);
-      toast.success('Password changed successfully');
+      const res = await customerAuthService.changePassword(data.currentPassword, data.newPassword);
+      toast.success(res.message || 'Password changed successfully');
       resetPw({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      if (res.requireReauth) {
+        await logout();
+        navigate('/customer/login');
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Incorrect current password.');
     } finally {
       setPasswordSubmitting(false);
+    }
+  };
+
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const data = await customerAuthService.listSessions();
+      setSessions(data.sessions || []);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'security') loadSessions();
+  }, [activeTab, loadSessions]);
+
+  const handleLogoutAll = async () => {
+    setSessionBusy(true);
+    try {
+      await customerAuthService.logoutAllSessions();
+      toast.success('Signed out of all devices');
+      await logout();
+      navigate('/customer/login');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not sign out all sessions');
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const handleRevokeSession = async (id) => {
+    setSessionBusy(true);
+    try {
+      const res = await customerAuthService.revokeSession(id);
+      toast.success(res.message || 'Session revoked');
+      if (res.requireReauth) {
+        await logout();
+        navigate('/customer/login');
+        return;
+      }
+      await loadSessions();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not revoke session');
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const data = await customerAuthService.exportMyData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ripoma-account-export-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Export downloaded');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== 'DELETE') {
+      toast.error('Type DELETE to confirm');
+      return;
+    }
+    setDeleting(true);
+    try {
+      await customerAuthService.deleteMyAccount(deletePassword, 'DELETE');
+      toast.success('Account deleted');
+      await logout();
+      navigate('/customer');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not delete account');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -601,29 +691,28 @@ const CustomerProfile = () => {
                     </button>
                   }
                 >
-                  {ordersLoading ? (
+                  {notificationsLoading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 size={20} className="animate-spin text-teal-500" />
                     </div>
-                  ) : activityFeed.length === 0 ? (
-                    <p className="text-sm text-slate-500">No recent order updates yet.</p>
+                  ) : notifications.length === 0 ? (
+                    <p className="text-sm text-slate-500">No recent alerts yet.</p>
                   ) : (
                     <ul className="space-y-3">
-                      {activityFeed.slice(0, 5).map((ev) => (
-                        <li key={ev.id} className="flex items-start justify-between gap-3 text-sm">
+                      {notifications.slice(0, 5).map((n) => (
+                        <li key={n.id} className="flex items-start justify-between gap-3 text-sm">
                           <div>
-                            <p className="font-semibold text-slate-800">{ev.title}</p>
-                            {ev.detail && <p className="text-xs text-slate-500 mt-0.5">{ev.detail}</p>}
+                            <p className="font-semibold text-slate-800">{n.title}</p>
+                            {n.body && <p className="text-xs text-slate-500 mt-0.5">{n.body}</p>}
                             <p className="text-[10px] text-slate-400 mt-1">
-                              {new Date(ev.at).toLocaleString()}
+                              {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
                             </p>
                           </div>
-                          <Link
-                            to={`/customer/orders/${ev.orderId}`}
-                            className="text-xs font-bold text-teal-600 shrink-0"
-                          >
-                            View
-                          </Link>
+                          {n.actionUrl && (
+                            <Link to={n.actionUrl} className="text-xs font-bold text-teal-600 shrink-0">
+                              View
+                            </Link>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -922,7 +1011,7 @@ const CustomerProfile = () => {
                       {
                         key: 'orderUpdates',
                         label: 'Order updates',
-                        desc: 'Status changes like confirmed, processing, cancelled'
+                        desc: 'Placed, confirmed, cancelled, and other status changes'
                       },
                       {
                         key: 'shipmentUpdates',
@@ -930,9 +1019,19 @@ const CustomerProfile = () => {
                         desc: 'Carrier notes, tracking, and delivery messages'
                       },
                       {
+                        key: 'paymentUpdates',
+                        label: 'Payment updates',
+                        desc: 'Payment status changes on your orders'
+                      },
+                      {
+                        key: 'reminders',
+                        label: 'Reminders',
+                        desc: 'Payment due and upcoming delivery reminders'
+                      },
+                      {
                         key: 'marketing',
-                        label: 'Marketing',
-                        desc: 'Promotions and product news (email when enabled)'
+                        label: 'Promotions',
+                        desc: 'Marketing offers and product news'
                       }
                     ].map((item) => (
                       <label
@@ -960,42 +1059,123 @@ const CustomerProfile = () => {
                   </div>
                 </ProfileSection>
 
-                <ProfileSection title="Activity feed" icon={Bell}>
-                  {ordersLoading ? (
+                <ProfileSection title="Delivery channels" icon={Bell}>
+                  <div className="space-y-4">
+                    {[
+                      { key: 'inApp', label: 'In-system', desc: 'Show alerts in your account and navbar bell' },
+                      { key: 'email', label: 'Email', desc: 'Send alerts to your account email' },
+                      { key: 'sms', label: 'SMS', desc: 'Text alerts to your phone (stub until SMS provider is configured)' }
+                    ].map((item) => (
+                      <label
+                        key={item.key}
+                        className="flex items-start justify-between gap-4 cursor-pointer"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{item.label}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="mt-1 w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                          checked={Boolean(prefs.channels[item.key])}
+                          disabled={prefsSaving}
+                          onChange={(e) =>
+                            savePrefs({
+                              ...prefs,
+                              channels: {
+                                ...prefs.channels,
+                                [item.key]: e.target.checked
+                              }
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </ProfileSection>
+
+                <ProfileSection
+                  title="Inbox"
+                  icon={Bell}
+                  action={
+                    notifications.some((n) => !n.isRead) ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await storefrontService.markAllNotificationsRead();
+                            setNotifications((list) =>
+                              list.map((n) => ({ ...n, isRead: true }))
+                            );
+                            toast.success('All marked as read');
+                          } catch {
+                            toast.error('Could not mark notifications read');
+                          }
+                        }}
+                        className="text-xs font-bold text-teal-600 hover:text-teal-700"
+                      >
+                        Mark all read
+                      </button>
+                    ) : null
+                  }
+                >
+                  {notificationsLoading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 size={20} className="animate-spin text-teal-500" />
                     </div>
-                  ) : activityFeed.length === 0 ? (
+                  ) : notifications.length === 0 ? (
                     <p className="text-sm text-slate-500">
-                      No notifications to show. Enable preferences above or place an order.
+                      No notifications yet. Place an order or wait for shipment updates.
                     </p>
                   ) : (
                     <ul className="space-y-4">
-                      {activityFeed.map((ev) => (
+                      {notifications.map((n) => (
                         <li
-                          key={ev.id}
-                          className="flex gap-3 border-b border-slate-50 pb-3 last:border-0 last:pb-0"
+                          key={n.id}
+                          className={`flex gap-3 border-b border-slate-50 pb-3 last:border-0 last:pb-0 ${
+                            !n.isRead ? 'bg-teal-50/30 -mx-2 px-2 rounded-lg' : ''
+                          }`}
                         >
                           <div
                             className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                              ev.type === 'shipment' ? 'bg-teal-50 text-teal-600' : 'bg-slate-100 text-slate-600'
+                              n.type === 'shipment_update'
+                                ? 'bg-teal-50 text-teal-600'
+                                : n.type === 'promotion'
+                                  ? 'bg-amber-50 text-amber-600'
+                                  : 'bg-slate-100 text-slate-600'
                             }`}
                           >
-                            {ev.type === 'shipment' ? <Package size={14} /> : <Bell size={14} />}
+                            {n.type === 'shipment_update' ? <Package size={14} /> : <Bell size={14} />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800">{ev.title}</p>
-                            {ev.detail && <p className="text-xs text-slate-500 mt-0.5">{ev.detail}</p>}
+                            <p className="text-sm font-semibold text-slate-800">{n.title}</p>
+                            {n.body && <p className="text-xs text-slate-500 mt-0.5">{n.body}</p>}
                             <p className="text-[10px] text-slate-400 mt-1">
-                              {new Date(ev.at).toLocaleString()}
+                              {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
                             </p>
                           </div>
-                          <Link
-                            to={`/customer/orders/${ev.orderId}`}
-                            className="text-xs font-bold text-teal-600 shrink-0 self-start"
-                          >
-                            View
-                          </Link>
+                          {n.actionUrl && (
+                            <Link
+                              to={n.actionUrl}
+                              onClick={async () => {
+                                if (!n.isRead) {
+                                  try {
+                                    await storefrontService.markNotificationRead(n.id);
+                                    setNotifications((list) =>
+                                      list.map((x) =>
+                                        x.id === n.id ? { ...x, isRead: true } : x
+                                      )
+                                    );
+                                  } catch {
+                                    /* ignore */
+                                  }
+                                }
+                              }}
+                              className="text-xs font-bold text-teal-600 shrink-0 self-start"
+                            >
+                              View
+                            </Link>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -1079,82 +1259,201 @@ const CustomerProfile = () => {
             )}
 
             {activeTab === 'security' && (
-              <ProfileSection title="Change password" icon={Lock}>
-                <form onSubmit={handlePw(onPasswordSubmit)} className="space-y-4 max-w-xl">
-                  <div>
-                    <label className={labelClass}>Current password</label>
-                    <div className="relative">
-                      <input
-                        type={showCurrentPw ? 'text' : 'password'}
-                        className={`${inputClass} pr-9 ${pwErrors.currentPassword ? 'border-rose-500' : ''}`}
-                        {...regPw('currentPassword')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrentPw(!showCurrentPw)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      >
-                        {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                    {pwErrors.currentPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">
-                        {pwErrors.currentPassword.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className={labelClass}>New password</label>
-                    <div className="relative">
-                      <input
-                        type={showNewPw ? 'text' : 'password'}
-                        className={`${inputClass} pr-9 ${pwErrors.newPassword ? 'border-rose-500' : ''}`}
-                        placeholder="Min. 8 characters"
-                        {...regPw('newPassword')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPw(!showNewPw)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      >
-                        {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                    {pwErrors.newPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">
-                        {pwErrors.newPassword.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className={labelClass}>Confirm new password</label>
-                    <input
-                      type={showNewPw ? 'text' : 'password'}
-                      className={`${inputClass} ${pwErrors.confirmPassword ? 'border-rose-500' : ''}`}
-                      {...regPw('confirmPassword')}
-                    />
-                    {pwErrors.confirmPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">
-                        {pwErrors.confirmPassword.message}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex justify-end">
+              <div className="space-y-5">
+                <ProfileSection title="Session & login" icon={Monitor}>
+                  <p className="text-sm text-slate-500 mb-4">
+                    Last sign-in:{' '}
+                    <span className="font-semibold text-slate-700">
+                      {customerUser?.lastLogin
+                        ? new Date(customerUser.lastLogin).toLocaleString()
+                        : '—'}
+                    </span>
+                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Active devices
+                    </p>
                     <button
-                      type="submit"
-                      disabled={passwordSubmitting}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                      type="button"
+                      disabled={sessionBusy}
+                      onClick={handleLogoutAll}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 disabled:opacity-50"
                     >
-                      {passwordSubmitting ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <ShieldCheck size={14} />
-                      )}
-                      Update password
+                      <LogOut size={13} /> Sign out all devices
                     </button>
                   </div>
-                </form>
-              </ProfileSection>
+                  {sessionsLoading ? (
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="animate-spin text-teal-600" size={22} />
+                    </div>
+                  ) : sessions.length === 0 ? (
+                    <p className="text-sm text-slate-400">No active sessions found.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {sessions.map((s) => (
+                        <li
+                          key={s.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">
+                              {s.userAgent || 'Unknown device'}
+                              {s.current && (
+                                <span className="ml-2 text-[10px] font-bold uppercase text-teal-600">
+                                  This device
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {s.ip || 'IP unknown'} · Active{' '}
+                              {s.lastActiveAt
+                                ? new Date(s.lastActiveAt).toLocaleString()
+                                : '—'}
+                            </p>
+                          </div>
+                          {!s.current && (
+                            <button
+                              type="button"
+                              disabled={sessionBusy}
+                              onClick={() => handleRevokeSession(s.id)}
+                              className="text-xs font-bold text-slate-500 hover:text-rose-600"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </ProfileSection>
+
+                <ProfileSection title="Change password" icon={Lock}>
+                  <form onSubmit={handlePw(onPasswordSubmit)} className="space-y-4 max-w-xl">
+                    <p className="text-xs text-slate-500">
+                      Use at least 8 characters with a letter and a number. Changing your password
+                      signs you out everywhere.
+                    </p>
+                    <div>
+                      <label className={labelClass}>Current password</label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPw ? 'text' : 'password'}
+                          className={`${inputClass} pr-9 ${pwErrors.currentPassword ? 'border-rose-500' : ''}`}
+                          {...regPw('currentPassword')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPw(!showCurrentPw)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >
+                          {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      {pwErrors.currentPassword && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {pwErrors.currentPassword.message}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>New password</label>
+                      <div className="relative">
+                        <input
+                          type={showNewPw ? 'text' : 'password'}
+                          className={`${inputClass} pr-9 ${pwErrors.newPassword ? 'border-rose-500' : ''}`}
+                          placeholder="Letter + number, min 8"
+                          {...regPw('newPassword')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPw(!showNewPw)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >
+                          {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      {pwErrors.newPassword && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {pwErrors.newPassword.message}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>Confirm new password</label>
+                      <input
+                        type={showNewPw ? 'text' : 'password'}
+                        className={`${inputClass} ${pwErrors.confirmPassword ? 'border-rose-500' : ''}`}
+                        {...regPw('confirmPassword')}
+                      />
+                      {pwErrors.confirmPassword && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {pwErrors.confirmPassword.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={passwordSubmitting}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                      >
+                        {passwordSubmitting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <ShieldCheck size={14} />
+                        )}
+                        Update password
+                      </button>
+                    </div>
+                  </form>
+                </ProfileSection>
+
+                <ProfileSection title="Privacy & data" icon={Download}>
+                  <div className="space-y-4 max-w-xl">
+                    <p className="text-sm text-slate-500">
+                      Download a copy of your account, orders, and support history, or permanently
+                      close your account.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={exporting}
+                      onClick={handleExportData}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                      Export my data
+                    </button>
+                    <div className="border-t border-slate-100 pt-4 space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-wider text-rose-500">
+                        Delete account
+                      </p>
+                      <input
+                        type="password"
+                        placeholder="Confirm with your password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        className={inputClass}
+                      />
+                      <input
+                        type="text"
+                        placeholder='Type DELETE to confirm'
+                        value={deleteConfirm}
+                        onChange={(e) => setDeleteConfirm(e.target.value)}
+                        className={inputClass}
+                      />
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={handleDeleteAccount}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                      >
+                        {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        Delete my account
+                      </button>
+                    </div>
+                  </div>
+                </ProfileSection>
+              </div>
             )}
           </div>
         </div>

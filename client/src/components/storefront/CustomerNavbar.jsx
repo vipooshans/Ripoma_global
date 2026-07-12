@@ -5,11 +5,13 @@ import {
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import SearchBar from './SearchBar';
+import CustomerNotificationBell from './CustomerNotificationBell';
 
 const NAV_LINKS = [
   { label: 'Products', href: '/customer/products' },
   { label: 'Categories', href: '/customer/categories' },
   { label: 'About', href: '/customer#about' },
+  { label: 'Help', href: '/customer/help' },
   { label: 'Contact', href: '/customer#contact' }
 ];
 
@@ -82,6 +84,8 @@ const CustomerNavbar = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <CustomerNotificationBell iconBtnClass={iconBtnClass} />
+
           <Link
             to="/customer/wishlist"
             className={iconBtnClass}

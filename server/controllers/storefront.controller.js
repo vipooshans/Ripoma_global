@@ -11,6 +11,7 @@ const { getStorefrontCartRules, round2 } = require('../config/storefrontCartRule
 const generateExportNumber = require('../utils/soNumberGenerator');
 const generateStorefrontOrderPdf = require('../utils/storefrontOrderPdfGenerator');
 const { sendNotification } = require('../utils/notifyService');
+const { notifyCustomer } = require('../utils/customerNotifyService');
 const { formatStorefrontOrder } = require('../utils/storefrontOrderFormat');
 const {
   buildStorefrontCategoryTree,
@@ -77,12 +78,118 @@ const getReviewSummary = async (productId) => {
   };
 };
 
+const getReviewSummariesMap = async (productIds) => {
+  const ids = productIds
+    .map((id) => {
+      try {
+        return typeof id === 'string' ? new (require('mongoose').Types.ObjectId)(id) : id;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  if (!ids.length) return new Map();
+
+  const rows = await ProductReview.aggregate([
+    { $match: { product: { $in: ids }, status: 'approved' } },
+    {
+      $group: {
+        _id: '$product',
+        average: { $avg: '$rating' },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const map = new Map();
+  rows.forEach((r) => {
+    map.set(String(r._id), {
+      average: Math.round(r.average * 10) / 10,
+      count: r.count
+    });
+  });
+  return map;
+};
+
+const getRatingDistribution = async (productId) => {
+  const oid =
+    typeof productId === 'string'
+      ? new (require('mongoose').Types.ObjectId)(productId)
+      : productId;
+  const rows = await ProductReview.aggregate([
+    { $match: { product: oid, status: 'approved' } },
+    { $group: { _id: '$rating', count: { $sum: 1 } } }
+  ]);
+  const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  rows.forEach((r) => {
+    if (dist[r._id] !== undefined) dist[r._id] = r.count;
+  });
+  return dist;
+};
+
+const hasVerifiedPurchase = async (customerId, productId) => {
+  const found = await StorefrontOrder.exists({
+    customerAccount: customerId,
+    orderStatus: 'delivered',
+    'items.product': productId
+  });
+  return Boolean(found);
+};
+
+const formatPublicReview = (r) => ({
+  id: r._id,
+  rating: r.rating,
+  title: r.title || null,
+  comment: r.comment,
+  verifiedPurchase: Boolean(r.verifiedPurchase),
+  createdAt: r.createdAt,
+  customerName: r.customer
+    ? `${r.customer.firstName}${r.customer.lastName ? ` ${r.customer.lastName.charAt(0)}.` : ''}`
+    : 'Customer'
+});
+
+const formatOwnReview = (r) => ({
+  id: r._id,
+  rating: r.rating,
+  title: r.title || null,
+  comment: r.comment,
+  status: r.status,
+  verifiedPurchase: Boolean(r.verifiedPurchase),
+  createdAt: r.createdAt,
+  updatedAt: r.updatedAt
+});
+
+const validateReviewPayload = ({ rating, title, comment }) => {
+  const ratingNum = parseInt(rating, 10);
+  if (!ratingNum || ratingNum < 1 || ratingNum > 5) {
+    return { error: 'Rating must be between 1 and 5.' };
+  }
+  const commentText = String(comment || '').trim();
+  if (commentText.length < 20) {
+    return { error: 'Review comment must be at least 20 characters.' };
+  }
+  if (commentText.length > 2000) {
+    return { error: 'Review comment must be at most 2000 characters.' };
+  }
+  const titleText = title ? String(title).trim() : '';
+  if (titleText.length > 120) {
+    return { error: 'Review title must be at most 120 characters.' };
+  }
+  return {
+    ratingNum,
+    titleText: titleText || undefined,
+    commentText
+  };
+};
+
 const getSortOption = (sort) => {
   if (sort === 'price_asc') return { sellingPrice: 1 };
   if (sort === 'price_desc') return { sellingPrice: -1 };
   if (sort === 'name_asc') return { name: 1 };
   if (sort === 'name_desc') return { name: -1 };
   if (sort === 'popularity') return { isFeatured: -1, createdAt: -1 };
+  if (sort === 'rating') return null; // handled separately
   return { createdAt: -1 };
 };
 
@@ -129,12 +236,17 @@ const buildProductListQuery = async (queryParams) => {
 };
 
 const enrichProductsWithStock = async (products) => {
-  return Promise.all(
+  const enriched = await Promise.all(
     products.map(async (p) => {
       const stock = await getTotalStockForProduct(p._id);
       return formatProduct(p, stock.quantityOnHand);
     })
   );
+  const summaryMap = await getReviewSummariesMap(enriched.map((p) => p.id));
+  return enriched.map((p) => ({
+    ...p,
+    reviewSummary: summaryMap.get(String(p.id)) || { average: 0, count: 0 }
+  }));
 };
 
 // ─── GET /api/storefront/featured ─────────────────────────────────────────────
@@ -245,18 +357,27 @@ exports.getProducts = async (req, res) => {
     const limitNum = parseInt(limit) || 12;
     const sortOption = getSortOption(sort);
     const needsStockFilter = availability === 'in_stock' || availability === 'out_of_stock';
+    const sortByRating = sort === 'rating';
 
-    if (needsStockFilter) {
+    if (needsStockFilter || sortByRating) {
       const products = await Product.find(query)
         .populate('category', 'name')
-        .sort(sortOption);
+        .sort(sortOption || { createdAt: -1 });
 
       let enriched = await enrichProductsWithStock(products);
 
       if (availability === 'in_stock') {
         enriched = enriched.filter((p) => p.totalStock > 0);
-      } else {
+      } else if (availability === 'out_of_stock') {
         enriched = enriched.filter((p) => p.totalStock <= 0);
+      }
+
+      if (sortByRating) {
+        enriched.sort((a, b) => {
+          const diff = (b.reviewSummary?.average || 0) - (a.reviewSummary?.average || 0);
+          if (diff !== 0) return diff;
+          return (b.reviewSummary?.count || 0) - (a.reviewSummary?.count || 0);
+        });
       }
 
       const total = enriched.length;
@@ -329,10 +450,20 @@ exports.getProductDetail = async (req, res) => {
         return formatProduct(p, s.quantityOnHand);
       })
     );
+    const relatedWithReviews = await (async () => {
+      const map = await getReviewSummariesMap(relatedEnriched.map((p) => p.id));
+      return relatedEnriched.map((p) => ({
+        ...p,
+        reviewSummary: map.get(String(p.id)) || { average: 0, count: 0 }
+      }));
+    })();
 
     return res.status(200).json({
-      product: formatProduct(product, stock.quantityOnHand),
-      related: relatedEnriched,
+      product: {
+        ...formatProduct(product, stock.quantityOnHand),
+        reviewSummary
+      },
+      related: relatedWithReviews,
       reviewSummary
     });
   } catch (error) {
@@ -357,19 +488,22 @@ exports.getProductReviews = async (req, res) => {
       .limit(50);
 
     const summary = await getReviewSummary(product._id);
+    const distribution = await getRatingDistribution(product._id);
+
+    let myReview = null;
+    if (req.customerUser) {
+      const own = await ProductReview.findOne({
+        product: id,
+        customer: req.customerUser._id
+      });
+      if (own) myReview = formatOwnReview(own);
+    }
 
     return res.status(200).json({
-      reviews: reviews.map((r) => ({
-        id: r._id,
-        rating: r.rating,
-        title: r.title || null,
-        comment: r.comment,
-        createdAt: r.createdAt,
-        customerName: r.customer
-          ? `${r.customer.firstName}${r.customer.lastName ? ` ${r.customer.lastName.charAt(0)}.` : ''}`
-          : 'Customer'
-      })),
-      summary
+      reviews: reviews.map(formatPublicReview),
+      summary,
+      distribution,
+      myReview
     });
   } catch (error) {
     console.error('Storefront Product Reviews Error:', error);
@@ -381,20 +515,17 @@ exports.getProductReviews = async (req, res) => {
 exports.createProductReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const { rating, title, comment } = req.body;
     const customerId = req.customerUser._id;
+    const validated = validateReviewPayload(req.body || {});
+    if (validated.error) {
+      return res.status(400).json({ message: validated.error });
+    }
 
-    const product = await Product.findOne({ _id: id, status: 'active', deleted: false }).select('_id');
+    const product = await Product.findOne({ _id: id, status: 'active', deleted: false }).select(
+      '_id name'
+    );
     if (!product) {
       return res.status(404).json({ message: 'Product not found.' });
-    }
-
-    const ratingNum = parseInt(rating, 10);
-    if (!ratingNum || ratingNum < 1 || ratingNum > 5) {
-      return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
-    }
-    if (!comment || !String(comment).trim()) {
-      return res.status(400).json({ message: 'Review comment is required.' });
     }
 
     const existing = await ProductReview.findOne({ product: id, customer: customerId });
@@ -402,33 +533,80 @@ exports.createProductReview = async (req, res) => {
       return res.status(409).json({ message: 'You have already reviewed this product.' });
     }
 
+    const verifiedPurchase = await hasVerifiedPurchase(customerId, id);
+
     const review = await ProductReview.create({
       product: id,
       customer: customerId,
-      rating: ratingNum,
-      title: title ? String(title).trim() : undefined,
-      comment: String(comment).trim(),
-      status: 'approved'
+      rating: validated.ratingNum,
+      title: validated.titleText,
+      comment: validated.commentText,
+      status: 'pending',
+      verifiedPurchase
     });
 
-    await review.populate('customer', 'firstName lastName');
-
     return res.status(201).json({
-      message: 'Review submitted successfully.',
-      review: {
-        id: review._id,
-        rating: review.rating,
-        title: review.title || null,
-        comment: review.comment,
-        createdAt: review.createdAt,
-        customerName: `${review.customer.firstName}${review.customer.lastName ? ` ${review.customer.lastName.charAt(0)}.` : ''}`
-      }
+      message: 'Thanks — your review will appear after approval.',
+      review: formatOwnReview(review)
     });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({ message: 'You have already reviewed this product.' });
     }
     console.error('Create Product Review Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── PUT /api/storefront/products/:id/reviews/mine ────────────────────────────
+exports.updateMyProductReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customerId = req.customerUser._id;
+    const validated = validateReviewPayload(req.body || {});
+    if (validated.error) {
+      return res.status(400).json({ message: validated.error });
+    }
+
+    const review = await ProductReview.findOne({ product: id, customer: customerId });
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found.' });
+    }
+    if (review.status === 'rejected') {
+      return res.status(400).json({ message: 'Rejected reviews cannot be edited. Submit a new one after staff resets, or contact support.' });
+    }
+
+    review.rating = validated.ratingNum;
+    review.title = validated.titleText;
+    review.comment = validated.commentText;
+    review.status = 'pending';
+    review.verifiedPurchase = await hasVerifiedPurchase(customerId, id);
+    await review.save();
+
+    return res.status(200).json({
+      message: 'Review updated. It will appear after approval.',
+      review: formatOwnReview(review)
+    });
+  } catch (error) {
+    console.error('Update Product Review Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ─── DELETE /api/storefront/products/:id/reviews/mine ─────────────────────────
+exports.deleteMyProductReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const review = await ProductReview.findOneAndDelete({
+      product: id,
+      customer: req.customerUser._id
+    });
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found.' });
+    }
+    return res.status(200).json({ message: 'Review deleted.' });
+  } catch (error) {
+    console.error('Delete Product Review Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -544,7 +722,7 @@ const couponLabel = (coupon) => {
   return coupon.code;
 };
 
-const findValidCoupon = async (rawCode, subtotal) => {
+const findValidCoupon = async (rawCode, subtotal, customerId = null) => {
   const code = String(rawCode || '').trim().toUpperCase();
   if (!code) return { error: 'Coupon code is required' };
 
@@ -559,6 +737,19 @@ const findValidCoupon = async (rawCode, subtotal) => {
     return {
       error: `Minimum subtotal of $${coupon.minSubtotal} required for this coupon`
     };
+  }
+  if (coupon.maxUses != null && coupon.redemptionCount >= coupon.maxUses) {
+    return { error: 'This coupon has reached its usage limit' };
+  }
+  if (customerId && coupon.maxUsesPerCustomer != null) {
+    const used = await StorefrontOrder.countDocuments({
+      customerAccount: customerId,
+      couponCode: coupon.code,
+      orderStatus: { $nin: ['cancelled'] }
+    });
+    if (used >= coupon.maxUsesPerCustomer) {
+      return { error: 'You have already used this coupon the maximum number of times' };
+    }
   }
   return { coupon };
 };
@@ -774,16 +965,34 @@ exports.placeOrder = async (req, res) => {
 
     let coupon = null;
     if (couponCode && String(couponCode).trim()) {
-      const result = await findValidCoupon(couponCode, subtotal);
+      const result = await findValidCoupon(couponCode, subtotal, customer._id);
       if (result.error) {
         return res.status(400).json({ message: result.error });
       }
       coupon = result.coupon;
     }
 
+    // Fraud: order velocity (max 8 orders / hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentCount = await StorefrontOrder.countDocuments({
+      customerAccount: customer._id,
+      placedAt: { $gte: oneHourAgo }
+    });
+    if (recentCount >= 8) {
+      return res.status(429).json({
+        message: 'Too many orders placed recently. Please wait before ordering again.'
+      });
+    }
+
     const estimate = computeCartEstimate(estimateItems, coupon);
     const { paymentStatus, paymentReference } = resolvePaymentFields(paymentMethod);
     const orderNumber = await generateExportNumber('storefrontOrder');
+
+    const riskFlags = [];
+    if (recentCount >= 4) riskFlags.push('high_velocity');
+    if (estimate.grandTotal >= 5000) riskFlags.push('high_value');
+    if (paymentMethod === 'card_mock') riskFlags.push('demo_card');
+    if (!customer.emailVerified) riskFlags.push('unverified_email');
 
     const order = await StorefrontOrder.create({
       orderNumber,
@@ -815,6 +1024,7 @@ exports.placeOrder = async (req, res) => {
       orderStatus: 'placed',
       customerNote: (customerNote || '').trim().slice(0, 1000),
       paymentReference,
+      riskFlags,
       placedAt: new Date(),
       statusHistory: [
         {
@@ -825,6 +1035,10 @@ exports.placeOrder = async (req, res) => {
         }
       ]
     });
+
+    if (coupon) {
+      await Coupon.findByIdAndUpdate(coupon._id, { $inc: { redemptionCount: 1 } });
+    }
 
     if (saveAddressToProfile) {
       await CustomerAccount.findByIdAndUpdate(customer._id, {
@@ -837,6 +1051,19 @@ exports.placeOrder = async (req, res) => {
         }
       });
     }
+
+    await notifyCustomer({
+      customer,
+      type: 'order_placed',
+      title: `Order ${order.orderNumber} placed`,
+      body: `Thanks for your order. Total ${order.currency || 'USD'} ${Number(order.grandTotal).toFixed(2)}. We'll update you as it progresses.`,
+      severity: 'success',
+      actionUrl: `/customer/orders/${order._id}`,
+      actionLabel: 'View order',
+      entityType: 'StorefrontOrder',
+      entityId: order._id,
+      entityRef: order.orderNumber
+    });
 
     return res.status(201).json({ order: formatStorefrontOrder(order) });
   } catch (error) {

@@ -8,6 +8,7 @@ router.use(authMiddleware);
 router.use(requireRole('admin', 'manager'));
 
 router.get('/', storefrontOrderAdminController.listOrders);
+router.post('/promo-notify', storefrontOrderAdminController.sendPromoNotify);
 router.get('/:id', storefrontOrderAdminController.getOrder);
 router.patch('/:id/status', storefrontOrderAdminController.updateStatus);
 router.post('/:id/cancel-approve', storefrontOrderAdminController.approveCancel);

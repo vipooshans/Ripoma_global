@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import CustomerNavbar from './CustomerNavbar';
 import CartDrawer from './CartDrawer';
+import CookieConsentBanner from './CookieConsentBanner';
 import { getCart, addToCart as addItem, removeFromCart, updateCartQty, getCartCount } from '../../utils/cart';
 import { getWishlist, getWishlistCount } from '../../utils/wishlist';
 
@@ -95,6 +96,7 @@ const CustomerStorefrontLayout = () => {
         <main className="flex-1">
           <Outlet />
         </main>
+        <CookieConsentBanner />
       </div>
     </StorefrontContext.Provider>
   );

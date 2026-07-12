@@ -14,6 +14,8 @@ const STATUS_OPTIONS = [
   'delivered'
 ];
 
+const PAYMENT_OPTIONS = ['pending', 'awaiting_transfer', 'paid', 'failed'];
+
 const statusClass = (status) => {
   const map = {
     placed: 'bg-teal-50 text-teal-700',
@@ -36,6 +38,9 @@ const StorefrontOrderList = () => {
   const [page, setPage] = useState(1);
   const [drafts, setDrafts] = useState({});
   const [busyId, setBusyId] = useState(null);
+  const [promoSubject, setPromoSubject] = useState('');
+  const [promoBody, setPromoBody] = useState('');
+  const [promoBusy, setPromoBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,7 +65,8 @@ const StorefrontOrderList = () => {
           estimatedDeliveryDate: o.estimatedDeliveryDate
             ? new Date(o.estimatedDeliveryDate).toISOString().slice(0, 10)
             : '',
-          shipmentNote: ''
+          shipmentNote: '',
+          paymentStatus: o.paymentStatus || 'pending'
         };
       });
       setDrafts(nextDrafts);
@@ -90,6 +96,7 @@ const StorefrontOrderList = () => {
     try {
       await storefrontOrderAdminService.updateStatus(order.id, {
         orderStatus: draft.orderStatus,
+        paymentStatus: draft.paymentStatus,
         trackingNumber: draft.trackingNumber,
         carrier: draft.carrier,
         trackingUrl: draft.trackingUrl,
@@ -131,6 +138,28 @@ const StorefrontOrderList = () => {
     }
   };
 
+  const handleSendPromo = async (e) => {
+    e.preventDefault();
+    if (!promoSubject.trim() || !promoBody.trim()) {
+      toast.error('Subject and body are required');
+      return;
+    }
+    setPromoBusy(true);
+    try {
+      const data = await storefrontOrderAdminService.sendPromoNotify({
+        subject: promoSubject.trim(),
+        body: promoBody.trim()
+      });
+      toast.success(data.message || 'Promotion sent');
+      setPromoSubject('');
+      setPromoBody('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send promotion');
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -151,6 +180,36 @@ const StorefrontOrderList = () => {
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
+
+      <form
+        onSubmit={handleSendPromo}
+        className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3"
+      >
+        <p className="text-sm font-extrabold text-slate-800">Send promotion</p>
+        <p className="text-[11px] text-slate-500">
+          Notifies customers who opted into marketing (email / in-app / SMS per their channel prefs).
+        </p>
+        <input
+          value={promoSubject}
+          onChange={(e) => setPromoSubject(e.target.value)}
+          placeholder="Subject"
+          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2"
+        />
+        <textarea
+          value={promoBody}
+          onChange={(e) => setPromoBody(e.target.value)}
+          placeholder="Message body"
+          rows={2}
+          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2"
+        />
+        <button
+          type="submit"
+          disabled={promoBusy}
+          className="px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 disabled:opacity-50"
+        >
+          {promoBusy ? 'Sending…' : 'Broadcast to opted-in customers'}
+        </button>
+      </form>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -242,6 +301,16 @@ const StorefrontOrderList = () => {
                             >
                               {STATUS_OPTIONS.map((s) => (
                                 <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={draft.paymentStatus || order.paymentStatus || 'pending'}
+                              onChange={(e) => updateDraft(order.id, { paymentStatus: e.target.value })}
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
+                              title="Payment status"
+                            >
+                              {PAYMENT_OPTIONS.map((s) => (
+                                <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                               ))}
                             </select>
                             <input

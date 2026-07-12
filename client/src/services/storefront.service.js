@@ -41,6 +41,16 @@ const storefrontService = {
     return res.data;
   },
 
+  updateMyProductReview: async (id, payload) => {
+    const res = await api.put(`/storefront/products/${id}/reviews/mine`, payload);
+    return res.data;
+  },
+
+  deleteMyProductReview: async (id) => {
+    const res = await api.delete(`/storefront/products/${id}/reviews/mine`);
+    return res.data;
+  },
+
   getSearchSuggestions: async (q) => {
     const res = await api.get('/storefront/search-suggestions', { params: { q } });
     // { suggestions: ProductHit[], categories?: CategoryHit[] }
@@ -102,6 +112,51 @@ const storefrontService = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  getMyNotifications: async (limit = 30) => {
+    const res = await api.get('/storefront/notifications', { params: { limit } });
+    return res.data;
+  },
+
+  getUnreadNotificationCount: async () => {
+    const res = await api.get('/storefront/notifications/unread-count');
+    return res.data;
+  },
+
+  markNotificationRead: async (id) => {
+    const res = await api.patch(`/storefront/notifications/${id}/read`);
+    return res.data;
+  },
+
+  markAllNotificationsRead: async () => {
+    const res = await api.post('/storefront/notifications/read-all');
+    return res.data;
+  },
+
+  getFaqs: async (params = {}) => {
+    const res = await api.get('/storefront/faqs', { params });
+    return res.data;
+  },
+
+  createSupportTicket: async (payload) => {
+    const res = await api.post('/storefront/support', payload);
+    return res.data;
+  },
+
+  getMySupportTickets: async () => {
+    const res = await api.get('/storefront/support/mine');
+    return res.data;
+  },
+
+  getSupportTicket: async (id, params = {}) => {
+    const res = await api.get(`/storefront/support/${id}`, { params });
+    return res.data;
+  },
+
+  addSupportMessage: async (id, payload) => {
+    const res = await api.post(`/storefront/support/${id}/messages`, payload);
+    return res.data;
   }
 };
 

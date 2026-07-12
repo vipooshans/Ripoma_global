@@ -31,6 +31,23 @@ const couponSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       default: null
+    },
+    /** Total redemptions allowed (null = unlimited). */
+    maxUses: {
+      type: Number,
+      default: null,
+      min: 1
+    },
+    /** Max redemptions per customer account (null = unlimited). */
+    maxUsesPerCustomer: {
+      type: Number,
+      default: 1,
+      min: 1
+    },
+    redemptionCount: {
+      type: Number,
+      default: 0,
+      min: 0
     }
   },
   { timestamps: true }

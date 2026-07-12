@@ -56,7 +56,14 @@ const CustomerAccountSchema = new mongoose.Schema(
     notificationPrefs: {
       orderUpdates: { type: Boolean, default: true },
       shipmentUpdates: { type: Boolean, default: true },
-      marketing: { type: Boolean, default: false }
+      paymentUpdates: { type: Boolean, default: true },
+      reminders: { type: Boolean, default: true },
+      marketing: { type: Boolean, default: false },
+      channels: {
+        email: { type: Boolean, default: true },
+        sms: { type: Boolean, default: false },
+        inApp: { type: Boolean, default: true }
+      }
     },
     // Account status
     status: {
@@ -89,6 +96,29 @@ const CustomerAccountSchema = new mongoose.Schema(
     },
     lastLogin: {
       type: Date
+    },
+    // Brute-force protection
+    failedLoginAttempts: {
+      type: Number,
+      default: 0
+    },
+    lockUntil: {
+      type: Date,
+      default: null
+    },
+    // Privacy consent
+    privacyConsentAt: {
+      type: Date,
+      default: null
+    },
+    privacyConsentVersion: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    deletedAt: {
+      type: Date,
+      default: null
     }
   },
   {

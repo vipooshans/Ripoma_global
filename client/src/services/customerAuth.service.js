@@ -66,6 +66,36 @@ const customerAuthService = {
       newPassword
     });
     return response.data;
+  },
+
+  getLegal: async () => {
+    const response = await api.get('/customer-auth/legal');
+    return response.data;
+  },
+
+  listSessions: async () => {
+    const response = await api.get('/customer-auth/sessions');
+    return response.data;
+  },
+
+  revokeSession: async (id) => {
+    const response = await api.delete(`/customer-auth/sessions/${id}`);
+    return response.data;
+  },
+
+  logoutAllSessions: async () => {
+    const response = await api.post('/customer-auth/logout-all');
+    return response.data;
+  },
+
+  exportMyData: async () => {
+    const response = await api.get('/customer-auth/export-data');
+    return response.data;
+  },
+
+  deleteMyAccount: async (password, confirm = 'DELETE') => {
+    const response = await api.post('/customer-auth/delete-account', { password, confirm });
+    return response.data;
   }
 };
 

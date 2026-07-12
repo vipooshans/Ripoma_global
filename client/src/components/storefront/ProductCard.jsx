@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Package, ShoppingCart, ShieldCheck, Heart } from 'lucide-react';
 import { formatPrice } from '../../utils/formatPrice';
 import { isInWishlist, toggleWishlist } from '../../utils/wishlist';
+import StarRating from './StarRating';
 
 const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
   const navigate = useNavigate();
@@ -53,6 +54,14 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
               )}
               <h3 className="font-bold text-slate-800 text-sm mt-0.5 group-hover:text-teal-700 transition-colors">{product.name}</h3>
               <p className="text-xs text-slate-400 mt-1 font-mono">{product.sku}</p>
+              {product.reviewSummary?.count > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <StarRating rating={product.reviewSummary.average} size={12} />
+                  <span className="text-[10px] text-slate-500 font-semibold">
+                    {product.reviewSummary.average} ({product.reviewSummary.count})
+                  </span>
+                </div>
+              )}
               {product.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{product.description}</p>}
             </div>
             <div className="text-right shrink-0">
@@ -133,6 +142,14 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
           <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{product.brand}</p>
         )}
         <h3 className="font-bold text-slate-800 text-sm mt-1 leading-tight line-clamp-2 group-hover:text-teal-700 transition-colors">{product.name}</h3>
+        {product.reviewSummary?.count > 0 && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <StarRating rating={product.reviewSummary.average} size={12} />
+            <span className="text-[10px] text-slate-500 font-semibold">
+              {product.reviewSummary.average} ({product.reviewSummary.count})
+            </span>
+          </div>
+        )}
         {product.description && (
           <p className="text-xs text-slate-500 mt-1 line-clamp-2">{product.description}</p>
         )}

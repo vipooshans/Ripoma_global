@@ -41,7 +41,8 @@ const CustomerFooter = () => (
             {[
               { label: 'Register', href: '/customer/register' },
               { label: 'Sign In', href: '/customer/login' },
-              { label: 'Account', href: '/customer/profile' }
+              { label: 'Account', href: '/customer/profile' },
+              { label: 'Help & Support', href: '/customer/help' }
             ].map((l) => (
               <li key={l.label}>
                 <Link to={l.href} className="text-xs hover:text-teal-400 transition-colors">{l.label}</Link>
@@ -53,6 +54,11 @@ const CustomerFooter = () => (
         <div>
           <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-4">Contact</h4>
           <ul className="space-y-2 text-xs">
+            <li>
+              <Link to="/customer/help" className="hover:text-teal-400 transition-colors">
+                Contact form
+              </Link>
+            </li>
             <li>
               <a href="mailto:support@ripomaglobal.com" className="hover:text-teal-400 transition-colors">
                 support@ripomaglobal.com
@@ -66,9 +72,17 @@ const CustomerFooter = () => (
 
       <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p className="text-xs">© {new Date().getFullYear()} RIPOMA GLOBAL Inc. All rights reserved.</p>
-        <div className="flex items-center gap-2 text-xs">
-          <ShieldCheck size={12} className="text-teal-500" />
-          Secure & Verified Platform
+        <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
+          <Link to="/customer/privacy" className="hover:text-teal-400 transition-colors">
+            Privacy
+          </Link>
+          <Link to="/customer/terms" className="hover:text-teal-400 transition-colors">
+            Terms
+          </Link>
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={12} className="text-teal-500" />
+            Encrypted login · No card PAN stored
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,7 @@
 const StorefrontOrder = require('../models/StorefrontOrder');
+const CustomerAccount = require('../models/CustomerAccount');
 const { formatStorefrontOrder } = require('../utils/storefrontOrderFormat');
+const { notifyCustomer } = require('../utils/customerNotifyService');
 
 const STAFF_STATUSES = [
   'placed',
@@ -10,6 +12,26 @@ const STAFF_STATUSES = [
   'cancelled'
 ];
 
+const PAYMENT_STATUSES = ['pending', 'awaiting_transfer', 'paid', 'failed'];
+
+const statusLabel = (status) =>
+  String(status || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+const notifyOrderCustomer = async (order, payload) => {
+  const customerId = order.customerAccount?._id || order.customerAccount;
+  if (!customerId) return;
+  await notifyCustomer({
+    customerId,
+    ...payload,
+    actionUrl: payload.actionUrl || `/customer/orders/${order._id}`,
+    actionLabel: payload.actionLabel || 'View order',
+    entityType: 'StorefrontOrder',
+    entityId: order._id,
+    entityRef: order.orderNumber
+  });
+};
 const formatAdminOrder = (order) => ({
   ...formatStorefrontOrder(order),
   previousStatusBeforeCancelRequest: order.previousStatusBeforeCancelRequest || null,
@@ -93,7 +115,8 @@ exports.updateStatus = async (req, res) => {
       note,
       estimatedDeliveryDate,
       trackingUrl,
-      shipmentNote
+      shipmentNote,
+      paymentStatus
     } = req.body || {};
 
     if (order.orderStatus === 'cancelled') {
@@ -107,6 +130,7 @@ exports.updateStatus = async (req, res) => {
 
     const prev = {
       status: order.orderStatus,
+      paymentStatus: order.paymentStatus,
       trackingNumber: order.trackingNumber || null,
       carrier: order.carrier || null,
       estimatedDeliveryDate: order.estimatedDeliveryDate
@@ -116,6 +140,7 @@ exports.updateStatus = async (req, res) => {
     };
 
     let statusChanged = false;
+    let paymentChanged = false;
     order.shipmentUpdates = order.shipmentUpdates || [];
     order.statusHistory = order.statusHistory || [];
 
@@ -134,6 +159,16 @@ exports.updateStatus = async (req, res) => {
           at: new Date(),
           byRole: 'staff'
         });
+      }
+    }
+
+    if (paymentStatus !== undefined && paymentStatus !== '') {
+      if (!PAYMENT_STATUSES.includes(paymentStatus)) {
+        return res.status(400).json({ message: 'Invalid payment status.' });
+      }
+      if (paymentStatus !== order.paymentStatus) {
+        order.paymentStatus = paymentStatus;
+        paymentChanged = true;
       }
     }
 
@@ -233,7 +268,40 @@ exports.updateStatus = async (req, res) => {
     }
 
     await order.save();
-    await order.populate('customerAccount', 'firstName lastName email phone');
+    await order.populate('customerAccount', 'firstName lastName email phone notificationPrefs status');
+
+    if (statusChanged) {
+      await notifyOrderCustomer(order, {
+        type: 'order_status',
+        title: `Order ${order.orderNumber}: ${statusLabel(order.orderStatus)}`,
+        body: note || `Your order status is now ${statusLabel(order.orderStatus)}.`,
+        severity: order.orderStatus === 'delivered' ? 'success' : 'info'
+      });
+    }
+
+    if (
+      noteText ||
+      (trackingChanged && !statusChanged) ||
+      (statusChanged && (order.orderStatus === 'shipped' || order.orderStatus === 'delivered'))
+    ) {
+      const latestShip = order.shipmentUpdates[order.shipmentUpdates.length - 1];
+      await notifyOrderCustomer(order, {
+        type: 'shipment_update',
+        title: `Shipment update · ${order.orderNumber}`,
+        body: latestShip?.message || noteText || 'Your shipment details were updated.',
+        severity: 'info'
+      });
+    }
+
+    if (paymentChanged) {
+      await notifyOrderCustomer(order, {
+        type: 'payment_update',
+        title: `Payment update · ${order.orderNumber}`,
+        body: `Payment status is now ${statusLabel(order.paymentStatus)}.`,
+        severity: order.paymentStatus === 'paid' ? 'success' : 'info'
+      });
+    }
+
     return res.status(200).json({ order: formatAdminOrder(order) });
   } catch (error) {
     console.error('Admin Update Storefront Order Status Error:', error);
@@ -258,7 +326,13 @@ exports.approveCancel = async (req, res) => {
       byRole: 'staff'
     });
     await order.save();
-    await order.populate('customerAccount', 'firstName lastName email phone');
+    await order.populate('customerAccount', 'firstName lastName email phone notificationPrefs status');
+    await notifyOrderCustomer(order, {
+      type: 'order_status',
+      title: `Order ${order.orderNumber} cancelled`,
+      body: req.body?.note || 'Your cancellation request was approved. The order has been cancelled.',
+      severity: 'warning'
+    });
     return res.status(200).json({ order: formatAdminOrder(order) });
   } catch (error) {
     console.error('Admin Approve Cancel Error:', error);
@@ -287,10 +361,56 @@ exports.rejectCancel = async (req, res) => {
       byRole: 'staff'
     });
     await order.save();
-    await order.populate('customerAccount', 'firstName lastName email phone');
+    await order.populate('customerAccount', 'firstName lastName email phone notificationPrefs status');
+    await notifyOrderCustomer(order, {
+      type: 'order_status',
+      title: `Order ${order.orderNumber}: cancellation declined`,
+      body:
+        req.body?.note ||
+        `Your cancellation request was not approved. The order remains ${statusLabel(restored)}.`,
+      severity: 'info'
+    });
     return res.status(200).json({ order: formatAdminOrder(order) });
   } catch (error) {
     console.error('Admin Reject Cancel Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.sendPromoNotify = async (req, res) => {
+  try {
+    const subject = String(req.body?.subject || '').trim();
+    const body = String(req.body?.body || '').trim();
+    if (!subject || !body) {
+      return res.status(400).json({ message: 'Subject and body are required.' });
+    }
+
+    const customers = await CustomerAccount.find({
+      status: 'active',
+      'notificationPrefs.marketing': true
+    }).select('_id email firstName lastName phone notificationPrefs status');
+
+    let sent = 0;
+    for (const customer of customers) {
+      const result = await notifyCustomer({
+        customer,
+        type: 'promotion',
+        title: subject,
+        body,
+        severity: 'info',
+        actionUrl: '/customer/products',
+        actionLabel: 'Shop now'
+      });
+      if (result) sent += 1;
+    }
+
+    return res.status(200).json({
+      message: `Promotion queued for ${sent} opted-in customer(s).`,
+      matched: customers.length,
+      sent
+    });
+  } catch (error) {
+    console.error('Send Promo Notify Error:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

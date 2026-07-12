@@ -432,6 +432,11 @@ const CustomerCheckout = () => {
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-3">
               <h2 className="font-extrabold text-slate-800 text-sm">Payment method</h2>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Your account is protected with encrypted login. We never collect or store full card
+                numbers. Card (Demo) simulates payment without a charge. Prefer offline settlement?
+                Choose COD or bank transfer.
+              </p>
               {PAYMENT_OPTIONS.map((opt) => {
                 const Icon = opt.icon;
                 const selected = paymentMethod === opt.id;

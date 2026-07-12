@@ -24,6 +24,11 @@ const storefrontOrderAdminService = {
   rejectCancel: async (id, payload = {}) => {
     const res = await api.post(`/storefront-orders/${id}/cancel-reject`, payload);
     return res.data;
+  },
+
+  sendPromoNotify: async (payload) => {
+    const res = await api.post('/storefront-orders/promo-notify', payload);
+    return res.data;
   }
 };
 

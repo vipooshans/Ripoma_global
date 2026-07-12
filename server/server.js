@@ -16,6 +16,8 @@ const authRoutes = require('./routes/auth.routes');
 const customerAuthRoutes = require('./routes/customerAuth.routes');
 const storefrontRoutes = require('./routes/storefront.routes');
 const storefrontOrderAdminRoutes = require('./routes/storefrontOrderAdmin.routes');
+const storefrontReviewAdminRoutes = require('./routes/storefrontReviewAdmin.routes');
+const storefrontSupportAdminRoutes = require('./routes/storefrontSupportAdmin.routes');
 const userRoutes = require('./routes/user.routes');
 const roleRoutes = require('./routes/role.routes');
 const productRoutes = require('./routes/product.routes');
@@ -65,6 +67,7 @@ const { initTaxDutyAlertCron } = require('./jobs/taxDutyDueAlerts');
 const { initScheduledReportCron } = require('./jobs/scheduledReportRunner');
 const { initScheduledReminderCron } = require('./jobs/reminderCheck');
 const { initScheduledDigestCron } = require('./jobs/notificationDigest');
+const { initCustomerOrderReminderCron } = require('./jobs/customerOrderReminders');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -168,6 +171,7 @@ mongoose
     initScheduledReportCron();
     initScheduledReminderCron();
     initScheduledDigestCron();
+    initCustomerOrderReminderCron();
   })
   .catch((err) => {
     console.error('MongoDB Connection Error:', err);
@@ -178,6 +182,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/customer-auth', customerAuthRoutes);
 app.use('/api/storefront', storefrontRoutes);
 app.use('/api/storefront-orders', storefrontOrderAdminRoutes);
+app.use('/api/storefront-reviews', storefrontReviewAdminRoutes);
+app.use('/api/storefront-support', storefrontSupportAdminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/products', productRoutes);

@@ -119,6 +119,7 @@ const StorefrontOrderSchema = new mongoose.Schema(
     },
     customerNote: { type: String, trim: true, default: '' },
     paymentReference: { type: String, trim: true, default: null },
+    riskFlags: { type: [String], default: [] },
     placedAt: { type: Date, default: Date.now },
     cancelReason: { type: String, trim: true, default: '' },
     cancellationRequestedAt: { type: Date, default: null },

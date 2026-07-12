@@ -42,7 +42,7 @@ const FeatureHighlights = () => {
   const features = [
     { icon: Globe, color: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', title: 'Global Sourcing', desc: 'Products curated from suppliers worldwide, all quality-verified.' },
     { icon: Truck, color: 'from-teal-500 to-teal-600', bg: 'bg-teal-50', title: 'Fast Logistics', desc: 'Expedited freight options with real-time shipment tracking.' },
-    { icon: ShieldCheck, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', title: 'Secure Payments', desc: 'Industry-standard payment processing with buyer protection.' },
+    { icon: ShieldCheck, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', title: 'Secure Checkout', desc: 'Encrypted account login, no card numbers stored, and honest payment options including COD and bank transfer.' },
     { icon: BarChart3, color: 'from-purple-500 to-purple-600', bg: 'bg-purple-50', title: 'Order Analytics', desc: 'Track order history and shipment status in your portal.' }
   ];
 
