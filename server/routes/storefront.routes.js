@@ -14,6 +14,8 @@ router.post('/cart/estimate', storefrontController.estimateCart);
 router.post('/coupons/validate', storefrontController.validateCoupon);
 router.post('/orders', customerAuthMiddleware, storefrontController.placeOrder);
 router.get('/orders', customerAuthMiddleware, storefrontController.listMyOrders);
+router.get('/orders/:id/invoice', customerAuthMiddleware, storefrontController.downloadOrderInvoice);
+router.post('/orders/:id/cancel-request', customerAuthMiddleware, storefrontController.requestOrderCancel);
 router.get('/orders/:id', customerAuthMiddleware, storefrontController.getMyOrder);
 router.get('/products/facets', storefrontController.getProductFacets);
 router.get('/products', storefrontController.getProducts);

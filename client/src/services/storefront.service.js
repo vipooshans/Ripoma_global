@@ -83,6 +83,25 @@ const storefrontService = {
   getOrder: async (id) => {
     const res = await api.get(`/storefront/orders/${id}`);
     return res.data;
+  },
+
+  requestOrderCancel: async (id, payload = {}) => {
+    const res = await api.post(`/storefront/orders/${id}/cancel-request`, payload);
+    return res.data;
+  },
+
+  downloadOrderInvoice: async (id, orderNumber = 'order') => {
+    const res = await api.get(`/storefront/orders/${id}/invoice`, {
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `invoice-${orderNumber}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   }
 };
 

@@ -9,6 +9,7 @@ const NotificationSchema = new mongoose.Schema(
         // Orders
         'po_submitted', 'po_approved', 'po_rejected', 'po_received',
         'so_confirmed', 'so_dispatched', 'so_delivered',
+        'storefront_cancel_requested',
         // Shipments & logistics
         'shipment_delayed', 'shipment_delivered', 'shipment_customs_hold', 'carrier_update',
         // Inventory
