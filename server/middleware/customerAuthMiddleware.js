@@ -29,6 +29,10 @@ const customerAuthMiddleware = async (req, res, next) => {
         return res.status(401).json({ message: 'Customer account no longer exists.' });
       }
 
+      if (customer.deletedAt) {
+        return res.status(401).json({ message: 'Customer account no longer exists.' });
+      }
+
       if (customer.status === 'suspended') {
         return res.status(403).json({ message: 'Your account has been suspended.' });
       }
@@ -70,6 +74,7 @@ module.exports.optionalCustomerAuth = async (req, res, next) => {
       const customer = await CustomerAccount.findById(decoded.id).select('-password');
       if (
         customer &&
+        !customer.deletedAt &&
         customer.status !== 'suspended' &&
         customer.status !== 'inactive'
       ) {

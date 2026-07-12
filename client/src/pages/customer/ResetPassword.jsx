@@ -9,7 +9,11 @@ import { Eye, EyeOff, Lock, ArrowLeft } from 'lucide-react';
 
 const schema = z
   .object({
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Za-z]/, 'Password must include a letter')
+      .regex(/[0-9]/, 'Password must include a number'),
     confirmPassword: z.string().min(1, 'Please confirm your new password')
   })
   .refine((d) => d.password === d.confirmPassword, {
@@ -55,7 +59,7 @@ const CustomerResetPassword = () => {
         <div className="mb-6 text-center">
           <h3 className="text-xl font-extrabold text-slate-800">Reset Your Password</h3>
           <p className="text-slate-500 text-xs mt-1">
-            Enter your new password below. It must be at least 8 characters.
+            Enter your new password below. Use at least 8 characters with a letter and a number.
           </p>
         </div>
 

@@ -722,7 +722,7 @@ const couponLabel = (coupon) => {
   return coupon.code;
 };
 
-const findValidCoupon = async (rawCode, subtotal) => {
+const findValidCoupon = async (rawCode, subtotal, customerId = null) => {
   const code = String(rawCode || '').trim().toUpperCase();
   if (!code) return { error: 'Coupon code is required' };
 
@@ -737,6 +737,19 @@ const findValidCoupon = async (rawCode, subtotal) => {
     return {
       error: `Minimum subtotal of $${coupon.minSubtotal} required for this coupon`
     };
+  }
+  if (coupon.maxUses != null && coupon.redemptionCount >= coupon.maxUses) {
+    return { error: 'This coupon has reached its usage limit' };
+  }
+  if (customerId && coupon.maxUsesPerCustomer != null) {
+    const used = await StorefrontOrder.countDocuments({
+      customerAccount: customerId,
+      couponCode: coupon.code,
+      orderStatus: { $nin: ['cancelled'] }
+    });
+    if (used >= coupon.maxUsesPerCustomer) {
+      return { error: 'You have already used this coupon the maximum number of times' };
+    }
   }
   return { coupon };
 };
@@ -952,16 +965,34 @@ exports.placeOrder = async (req, res) => {
 
     let coupon = null;
     if (couponCode && String(couponCode).trim()) {
-      const result = await findValidCoupon(couponCode, subtotal);
+      const result = await findValidCoupon(couponCode, subtotal, customer._id);
       if (result.error) {
         return res.status(400).json({ message: result.error });
       }
       coupon = result.coupon;
     }
 
+    // Fraud: order velocity (max 8 orders / hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentCount = await StorefrontOrder.countDocuments({
+      customerAccount: customer._id,
+      placedAt: { $gte: oneHourAgo }
+    });
+    if (recentCount >= 8) {
+      return res.status(429).json({
+        message: 'Too many orders placed recently. Please wait before ordering again.'
+      });
+    }
+
     const estimate = computeCartEstimate(estimateItems, coupon);
     const { paymentStatus, paymentReference } = resolvePaymentFields(paymentMethod);
     const orderNumber = await generateExportNumber('storefrontOrder');
+
+    const riskFlags = [];
+    if (recentCount >= 4) riskFlags.push('high_velocity');
+    if (estimate.grandTotal >= 5000) riskFlags.push('high_value');
+    if (paymentMethod === 'card_mock') riskFlags.push('demo_card');
+    if (!customer.emailVerified) riskFlags.push('unverified_email');
 
     const order = await StorefrontOrder.create({
       orderNumber,
@@ -993,6 +1024,7 @@ exports.placeOrder = async (req, res) => {
       orderStatus: 'placed',
       customerNote: (customerNote || '').trim().slice(0, 1000),
       paymentReference,
+      riskFlags,
       placedAt: new Date(),
       statusHistory: [
         {
@@ -1003,6 +1035,10 @@ exports.placeOrder = async (req, res) => {
         }
       ]
     });
+
+    if (coupon) {
+      await Coupon.findByIdAndUpdate(coupon._id, { $inc: { redemptionCount: 1 } });
+    }
 
     if (saveAddressToProfile) {
       await CustomerAccount.findByIdAndUpdate(customer._id, {

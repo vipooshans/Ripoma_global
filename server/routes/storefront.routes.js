@@ -5,6 +5,24 @@ const customerNotificationController = require('../controllers/customerNotificat
 const storefrontSupportController = require('../controllers/storefrontSupport.controller');
 const customerAuthMiddleware = require('../middleware/customerAuthMiddleware');
 const { optionalCustomerAuth } = customerAuthMiddleware;
+const {
+  createRateLimiter,
+  createCustomerRateLimiter
+} = require('../middleware/customerRateLimit');
+
+const orderLimiter = createCustomerRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 12,
+  keyPrefix: 'sf-order',
+  message: 'Too many checkout attempts. Please try again later.'
+});
+
+const supportLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  keyPrefix: 'sf-support',
+  message: 'Too many support requests. Please try again later.'
+});
 
 // All routes are PUBLIC unless noted
 
@@ -15,14 +33,14 @@ router.get('/stats', storefrontController.getStats);
 router.get('/promos', storefrontController.getPromos);
 router.get('/faqs', storefrontSupportController.getFaqs);
 
-router.post('/support', optionalCustomerAuth, storefrontSupportController.createTicket);
+router.post('/support', supportLimiter, optionalCustomerAuth, storefrontSupportController.createTicket);
 router.get('/support/mine', customerAuthMiddleware, storefrontSupportController.listMyTickets);
 router.get('/support/:id', optionalCustomerAuth, storefrontSupportController.getTicket);
-router.post('/support/:id/messages', optionalCustomerAuth, storefrontSupportController.addMessage);
+router.post('/support/:id/messages', supportLimiter, optionalCustomerAuth, storefrontSupportController.addMessage);
 
 router.post('/cart/estimate', storefrontController.estimateCart);
 router.post('/coupons/validate', storefrontController.validateCoupon);
-router.post('/orders', customerAuthMiddleware, storefrontController.placeOrder);
+router.post('/orders', customerAuthMiddleware, orderLimiter, storefrontController.placeOrder);
 router.get('/orders', customerAuthMiddleware, storefrontController.listMyOrders);
 router.get('/orders/:id/invoice', customerAuthMiddleware, storefrontController.downloadOrderInvoice);
 router.post('/orders/:id/cancel-request', customerAuthMiddleware, storefrontController.requestOrderCancel);

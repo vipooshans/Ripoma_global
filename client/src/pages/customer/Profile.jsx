@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -28,7 +28,9 @@ import {
   ShoppingCart,
   Trash2,
   Copy,
-  Loader2
+  Loader2,
+  Monitor,
+  LogOut
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
@@ -88,7 +90,11 @@ const addressesSchema = z.object({
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+    newPassword: z
+      .string()
+      .min(8, 'New password must be at least 8 characters')
+      .regex(/[A-Za-z]/, 'Must include a letter')
+      .regex(/[0-9]/, 'Must include a number'),
     confirmPassword: z.string().min(1, 'Please confirm your new password')
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
@@ -148,8 +154,9 @@ const emptyAddress = () => ({
 });
 
 const CustomerProfile = () => {
-  const { customerUser, setCustomerUser } = useContext(CustomerAuthContext);
+  const { customerUser, setCustomerUser, logout } = useContext(CustomerAuthContext);
   const { setCartOpen } = useStorefront();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = TABS.some((t) => t.id === searchParams.get('tab'))
     ? searchParams.get('tab')
@@ -172,6 +179,13 @@ const CustomerProfile = () => {
   const [showNewPw, setShowNewPw] = useState(false);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const prefs = {
     orderUpdates: customerUser?.notificationPrefs?.orderUpdates ?? true,
@@ -332,13 +346,102 @@ const CustomerProfile = () => {
   const onPasswordSubmit = async (data) => {
     try {
       setPasswordSubmitting(true);
-      await customerAuthService.changePassword(data.currentPassword, data.newPassword);
-      toast.success('Password changed successfully');
+      const res = await customerAuthService.changePassword(data.currentPassword, data.newPassword);
+      toast.success(res.message || 'Password changed successfully');
       resetPw({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      if (res.requireReauth) {
+        await logout();
+        navigate('/customer/login');
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Incorrect current password.');
     } finally {
       setPasswordSubmitting(false);
+    }
+  };
+
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const data = await customerAuthService.listSessions();
+      setSessions(data.sessions || []);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'security') loadSessions();
+  }, [activeTab, loadSessions]);
+
+  const handleLogoutAll = async () => {
+    setSessionBusy(true);
+    try {
+      await customerAuthService.logoutAllSessions();
+      toast.success('Signed out of all devices');
+      await logout();
+      navigate('/customer/login');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not sign out all sessions');
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const handleRevokeSession = async (id) => {
+    setSessionBusy(true);
+    try {
+      const res = await customerAuthService.revokeSession(id);
+      toast.success(res.message || 'Session revoked');
+      if (res.requireReauth) {
+        await logout();
+        navigate('/customer/login');
+        return;
+      }
+      await loadSessions();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not revoke session');
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const data = await customerAuthService.exportMyData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ripoma-account-export-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Export downloaded');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== 'DELETE') {
+      toast.error('Type DELETE to confirm');
+      return;
+    }
+    setDeleting(true);
+    try {
+      await customerAuthService.deleteMyAccount(deletePassword, 'DELETE');
+      toast.success('Account deleted');
+      await logout();
+      navigate('/customer');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not delete account');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -1156,82 +1259,201 @@ const CustomerProfile = () => {
             )}
 
             {activeTab === 'security' && (
-              <ProfileSection title="Change password" icon={Lock}>
-                <form onSubmit={handlePw(onPasswordSubmit)} className="space-y-4 max-w-xl">
-                  <div>
-                    <label className={labelClass}>Current password</label>
-                    <div className="relative">
-                      <input
-                        type={showCurrentPw ? 'text' : 'password'}
-                        className={`${inputClass} pr-9 ${pwErrors.currentPassword ? 'border-rose-500' : ''}`}
-                        {...regPw('currentPassword')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrentPw(!showCurrentPw)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      >
-                        {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                    {pwErrors.currentPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">
-                        {pwErrors.currentPassword.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className={labelClass}>New password</label>
-                    <div className="relative">
-                      <input
-                        type={showNewPw ? 'text' : 'password'}
-                        className={`${inputClass} pr-9 ${pwErrors.newPassword ? 'border-rose-500' : ''}`}
-                        placeholder="Min. 8 characters"
-                        {...regPw('newPassword')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPw(!showNewPw)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      >
-                        {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                    {pwErrors.newPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">
-                        {pwErrors.newPassword.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className={labelClass}>Confirm new password</label>
-                    <input
-                      type={showNewPw ? 'text' : 'password'}
-                      className={`${inputClass} ${pwErrors.confirmPassword ? 'border-rose-500' : ''}`}
-                      {...regPw('confirmPassword')}
-                    />
-                    {pwErrors.confirmPassword && (
-                      <p className="text-rose-500 text-xs mt-1 font-semibold">
-                        {pwErrors.confirmPassword.message}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex justify-end">
+              <div className="space-y-5">
+                <ProfileSection title="Session & login" icon={Monitor}>
+                  <p className="text-sm text-slate-500 mb-4">
+                    Last sign-in:{' '}
+                    <span className="font-semibold text-slate-700">
+                      {customerUser?.lastLogin
+                        ? new Date(customerUser.lastLogin).toLocaleString()
+                        : '—'}
+                    </span>
+                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Active devices
+                    </p>
                     <button
-                      type="submit"
-                      disabled={passwordSubmitting}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                      type="button"
+                      disabled={sessionBusy}
+                      onClick={handleLogoutAll}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 disabled:opacity-50"
                     >
-                      {passwordSubmitting ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <ShieldCheck size={14} />
-                      )}
-                      Update password
+                      <LogOut size={13} /> Sign out all devices
                     </button>
                   </div>
-                </form>
-              </ProfileSection>
+                  {sessionsLoading ? (
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="animate-spin text-teal-600" size={22} />
+                    </div>
+                  ) : sessions.length === 0 ? (
+                    <p className="text-sm text-slate-400">No active sessions found.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {sessions.map((s) => (
+                        <li
+                          key={s.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">
+                              {s.userAgent || 'Unknown device'}
+                              {s.current && (
+                                <span className="ml-2 text-[10px] font-bold uppercase text-teal-600">
+                                  This device
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {s.ip || 'IP unknown'} · Active{' '}
+                              {s.lastActiveAt
+                                ? new Date(s.lastActiveAt).toLocaleString()
+                                : '—'}
+                            </p>
+                          </div>
+                          {!s.current && (
+                            <button
+                              type="button"
+                              disabled={sessionBusy}
+                              onClick={() => handleRevokeSession(s.id)}
+                              className="text-xs font-bold text-slate-500 hover:text-rose-600"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </ProfileSection>
+
+                <ProfileSection title="Change password" icon={Lock}>
+                  <form onSubmit={handlePw(onPasswordSubmit)} className="space-y-4 max-w-xl">
+                    <p className="text-xs text-slate-500">
+                      Use at least 8 characters with a letter and a number. Changing your password
+                      signs you out everywhere.
+                    </p>
+                    <div>
+                      <label className={labelClass}>Current password</label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPw ? 'text' : 'password'}
+                          className={`${inputClass} pr-9 ${pwErrors.currentPassword ? 'border-rose-500' : ''}`}
+                          {...regPw('currentPassword')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPw(!showCurrentPw)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >
+                          {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      {pwErrors.currentPassword && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {pwErrors.currentPassword.message}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>New password</label>
+                      <div className="relative">
+                        <input
+                          type={showNewPw ? 'text' : 'password'}
+                          className={`${inputClass} pr-9 ${pwErrors.newPassword ? 'border-rose-500' : ''}`}
+                          placeholder="Letter + number, min 8"
+                          {...regPw('newPassword')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPw(!showNewPw)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >
+                          {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      {pwErrors.newPassword && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {pwErrors.newPassword.message}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>Confirm new password</label>
+                      <input
+                        type={showNewPw ? 'text' : 'password'}
+                        className={`${inputClass} ${pwErrors.confirmPassword ? 'border-rose-500' : ''}`}
+                        {...regPw('confirmPassword')}
+                      />
+                      {pwErrors.confirmPassword && (
+                        <p className="text-rose-500 text-xs mt-1 font-semibold">
+                          {pwErrors.confirmPassword.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={passwordSubmitting}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                      >
+                        {passwordSubmitting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <ShieldCheck size={14} />
+                        )}
+                        Update password
+                      </button>
+                    </div>
+                  </form>
+                </ProfileSection>
+
+                <ProfileSection title="Privacy & data" icon={Download}>
+                  <div className="space-y-4 max-w-xl">
+                    <p className="text-sm text-slate-500">
+                      Download a copy of your account, orders, and support history, or permanently
+                      close your account.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={exporting}
+                      onClick={handleExportData}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                      Export my data
+                    </button>
+                    <div className="border-t border-slate-100 pt-4 space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-wider text-rose-500">
+                        Delete account
+                      </p>
+                      <input
+                        type="password"
+                        placeholder="Confirm with your password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        className={inputClass}
+                      />
+                      <input
+                        type="text"
+                        placeholder='Type DELETE to confirm'
+                        value={deleteConfirm}
+                        onChange={(e) => setDeleteConfirm(e.target.value)}
+                        className={inputClass}
+                      />
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={handleDeleteAccount}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+                      >
+                        {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        Delete my account
+                      </button>
+                    </div>
+                  </div>
+                </ProfileSection>
+              </div>
             )}
           </div>
         </div>

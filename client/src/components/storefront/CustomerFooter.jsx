@@ -72,9 +72,17 @@ const CustomerFooter = () => (
 
       <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p className="text-xs">© {new Date().getFullYear()} RIPOMA GLOBAL Inc. All rights reserved.</p>
-        <div className="flex items-center gap-2 text-xs">
-          <ShieldCheck size={12} className="text-teal-500" />
-          Secure & Verified Platform
+        <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
+          <Link to="/customer/privacy" className="hover:text-teal-400 transition-colors">
+            Privacy
+          </Link>
+          <Link to="/customer/terms" className="hover:text-teal-400 transition-colors">
+            Terms
+          </Link>
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={12} className="text-teal-500" />
+            Encrypted login · No card PAN stored
+          </div>
         </div>
       </div>
     </div>

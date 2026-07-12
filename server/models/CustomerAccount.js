@@ -96,6 +96,29 @@ const CustomerAccountSchema = new mongoose.Schema(
     },
     lastLogin: {
       type: Date
+    },
+    // Brute-force protection
+    failedLoginAttempts: {
+      type: Number,
+      default: 0
+    },
+    lockUntil: {
+      type: Date,
+      default: null
+    },
+    // Privacy consent
+    privacyConsentAt: {
+      type: Date,
+      default: null
+    },
+    privacyConsentVersion: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    deletedAt: {
+      type: Date,
+      default: null
     }
   },
   {

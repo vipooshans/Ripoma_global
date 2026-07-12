@@ -28,7 +28,11 @@ const step1Schema = z
     lastName: z.string().min(1, 'Last name is required').trim(),
     email: z.string().min(1, 'Email is required').email('Invalid email address'),
     phone: z.string().optional(),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Za-z]/, 'Password must include a letter')
+      .regex(/[0-9]/, 'Password must include a number'),
     confirmPassword: z.string().min(1, 'Please confirm your password')
   })
   .refine((d) => d.password === d.confirmPassword, {
@@ -43,7 +47,11 @@ const step2Schema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   postalCode: z.string().optional(),
-  country: z.string().optional()
+  country: z.string().optional(),
+  acceptTerms: z.boolean().refine((v) => v === true, {
+    message: 'You must accept the Terms and Privacy Policy'
+  }),
+  marketingOptIn: z.boolean().optional()
 });
 
 // ─── Step Indicator ────────────────────────────────────────────────────────────
@@ -119,7 +127,10 @@ const CustomerRegister = () => {
     register: reg2,
     handleSubmit: handle2,
     formState: { errors: err2 }
-  } = useForm({ resolver: zodResolver(step2Schema) });
+  } = useForm({
+    resolver: zodResolver(step2Schema),
+    defaultValues: { acceptTerms: false, marketingOptIn: false }
+  });
 
   const onStep1Submit = (data) => {
     setStep1Data(data);
@@ -143,7 +154,9 @@ const CustomerRegister = () => {
           state: data.state,
           postalCode: data.postalCode,
           country: data.country
-        }
+        },
+        acceptTerms: true,
+        marketingOptIn: Boolean(data.marketingOptIn)
       };
       await customerAuthService.register(payload);
       toast.success('Account created! Please verify your email.');
@@ -189,7 +202,7 @@ const CustomerRegister = () => {
               {[
                 'Free to register — no setup fees',
                 'Real-time order tracking',
-                'Secure, encrypted account'
+                'Protected with encrypted passwords'
               ].map((item) => (
                 <div key={item} className="flex items-center gap-2.5">
                   <CheckCircle2 size={14} className="text-teal-400 shrink-0" />
@@ -259,7 +272,7 @@ const CustomerRegister = () => {
                     <label className="form-label">Password</label>
                     <div className="relative">
                       <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input id="reg-password" type={showPassword ? 'text' : 'password'} className={`form-input pl-9 pr-9 ${err1.password ? 'border-rose-500' : ''}`} placeholder="Min. 8 chars" {...reg1('password')} />
+                      <input id="reg-password" type={showPassword ? 'text' : 'password'} className={`form-input pl-9 pr-9 ${err1.password ? 'border-rose-500' : ''}`} placeholder="Letter + number, min 8" {...reg1('password')} />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                         {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
@@ -351,6 +364,38 @@ const CustomerRegister = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4 space-y-3">
+                  <label className="flex items-start gap-2.5 text-sm text-slate-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                      {...reg2('acceptTerms')}
+                    />
+                    <span>
+                      I agree to the{' '}
+                      <Link to="/customer/terms" className="font-bold text-teal-600 hover:underline" target="_blank">
+                        Terms of Service
+                      </Link>{' '}
+                      and{' '}
+                      <Link to="/customer/privacy" className="font-bold text-teal-600 hover:underline" target="_blank">
+                        Privacy Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                  {err2.acceptTerms && (
+                    <p className="text-rose-500 text-xs font-semibold">{err2.acceptTerms.message}</p>
+                  )}
+                  <label className="flex items-start gap-2.5 text-sm text-slate-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                      {...reg2('marketingOptIn')}
+                    />
+                    <span>Send me occasional product updates and offers (optional).</span>
+                  </label>
                 </div>
 
                 <div className="flex gap-3 pt-2">

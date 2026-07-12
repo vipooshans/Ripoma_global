@@ -25,6 +25,7 @@ const formatStorefrontOrder = (order) => ({
   orderStatus: order.orderStatus,
   customerNote: order.customerNote || '',
   paymentReference: order.paymentReference || null,
+  riskFlags: order.riskFlags || [],
   placedAt: order.placedAt || order.createdAt,
   cancelReason: order.cancelReason || '',
   cancellationRequestedAt: order.cancellationRequestedAt || null,

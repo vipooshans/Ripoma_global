@@ -1,6 +1,9 @@
-const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const CustomerAccount = require('../models/CustomerAccount');
+const CustomerSession = require('../models/CustomerSession');
+const StorefrontOrder = require('../models/StorefrontOrder');
+const SupportTicket = require('../models/SupportTicket');
+const CustomerNotification = require('../models/CustomerNotification');
 const { sendAuthEmail } = require('../utils/authEmailService');
 const {
   getCustomerJwtSecret,
@@ -8,10 +11,18 @@ const {
   getFrontendUrl,
   isEmailVerificationRequired
 } = require('../utils/customerAuthConfig');
-
-// ─── Safe customer payload (never includes password/hash/tokens) ─────────────
-
+const { validateCustomerPassword } = require('../utils/customerPasswordPolicy');
+const { hashToken, createRawToken } = require('../utils/customerTokenHash');
+const {
+  PRIVACY_VERSION,
+  PRIVACY_SECTIONS,
+  TERMS_SECTIONS
+} = require('../config/storefrontLegal');
 const { normalizePrefs } = require('../utils/customerNotifyService');
+
+const MAX_FAILED_LOGINS = 5;
+const LOCK_MS = 15 * 60 * 1000;
+const REFRESH_DAYS = 7;
 
 const toSafeCustomer = (customer) => ({
   id: customer._id,
@@ -27,35 +38,102 @@ const toSafeCustomer = (customer) => ({
   emailVerified: customer.emailVerified,
   status: customer.status,
   lastLogin: customer.lastLogin,
+  privacyConsentAt: customer.privacyConsentAt,
+  privacyConsentVersion: customer.privacyConsentVersion,
   createdAt: customer.createdAt
 });
 
-// ─── Token Helpers ────────────────────────────────────────────────────────────
+const generateAccessToken = (customer) =>
+  jwt.sign({ id: customer._id, type: 'customer' }, getCustomerJwtSecret(), {
+    expiresIn: '15m'
+  });
 
-const generateAccessToken = (customer) => {
-  return jwt.sign(
-    { id: customer._id, type: 'customer' },
-    getCustomerJwtSecret(),
-    { expiresIn: '15m' }
-  );
-};
-
-const generateRefreshToken = (customer) => {
-  return jwt.sign(
-    { id: customer._id, type: 'customer' },
+const generateRefreshToken = (customer, sessionId) =>
+  jwt.sign(
+    { id: customer._id, type: 'customer', sid: String(sessionId) },
     getCustomerRefreshSecret(),
-    { expiresIn: '7d' }
+    { expiresIn: `${REFRESH_DAYS}d` }
   );
-};
 
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'strict',
-  maxAge: 7 * 24 * 60 * 60 * 1000
+  maxAge: REFRESH_DAYS * 24 * 60 * 60 * 1000
 };
 
-// ─── POST /api/customer-auth/register ────────────────────────────────────────
+const clearRefreshCookie = (res) => {
+  res.clearCookie('customerRefreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+};
+
+const clientMeta = (req) => ({
+  userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
+  ip: String(req.ip || req.connection?.remoteAddress || '').slice(0, 100)
+});
+
+const createSessionAndSetCookie = async (res, customer, req) => {
+  const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
+  const meta = clientMeta(req);
+  const session = await CustomerSession.create({
+    customerAccount: customer._id,
+    refreshTokenHash: 'pending',
+    userAgent: meta.userAgent,
+    ip: meta.ip,
+    lastActiveAt: new Date(),
+    expiresAt
+  });
+
+  const refreshToken = generateRefreshToken(customer, session._id);
+  session.refreshTokenHash = hashToken(refreshToken);
+  await session.save();
+
+  res.cookie('customerRefreshToken', refreshToken, REFRESH_COOKIE_OPTIONS);
+  return { accessToken: generateAccessToken(customer), session };
+};
+
+const revokeAllSessions = async (customerId) => {
+  await CustomerSession.updateMany(
+    { customerAccount: customerId, revokedAt: null },
+    { $set: { revokedAt: new Date() } }
+  );
+};
+
+const formatSession = (s, currentSid) => ({
+  id: s._id,
+  userAgent: s.userAgent || '',
+  ip: s.ip || '',
+  lastActiveAt: s.lastActiveAt,
+  createdAt: s.createdAt,
+  expiresAt: s.expiresAt,
+  current: currentSid ? String(s._id) === String(currentSid) : false
+});
+
+const getCurrentSessionId = (req) => {
+  const refreshToken = req.cookies?.customerRefreshToken;
+  if (!refreshToken) return null;
+  try {
+    const decoded = jwt.verify(refreshToken, getCustomerRefreshSecret());
+    return decoded.sid || null;
+  } catch {
+    return null;
+  }
+};
+
+// ─── Public legal ─────────────────────────────────────────────────────────────
+
+exports.getLegal = (_req, res) => {
+  return res.status(200).json({
+    privacyVersion: PRIVACY_VERSION,
+    privacy: PRIVACY_SECTIONS,
+    terms: TERMS_SECTIONS
+  });
+};
+
+// ─── Register ─────────────────────────────────────────────────────────────────
 
 exports.register = async (req, res) => {
   try {
@@ -67,15 +145,26 @@ exports.register = async (req, res) => {
       password,
       companyName,
       companyDetails,
-      shippingAddress
+      shippingAddress,
+      acceptTerms,
+      marketingOptIn
     } = req.body;
 
     if (!firstName || !lastName || !email || !password) {
-      return res.status(400).json({ message: 'First name, last name, email, and password are required.' });
+      return res.status(400).json({
+        message: 'First name, last name, email, and password are required.'
+      });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+    if (!acceptTerms) {
+      return res.status(400).json({
+        message: 'You must accept the Terms of Service and Privacy Policy.'
+      });
+    }
+
+    const pw = validateCustomerPassword(password);
+    if (!pw.ok) {
+      return res.status(400).json({ message: pw.message });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -84,9 +173,7 @@ exports.register = async (req, res) => {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationExpires = Date.now() + 24 * 60 * 60 * 1000;
-
+    const verificationRaw = createRawToken();
     const customer = new CustomerAccount({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -96,13 +183,23 @@ exports.register = async (req, res) => {
       companyName: companyName?.trim(),
       companyDetails: companyDetails?.trim(),
       shippingAddress,
-      emailVerificationToken: verificationToken,
-      emailVerificationExpires: verificationExpires
+      emailVerificationToken: hashToken(verificationRaw),
+      emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000,
+      privacyConsentAt: new Date(),
+      privacyConsentVersion: PRIVACY_VERSION,
+      notificationPrefs: {
+        orderUpdates: true,
+        shipmentUpdates: true,
+        paymentUpdates: true,
+        reminders: true,
+        marketing: Boolean(marketingOptIn),
+        channels: { email: true, sms: false, inApp: true }
+      }
     });
 
     await customer.save();
 
-    const verifyUrl = `${getFrontendUrl()}/customer/verify-email/${verificationToken}`;
+    const verifyUrl = `${getFrontendUrl()}/customer/verify-email/${verificationRaw}`;
 
     await sendAuthEmail({
       to: normalizedEmail,
@@ -121,18 +218,15 @@ exports.register = async (req, res) => {
   }
 };
 
-// ─── GET /api/customer-auth/verify-email/:token ───────────────────────────────
-
 exports.verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
-
     if (!token) {
       return res.status(400).json({ message: 'Verification token is required.' });
     }
 
     const customer = await CustomerAccount.findOne({
-      emailVerificationToken: token,
+      emailVerificationToken: hashToken(token),
       emailVerificationExpires: { $gt: Date.now() }
     });
 
@@ -152,8 +246,6 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
-// ─── POST /api/customer-auth/resend-verification ─────────────────────────────
-
 exports.resendVerification = async (req, res) => {
   try {
     const { email } = req.body;
@@ -166,16 +258,16 @@ exports.resendVerification = async (req, res) => {
 
     const customer = await CustomerAccount.findOne({ email: email.toLowerCase().trim() });
 
-    if (!customer || customer.emailVerified) {
+    if (!customer || customer.emailVerified || customer.deletedAt) {
       return res.status(200).json({ message: genericMessage });
     }
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    customer.emailVerificationToken = verificationToken;
+    const verificationRaw = createRawToken();
+    customer.emailVerificationToken = hashToken(verificationRaw);
     customer.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
     await customer.save();
 
-    const verifyUrl = `${getFrontendUrl()}/customer/verify-email/${verificationToken}`;
+    const verifyUrl = `${getFrontendUrl()}/customer/verify-email/${verificationRaw}`;
 
     await sendAuthEmail({
       to: customer.email,
@@ -191,8 +283,6 @@ exports.resendVerification = async (req, res) => {
   }
 };
 
-// ─── POST /api/customer-auth/login ────────────────────────────────────────────
-
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -202,17 +292,32 @@ exports.login = async (req, res) => {
     }
 
     const customer = await CustomerAccount.findOne({ email: email.toLowerCase().trim() });
-    if (!customer) {
+    if (!customer || customer.deletedAt) {
       return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    if (customer.lockUntil && customer.lockUntil > new Date()) {
+      const mins = Math.ceil((customer.lockUntil - Date.now()) / 60000);
+      return res.status(423).json({
+        message: `Account temporarily locked due to failed sign-in attempts. Try again in about ${mins} minute(s).`
+      });
     }
 
     const isMatch = await customer.comparePassword(password);
     if (!isMatch) {
+      customer.failedLoginAttempts = (customer.failedLoginAttempts || 0) + 1;
+      if (customer.failedLoginAttempts >= MAX_FAILED_LOGINS) {
+        customer.lockUntil = new Date(Date.now() + LOCK_MS);
+        customer.failedLoginAttempts = 0;
+      }
+      await customer.save();
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
     if (customer.status === 'suspended') {
-      return res.status(403).json({ message: 'Your account has been suspended. Please contact support.' });
+      return res.status(403).json({
+        message: 'Your account has been suspended. Please contact support.'
+      });
     }
 
     if (customer.status === 'inactive') {
@@ -227,13 +332,12 @@ exports.login = async (req, res) => {
       });
     }
 
+    customer.failedLoginAttempts = 0;
+    customer.lockUntil = null;
     customer.lastLogin = new Date();
     await customer.save();
 
-    const accessToken = generateAccessToken(customer);
-    const refreshToken = generateRefreshToken(customer);
-
-    res.cookie('customerRefreshToken', refreshToken, REFRESH_COOKIE_OPTIONS);
+    const { accessToken } = await createSessionAndSetCookie(res, customer, req);
 
     return res.status(200).json({
       accessToken,
@@ -245,20 +349,29 @@ exports.login = async (req, res) => {
   }
 };
 
-// ─── POST /api/customer-auth/logout ───────────────────────────────────────────
-
-exports.logout = (req, res) => {
-  res.clearCookie('customerRefreshToken', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
-  });
-  return res.status(200).json({ message: 'Logged out successfully.' });
+exports.logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.customerRefreshToken;
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, getCustomerRefreshSecret());
+        if (decoded.sid) {
+          await CustomerSession.findByIdAndUpdate(decoded.sid, {
+            revokedAt: new Date()
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    clearRefreshCookie(res);
+    return res.status(200).json({ message: 'Logged out successfully.' });
+  } catch (error) {
+    clearRefreshCookie(res);
+    return res.status(200).json({ message: 'Logged out successfully.' });
+  }
 };
 
-// ─── POST /api/customer-auth/refresh ──────────────────────────────────────────
-
-// POST /api/customer-auth/refresh — missing cookie returns 200 { authenticated: false }
 exports.refresh = async (req, res) => {
   try {
     const refreshToken = req.cookies.customerRefreshToken;
@@ -271,6 +384,7 @@ exports.refresh = async (req, res) => {
     try {
       decoded = jwt.verify(refreshToken, getCustomerRefreshSecret());
     } catch (err) {
+      clearRefreshCookie(res);
       const isExpired = err.name === 'TokenExpiredError';
       return res.status(401).json({
         code: isExpired ? 'CUSTOMER_TOKEN_EXPIRED' : undefined,
@@ -278,22 +392,51 @@ exports.refresh = async (req, res) => {
       });
     }
 
-    if (decoded.type !== 'customer') {
+    if (decoded.type !== 'customer' || !decoded.sid) {
+      clearRefreshCookie(res);
       return res.status(401).json({ message: 'Invalid refresh token.' });
     }
 
+    const session = await CustomerSession.findById(decoded.sid);
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt < new Date() ||
+      session.refreshTokenHash !== hashToken(refreshToken)
+    ) {
+      clearRefreshCookie(res);
+      return res.status(401).json({
+        code: 'CUSTOMER_TOKEN_EXPIRED',
+        message: 'Session is no longer valid. Please sign in again.'
+      });
+    }
+
     const customer = await CustomerAccount.findById(decoded.id);
-    if (!customer) {
+    if (!customer || customer.deletedAt) {
+      clearRefreshCookie(res);
       return res.status(401).json({ message: 'Customer not found.' });
     }
 
     if (customer.status === 'suspended') {
+      clearRefreshCookie(res);
       return res.status(403).json({ message: 'Your account has been suspended.' });
     }
 
-    if (customer.status === 'inactive' || customer.status !== 'active') {
+    if (customer.status !== 'active') {
+      clearRefreshCookie(res);
       return res.status(401).json({ message: 'Customer account is inactive.' });
     }
+
+    // Rotate refresh token
+    const newRefresh = generateRefreshToken(customer, session._id);
+    session.refreshTokenHash = hashToken(newRefresh);
+    session.lastActiveAt = new Date();
+    const meta = clientMeta(req);
+    if (meta.userAgent) session.userAgent = meta.userAgent;
+    if (meta.ip) session.ip = meta.ip;
+    await session.save();
+
+    res.cookie('customerRefreshToken', newRefresh, REFRESH_COOKIE_OPTIONS);
 
     const accessToken = generateAccessToken(customer);
     return res.status(200).json({ authenticated: true, accessToken });
@@ -302,8 +445,6 @@ exports.refresh = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error.' });
   }
 };
-
-// ─── POST /api/customer-auth/forgot-password ─────────────────────────────────
 
 exports.forgotPassword = async (req, res) => {
   try {
@@ -314,17 +455,20 @@ exports.forgotPassword = async (req, res) => {
       return res.status(400).json({ message: 'Email is required.' });
     }
 
-    const customer = await CustomerAccount.findOne({ email: email.toLowerCase().trim() });
+    const customer = await CustomerAccount.findOne({
+      email: email.toLowerCase().trim(),
+      deletedAt: null
+    });
     if (!customer) {
       return res.status(200).json({ message: genericMessage });
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    customer.passwordResetToken = resetToken;
+    const resetRaw = createRawToken();
+    customer.passwordResetToken = hashToken(resetRaw);
     customer.passwordResetExpires = Date.now() + 60 * 60 * 1000;
     await customer.save();
 
-    const resetUrl = `${getFrontendUrl()}/customer/reset-password/${resetToken}`;
+    const resetUrl = `${getFrontendUrl()}/customer/reset-password/${resetRaw}`;
 
     await sendAuthEmail({
       to: customer.email,
@@ -340,8 +484,6 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-// ─── POST /api/customer-auth/reset-password ───────────────────────────────────
-
 exports.resetPassword = async (req, res) => {
   try {
     const { token, password } = req.body;
@@ -350,12 +492,13 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Token and new password are required.' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+    const pw = validateCustomerPassword(password);
+    if (!pw.ok) {
+      return res.status(400).json({ message: pw.message });
     }
 
     const customer = await CustomerAccount.findOne({
-      passwordResetToken: token,
+      passwordResetToken: hashToken(token),
       passwordResetExpires: { $gt: Date.now() }
     });
 
@@ -366,16 +509,20 @@ exports.resetPassword = async (req, res) => {
     customer.password = password;
     customer.passwordResetToken = undefined;
     customer.passwordResetExpires = undefined;
+    customer.failedLoginAttempts = 0;
+    customer.lockUntil = null;
     await customer.save();
 
-    return res.status(200).json({ message: 'Password has been reset successfully. You can now log in.' });
+    await revokeAllSessions(customer._id);
+
+    return res.status(200).json({
+      message: 'Password has been reset successfully. You can now log in.'
+    });
   } catch (error) {
     console.error('Customer Reset Password Error:', error);
     return res.status(500).json({ message: 'Internal server error.' });
   }
 };
-
-// ─── GET /api/customer-auth/me ────────────────────────────────────────────────
 
 exports.getMe = async (req, res) => {
   try {
@@ -388,8 +535,6 @@ exports.getMe = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error.' });
   }
 };
-
-// ─── PUT /api/customer-auth/me ────────────────────────────────────────────────
 
 exports.updateMe = async (req, res) => {
   try {
@@ -405,7 +550,7 @@ exports.updateMe = async (req, res) => {
     } = req.body;
 
     const customer = await CustomerAccount.findById(req.customerUser._id);
-    if (!customer) {
+    if (!customer || customer.deletedAt) {
       return res.status(404).json({ message: 'Customer account not found.' });
     }
 
@@ -446,9 +591,7 @@ exports.updateMe = async (req, res) => {
               ? Boolean(nextChannels.email)
               : current.channels.email,
           sms:
-            nextChannels.sms !== undefined
-              ? Boolean(nextChannels.sms)
-              : current.channels.sms,
+            nextChannels.sms !== undefined ? Boolean(nextChannels.sms) : current.channels.sms,
           inApp:
             nextChannels.inApp !== undefined
               ? Boolean(nextChannels.inApp)
@@ -469,8 +612,6 @@ exports.updateMe = async (req, res) => {
   }
 };
 
-// ─── POST /api/customer-auth/change-password ─────────────────────────────────
-
 exports.changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -479,8 +620,9 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ message: 'Current and new password are required.' });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({ message: 'New password must be at least 8 characters.' });
+    const pw = validateCustomerPassword(newPassword);
+    if (!pw.ok) {
+      return res.status(400).json({ message: pw.message });
     }
 
     const customer = await CustomerAccount.findById(req.customerUser._id);
@@ -496,9 +638,155 @@ exports.changePassword = async (req, res) => {
     customer.password = newPassword;
     await customer.save();
 
-    return res.status(200).json({ message: 'Password updated successfully.' });
+    await revokeAllSessions(customer._id);
+    clearRefreshCookie(res);
+
+    return res.status(200).json({
+      message: 'Password updated successfully. Please sign in again.',
+      requireReauth: true
+    });
   } catch (error) {
     console.error('Customer Change Password Error:', error);
     return res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
+exports.listSessions = async (req, res) => {
+  try {
+    const currentSid = getCurrentSessionId(req);
+    const sessions = await CustomerSession.find({
+      customerAccount: req.customerUser._id,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() }
+    }).sort({ lastActiveAt: -1 });
+
+    return res.status(200).json({
+      sessions: sessions.map((s) => formatSession(s, currentSid))
+    });
+  } catch (error) {
+    console.error('List Sessions Error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+exports.revokeSession = async (req, res) => {
+  try {
+    const session = await CustomerSession.findOne({
+      _id: req.params.id,
+      customerAccount: req.customerUser._id,
+      revokedAt: null
+    });
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found.' });
+    }
+
+    session.revokedAt = new Date();
+    await session.save();
+
+    const currentSid = getCurrentSessionId(req);
+    if (currentSid && String(session._id) === String(currentSid)) {
+      clearRefreshCookie(res);
+      return res.status(200).json({ message: 'Current session revoked.', requireReauth: true });
+    }
+
+    return res.status(200).json({ message: 'Session revoked.' });
+  } catch (error) {
+    console.error('Revoke Session Error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+exports.logoutAllSessions = async (req, res) => {
+  try {
+    await revokeAllSessions(req.customerUser._id);
+    clearRefreshCookie(res);
+    return res.status(200).json({
+      message: 'Signed out of all devices.',
+      requireReauth: true
+    });
+  } catch (error) {
+    console.error('Logout All Error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+exports.exportMyData = async (req, res) => {
+  try {
+    const customer = await CustomerAccount.findById(req.customerUser._id).lean();
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer account not found.' });
+    }
+
+    const [orders, tickets, notifications] = await Promise.all([
+      StorefrontOrder.find({ customerAccount: customer._id }).sort({ createdAt: -1 }).lean(),
+      SupportTicket.find({ customerAccount: customer._id }).sort({ createdAt: -1 }).lean(),
+      CustomerNotification.find({ recipient: customer._id })
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean()
+    ]);
+
+    const { password, emailVerificationToken, passwordResetToken, failedLoginAttempts, lockUntil, ...safe } =
+      customer;
+
+    return res.status(200).json({
+      exportedAt: new Date().toISOString(),
+      account: safe,
+      orders,
+      supportTickets: tickets,
+      notifications
+    });
+  } catch (error) {
+    console.error('Export My Data Error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+exports.deleteMyAccount = async (req, res) => {
+  try {
+    const { password, confirm } = req.body || {};
+    if (confirm !== 'DELETE') {
+      return res.status(400).json({
+        message: 'Type DELETE to confirm account deletion.'
+      });
+    }
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required.' });
+    }
+
+    const customer = await CustomerAccount.findById(req.customerUser._id);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer account not found.' });
+    }
+
+    const isMatch = await customer.comparePassword(password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect password.' });
+    }
+
+    customer.status = 'inactive';
+    customer.deletedAt = new Date();
+    customer.email = `deleted+${customer._id}@deleted.local`;
+    customer.phone = '';
+    customer.firstName = 'Deleted';
+    customer.lastName = 'User';
+    customer.companyName = '';
+    customer.companyDetails = '';
+    customer.shippingAddress = undefined;
+    customer.billingAddress = undefined;
+    await customer.save();
+
+    await revokeAllSessions(customer._id);
+    clearRefreshCookie(res);
+
+    return res.status(200).json({
+      message: 'Your account has been deleted.',
+      requireReauth: true
+    });
+  } catch (error) {
+    console.error('Delete Account Error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+exports.toSafeCustomer = toSafeCustomer;
