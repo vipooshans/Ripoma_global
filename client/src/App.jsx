@@ -24,6 +24,7 @@ import CustomerCategories from './pages/customer/Categories';
 import CustomerCategoryDetail from './pages/customer/CategoryDetail';
 import CustomerCart from './pages/customer/Cart';
 import CustomerWishlist from './pages/customer/Wishlist';
+import CustomerHelp from './pages/customer/Help';
 import CustomerCheckout from './pages/customer/Checkout';
 import CustomerOrders from './pages/customer/Orders';
 import CustomerOrderConfirmation from './pages/customer/OrderConfirmation';
@@ -51,6 +52,7 @@ import CategoryList from './pages/inventory/CategoryList';
 import CategoryForm from './pages/inventory/CategoryForm';
 import StorefrontOrderList from './pages/inventory/StorefrontOrderList';
 import StorefrontReviewList from './pages/inventory/StorefrontReviewList';
+import StorefrontSupportList from './pages/inventory/StorefrontSupportList';
 
 // Supplier & Customer Management Module
 import SupplierList from './pages/suppliers/SupplierList';
@@ -155,6 +157,7 @@ function App() {
           <Route path="/customer/categories/:id" element={<CustomerCategoryDetail />} />
           <Route path="/customer/cart" element={<CustomerCart />} />
           <Route path="/customer/wishlist" element={<CustomerWishlist />} />
+          <Route path="/customer/help" element={<CustomerHelp />} />
           <Route path="/customer/checkout" element={<CustomerCheckout />} />
           <Route path="/customer/orders" element={<CustomerOrders />} />
           <Route path="/customer/orders/:id" element={<CustomerOrderConfirmation />} />
@@ -201,6 +204,7 @@ function App() {
           <Route path="inventory/alerts" element={<AlertsCenter />} />
           <Route path="inventory/storefront-orders" element={<StorefrontOrderList />} />
           <Route path="inventory/storefront-reviews" element={<StorefrontReviewList />} />
+          <Route path="inventory/storefront-support" element={<StorefrontSupportList />} />
 
           {/* Supplier & Customer Management Module */}
           <Route path="suppliers" element={<SupplierList />} />

@@ -132,6 +132,31 @@ const storefrontService = {
   markAllNotificationsRead: async () => {
     const res = await api.post('/storefront/notifications/read-all');
     return res.data;
+  },
+
+  getFaqs: async (params = {}) => {
+    const res = await api.get('/storefront/faqs', { params });
+    return res.data;
+  },
+
+  createSupportTicket: async (payload) => {
+    const res = await api.post('/storefront/support', payload);
+    return res.data;
+  },
+
+  getMySupportTickets: async () => {
+    const res = await api.get('/storefront/support/mine');
+    return res.data;
+  },
+
+  getSupportTicket: async (id, params = {}) => {
+    const res = await api.get(`/storefront/support/${id}`, { params });
+    return res.data;
+  },
+
+  addSupportMessage: async (id, payload) => {
+    const res = await api.post(`/storefront/support/${id}/messages`, payload);
+    return res.data;
   }
 };
 

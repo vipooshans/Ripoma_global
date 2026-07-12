@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const storefrontController = require('../controllers/storefront.controller');
 const customerNotificationController = require('../controllers/customerNotification.controller');
+const storefrontSupportController = require('../controllers/storefrontSupport.controller');
 const customerAuthMiddleware = require('../middleware/customerAuthMiddleware');
 const { optionalCustomerAuth } = customerAuthMiddleware;
 
@@ -12,6 +13,13 @@ router.get('/categories', storefrontController.getCategories);
 router.get('/categories/:id', storefrontController.getCategoryDetail);
 router.get('/stats', storefrontController.getStats);
 router.get('/promos', storefrontController.getPromos);
+router.get('/faqs', storefrontSupportController.getFaqs);
+
+router.post('/support', optionalCustomerAuth, storefrontSupportController.createTicket);
+router.get('/support/mine', customerAuthMiddleware, storefrontSupportController.listMyTickets);
+router.get('/support/:id', optionalCustomerAuth, storefrontSupportController.getTicket);
+router.post('/support/:id/messages', optionalCustomerAuth, storefrontSupportController.addMessage);
+
 router.post('/cart/estimate', storefrontController.estimateCart);
 router.post('/coupons/validate', storefrontController.validateCoupon);
 router.post('/orders', customerAuthMiddleware, storefrontController.placeOrder);

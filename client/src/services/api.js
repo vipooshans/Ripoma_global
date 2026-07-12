@@ -45,7 +45,9 @@ const applyAuthorizationHeader = () => {
 const resolveTokenForUrl = (url = '') => {
   const path = String(url);
   const isStaffStorefrontAdmin =
-    path.includes('/storefront-orders') || path.includes('/storefront-reviews');
+    path.includes('/storefront-orders') ||
+    path.includes('/storefront-reviews') ||
+    path.includes('/storefront-support');
   const isCustomerApi =
     path.includes('/customer-auth') ||
     (path.includes('/storefront') && !isStaffStorefrontAdmin);

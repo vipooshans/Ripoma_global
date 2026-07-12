@@ -26,7 +26,8 @@ const CustomerNotificationSchema = new mongoose.Schema(
         'shipment_update',
         'reminder',
         'promotion',
-        'review_update'
+        'review_update',
+        'support_update'
       ],
       required: true
     },
