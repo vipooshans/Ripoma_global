@@ -462,8 +462,13 @@ const ProductList = () => {
                           </Link>
                           <button
                             onClick={() => handleDelete(p._id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                            title="Delete"
+                            disabled={p.status === 'active'}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+                            title={
+                              p.status === 'active'
+                                ? 'Deactivate or discontinue before deleting'
+                                : 'Delete'
+                            }
                           >
                             <Trash2 size={14} />
                           </button>
@@ -550,8 +555,13 @@ const ProductList = () => {
                       </Link>
                       <button
                         onClick={() => handleDelete(p._id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                        title="Delete"
+                        disabled={p.status === 'active'}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+                        title={
+                          p.status === 'active'
+                            ? 'Deactivate or discontinue before deleting'
+                            : 'Delete'
+                        }
                       >
                         <Trash2 size={14} />
                       </button>

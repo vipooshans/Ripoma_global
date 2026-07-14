@@ -6,6 +6,31 @@ const { generateSKU } = require('../utils/skuGenerator');
 const { parseCSV, unparseCSV } = require('../utils/csvParser');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
 
+/** Returns { unitCost, sellingPrice } or { error } */
+const parseAndValidatePrices = (unitCostRaw, sellingPriceRaw, { requireSellingPrice = true } = {}) => {
+  const unitCost = unitCostRaw === undefined || unitCostRaw === null || unitCostRaw === ''
+    ? 0
+    : parseFloat(unitCostRaw);
+  const sellingPrice = sellingPriceRaw === undefined || sellingPriceRaw === null || sellingPriceRaw === ''
+    ? NaN
+    : parseFloat(sellingPriceRaw);
+
+  if (Number.isNaN(unitCost) || unitCost < 0) {
+    return { error: 'Unit cost must be a number greater than or equal to 0.' };
+  }
+
+  if (requireSellingPrice || sellingPriceRaw !== undefined) {
+    if (Number.isNaN(sellingPrice) || sellingPrice <= 0) {
+      return { error: 'Selling price is required and must be a positive number.' };
+    }
+  }
+
+  return {
+    unitCost,
+    sellingPrice: Number.isNaN(sellingPrice) ? undefined : sellingPrice
+  };
+};
+
 // GET /api/products
 exports.getProducts = async (req, res) => {
   try {
@@ -145,6 +170,11 @@ exports.createProduct = async (req, res) => {
       return res.status(400).json({ message: 'Name and Category are required.' });
     }
 
+    const priceCheck = parseAndValidatePrices(unitCost, sellingPrice, { requireSellingPrice: true });
+    if (priceCheck.error) {
+      return res.status(400).json({ message: priceCheck.error });
+    }
+
     // Fetch category name for SKU generation
     const catRecord = await Category.findById(category);
     if (!catRecord) {
@@ -172,8 +202,8 @@ exports.createProduct = async (req, res) => {
       description,
       category,
       unit: unit || 'pcs',
-      unitCost: parseFloat(unitCost) || 0,
-      sellingPrice: parseFloat(sellingPrice) || 0,
+      unitCost: priceCheck.unitCost,
+      sellingPrice: priceCheck.sellingPrice,
       currency: currency || 'USD',
       images: images || [],
       barcode: finalBarcode,
@@ -231,6 +261,21 @@ exports.updateProduct = async (req, res) => {
       product.sku = cleanSku;
     }
 
+    // Validate prices when supplied (sellingPrice always required when present in body;
+    // if omitted on update, keep existing — but never allow invalid values when sent)
+    if (updates.unitCost !== undefined || updates.sellingPrice !== undefined) {
+      const priceCheck = parseAndValidatePrices(
+        updates.unitCost !== undefined ? updates.unitCost : product.unitCost,
+        updates.sellingPrice !== undefined ? updates.sellingPrice : product.sellingPrice,
+        { requireSellingPrice: true }
+      );
+      if (priceCheck.error) {
+        return res.status(400).json({ message: priceCheck.error });
+      }
+      updates.unitCost = priceCheck.unitCost;
+      updates.sellingPrice = priceCheck.sellingPrice;
+    }
+
     // Direct mappings
     const fieldsToUpdate = [
       'name', 'description', 'category', 'unit', 'unitCost', 'sellingPrice',
@@ -271,20 +316,26 @@ exports.updateProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    const product = await Product.findById(id);
+    if (!product || product.deleted) {
+      return res.status(404).json({ message: 'Product not found.' });
+    }
+
+    if (product.status === 'active') {
+      return res.status(400).json({
+        message: 'Cannot delete an active product. Set status to inactive or discontinued first.'
+      });
+    }
+
     // Check if there is active stock left in warehouses
     const stockItems = await InventoryItem.find({ product: id });
     const totalStock = stockItems.reduce((sum, item) => sum + (item.quantityOnHand || 0), 0);
-    
+
     if (totalStock > 0) {
       return res.status(400).json({
         message: 'Cannot delete product. Active inventory exists in one or more warehouses.'
       });
-    }
-
-    const product = await Product.findById(id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found.' });
     }
 
     product.deleted = true;
@@ -365,6 +416,13 @@ exports.importProducts = async (req, res) => {
         continue;
       }
 
+      const priceCheck = parseAndValidatePrices(unitCost, sellingPrice, { requireSellingPrice: true });
+      if (priceCheck.error) {
+        errors.push({ row: rowNum, reason: priceCheck.error });
+        skipped++;
+        continue;
+      }
+
       try {
         // Resolve Category
         let categoryRecord = await Category.findOne({ name: categoryName.trim() });
@@ -409,8 +467,8 @@ exports.importProducts = async (req, res) => {
           name: name.toString().trim(),
           category: categoryRecord._id,
           unit: unit || 'pcs',
-          unitCost: parseFloat(unitCost) || 0,
-          sellingPrice: parseFloat(sellingPrice) || 0,
+          unitCost: priceCheck.unitCost,
+          sellingPrice: priceCheck.sellingPrice,
           supplier: supplierRecord ? supplierRecord._id : null,
           lowStockThreshold: parseInt(lowStockThreshold) || 10,
           reorderQuantity: parseInt(reorderQuantity) || 50,

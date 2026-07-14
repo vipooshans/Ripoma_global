@@ -133,6 +133,18 @@ const ProductForm = () => {
       return;
     }
 
+    const sellingPrice = parseFloat(formData.sellingPrice);
+    if (Number.isNaN(sellingPrice) || sellingPrice <= 0) {
+      toast.error('Selling price is required and must be a positive number.');
+      return;
+    }
+
+    const unitCost = parseFloat(formData.unitCost);
+    if (Number.isNaN(unitCost) || unitCost < 0) {
+      toast.error('Unit cost must be a number greater than or equal to 0.');
+      return;
+    }
+
     // Clean payload
     const processedTags = formData.tags
       ? formData.tags.split(',').map((t) => t.trim()).filter((t) => t !== '')
@@ -150,8 +162,8 @@ const ProductForm = () => {
       faqs: cleanedFaqs,
       supplier: formData.supplier || null,
       brand: formData.brand?.trim() || undefined,
-      unitCost: parseFloat(formData.unitCost) || 0,
-      sellingPrice: parseFloat(formData.sellingPrice) || 0,
+      unitCost,
+      sellingPrice,
       weight: parseFloat(formData.weight) || 0,
       lowStockThreshold: parseInt(formData.lowStockThreshold) || 10,
       reorderQuantity: parseInt(formData.reorderQuantity) || 50
@@ -393,12 +405,13 @@ const ProductForm = () => {
 
             {/* Selling Price */}
             <div>
-              <label className="form-label">Unit Selling Price</label>
+              <label className="form-label required">Unit Selling Price</label>
               <input
                 type="number"
                 name="sellingPrice"
                 step="0.01"
-                min="0"
+                min="0.01"
+                required
                 className="form-input"
                 value={formData.sellingPrice}
                 onChange={handleChange}
