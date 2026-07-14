@@ -84,18 +84,32 @@ exports.createStockMovement = async (req, res) => {
       note
     } = req.body;
 
-    if (!productId || !warehouseId || !type || quantity === undefined) {
+    if (!productId || !warehouseId || !type || quantity === undefined || quantity === null || quantity === '') {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Product, warehouse, movement type, and quantity are required.' });
     }
 
-    const qtyVal = parseInt(quantity);
-    if (isNaN(qtyVal) || qtyVal <= 0) {
+    const qtyNum = Number(quantity);
+    if (!Number.isInteger(qtyNum)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Quantity must be a whole number.' });
+    }
+
+    if (type === 'adjustment') {
+      if (qtyNum === 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'Adjustment quantity must be a non-zero integer.' });
+      }
+    } else if (qtyNum <= 0) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Quantity must be a positive integer.' });
     }
+
+    const qtyVal = Math.abs(qtyNum);
 
     // Verify product exists
     const productRecord = await Product.findOne({ _id: productId, deleted: false }).session(session);
@@ -228,10 +242,8 @@ exports.createStockMovement = async (req, res) => {
         netQtyChange = -qtyVal;
         break;
       case 'adjustment':
-        // For adjustments, quantity is the exact delta (+/-) passed from frontend
-        // We look at positive/negative sign of quantity in body
-        const delta = parseInt(req.body.quantity);
-        netQtyChange = delta;
+        // Signed delta from client (positive add / negative remove)
+        netQtyChange = qtyNum;
         break;
       default:
         await session.abortTransaction();

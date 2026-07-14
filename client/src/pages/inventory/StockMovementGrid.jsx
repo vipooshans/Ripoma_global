@@ -81,13 +81,24 @@ const StockMovementGrid = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.product || !formData.warehouse || !formData.type || !formData.quantity) {
+    if (!formData.product || !formData.warehouse || !formData.type || formData.quantity === '' || formData.quantity === null || formData.quantity === undefined) {
       toast.error('Product, Warehouse, Type, and Quantity are required.');
       return;
     }
 
-    if (formData.quantity <= 0) {
-      toast.error('Quantity must be greater than zero.');
+    const qtyNum = Number(formData.quantity);
+    if (!Number.isInteger(qtyNum)) {
+      toast.error('Quantity must be a whole number.');
+      return;
+    }
+
+    if (formData.type === 'adjustment') {
+      if (qtyNum === 0) {
+        toast.error('Adjustment quantity must be a non-zero integer.');
+        return;
+      }
+    } else if (qtyNum <= 0) {
+      toast.error('Quantity must be a positive integer.');
       return;
     }
 
@@ -105,7 +116,7 @@ const StockMovementGrid = () => {
       product: formData.product,
       warehouse: formData.warehouse,
       type: formData.type,
-      quantity: parseInt(formData.quantity),
+      quantity: qtyNum,
       reference: formData.reference,
       note: formData.note,
       batchNumber: formData.batchNumber || undefined,
@@ -398,7 +409,8 @@ const StockMovementGrid = () => {
                 <label className="form-label required">Quantity</label>
                 <input
                   type="number"
-                  min="1"
+                  step="1"
+                  min={formData.type === 'adjustment' ? undefined : 1}
                   className="form-input"
                   value={formData.quantity}
                   onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
@@ -406,8 +418,8 @@ const StockMovementGrid = () => {
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
                   {formData.type === 'adjustment'
-                    ? 'Enter positive delta to add stock, negative delta to remove stock.'
-                    : 'Enter positive units count.'}
+                    ? 'Enter a non-zero whole number: positive to add stock, negative to remove stock. On-hand cannot go below zero.'
+                    : 'Enter a positive whole-number unit count.'}
                 </p>
               </div>
 

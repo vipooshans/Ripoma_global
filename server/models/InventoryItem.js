@@ -4,8 +4,8 @@ const InventoryItemSchema = new mongoose.Schema(
   {
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
     warehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
-    quantityOnHand: { type: Number, default: 0 },
-    quantityReserved: { type: Number, default: 0 }, // allocated to orders not yet shipped
+    quantityOnHand: { type: Number, default: 0, min: 0 },
+    quantityReserved: { type: Number, default: 0, min: 0 }, // allocated to orders not yet shipped
     lastStockCheck: { type: Date },
     batchNumber: { type: String, trim: true },
     expiryDate: { type: Date },
