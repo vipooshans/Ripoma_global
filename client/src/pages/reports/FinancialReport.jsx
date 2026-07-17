@@ -52,7 +52,8 @@ const FinancialReport = () => {
     return `$${(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const pl = data?.plSummary || { revenue: 0, cogs: 0, grossProfit: 0, opex: 0, netProfit: 0, grossMargin: 0, netMargin: 0 };
+  const pl = data?.plSummary || { revenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, opex: 0, netProfit: 0, grossMargin: 0, netMargin: 0 };
+  const opexValue = pl.operatingExpenses ?? pl.opex ?? 0;
   const monthlyTrend = data?.monthlyTrend || [];
   const receivables = data?.receivablesAgeing || { details: [], summary: { not_yet_due: 0, '0-30d': 0, '31-60d': 0, '61-90d': 0, '90d_plus': 0, total: 0 } };
   const payables = data?.payablesAgeing || { details: [], summary: { not_yet_due: 0, '0-30d': 0, '31-60d': 0, '61-90d': 0, '90d_plus': 0, total: 0 } };
@@ -119,7 +120,7 @@ const FinancialReport = () => {
         {/* Opex */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-24">
           <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-450">Operating Expenses (OPEX)</span>
-          <p className="text-lg font-mono font-extrabold text-coral-500 mt-1.5 leading-none">{formatCurrency(pl.opex)}</p>
+          <p className="text-lg font-mono font-extrabold text-coral-500 mt-1.5 leading-none">{formatCurrency(opexValue)}</p>
         </div>
 
         {/* Net Profit */}

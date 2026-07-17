@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useCreateImportOrder, useUpdateImportOrder, useImportOrderDetail } from '../../hooks/useImportOrders';
+import { useCreateImportOrder, useUpdateImportOrder, useImportOrderDetail, useSubmitImportOrder } from '../../hooks/useImportOrders';
 import { useSuppliers } from '../../hooks/useSuppliers';
 import { useProducts, useWarehouses } from '../../hooks/useInventory';
 import {
@@ -39,6 +39,7 @@ const OrderCreate = () => {
   // Mutations
   const createMutation = useCreateImportOrder();
   const updateMutation = useUpdateImportOrder();
+  const submitMutation = useSubmitImportOrder();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -254,6 +255,14 @@ const OrderCreate = () => {
       toast.error('Supplier is required.');
       return;
     }
+    if (!formData.orderDate) {
+      toast.error('Order date is required.');
+      return;
+    }
+    if (!formData.expectedDeliveryDate) {
+      toast.error('Expected delivery date is required.');
+      return;
+    }
     if (formData.items.length === 0) {
       toast.error('Add at least one order line item.');
       return;
@@ -268,17 +277,29 @@ const OrderCreate = () => {
       tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
       shippingCost: parseFloat(formData.shippingCost) || 0,
       otherCharges: parseFloat(formData.otherCharges) || 0,
-      amountPaid: parseFloat(formData.amountPaid) || 0,
-      status: submitForApproval ? 'pending_approval' : (isEditMode ? formData.status : 'draft')
+      amountPaid: parseFloat(formData.amountPaid) || 0
     };
+    delete payload.status;
 
     try {
+      let orderId = id;
       if (isEditMode) {
         await updateMutation.mutateAsync({ id, ...payload });
-        toast.success(submitForApproval ? 'PO updated and submitted for approval.' : 'PO changes saved successfully.');
       } else {
-        await createMutation.mutateAsync(payload);
-        toast.success(submitForApproval ? 'PO created and submitted for approval.' : 'Draft PO created successfully.');
+        const created = await createMutation.mutateAsync(payload);
+        orderId = created?.order?._id || created?._id;
+      }
+
+      if (submitForApproval) {
+        if (!orderId) {
+          toast.error('Order saved but could not submit for approval (missing id).');
+          navigate('/imports/orders');
+          return;
+        }
+        await submitMutation.mutateAsync(orderId);
+        toast.success('PO saved and submitted for approval.');
+      } else {
+        toast.success(isEditMode ? 'PO changes saved successfully.' : 'Draft PO created successfully.');
       }
       navigate('/imports/orders');
     } catch (err) {

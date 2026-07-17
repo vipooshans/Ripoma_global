@@ -34,6 +34,15 @@ export const useFinancialReport = (params) =>
     enabled: !!params
   });
 
+export const useInventoryReport = (params = {}) =>
+  useQuery({
+    queryKey: ['inventoryReport', params],
+    queryFn: async () => {
+      const { data } = await api.get('/reports/inventory', { params });
+      return data;
+    }
+  });
+
 export const useBusinessAnalytics = (params) =>
   useQuery({
     queryKey: ['businessAnalytics', params],

@@ -37,6 +37,8 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
 import UserList from './pages/admin/UserList';
 import UserForm from './pages/admin/UserForm';
+import AdminOnlyRoute from './components/auth/AdminOnlyRoute';
+import SystemSettings from './pages/admin/SystemSettings';
 import RolesPermissions from './pages/admin/RolesPermissions';
 import Profile from './pages/Profile';
 
@@ -110,6 +112,7 @@ import CurrencyConverter from './pages/finance/CurrencyConverter';
 import ReportsDashboard from './pages/reports/Dashboard';
 import SalesReport from './pages/reports/SalesReport';
 import FinancialReport from './pages/reports/FinancialReport';
+import InventoryReport from './pages/reports/InventoryReport';
 import BusinessAnalytics from './pages/reports/BusinessAnalytics';
 import ReportBuilder from './pages/reports/ReportBuilder';
 import ScheduledReports from './pages/reports/ScheduledReports';
@@ -190,6 +193,7 @@ function App() {
           <Route path="admin/users/add" element={<UserForm />} />
           <Route path="admin/users/:id/edit" element={<UserForm />} />
           <Route path="admin/roles" element={<RolesPermissions />} />
+          <Route path="admin/settings" element={<AdminOnlyRoute><SystemSettings /></AdminOnlyRoute>} />
           <Route path="profile" element={<Profile />} />
 
           {/* Product & Inventory Management Module */}
@@ -270,6 +274,7 @@ function App() {
           <Route path="reports" element={<ReportsDashboard />} />
           <Route path="reports/sales" element={<SalesReport />} />
           <Route path="reports/financial" element={<FinancialReport />} />
+          <Route path="reports/inventory" element={<InventoryReport />} />
           <Route path="reports/business-analytics" element={<BusinessAnalytics />} />
           <Route path="reports/builder" element={<ReportBuilder />} />
           <Route path="reports/scheduled" element={<ScheduledReports />} />

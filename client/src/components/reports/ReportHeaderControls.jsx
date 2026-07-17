@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Calendar, Filter, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const ReportHeaderControls = ({
   filters,
@@ -65,6 +66,19 @@ const ReportHeaderControls = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (filters.preset === 'custom') {
+      if (!filters.dateFrom || !filters.dateTo) {
+        toast.error('Please select both start and end dates.');
+        return;
+      }
+      if (new Date(filters.dateFrom) > new Date(filters.dateTo)) {
+        toast.error('Start date must be on or before end date.');
+        return;
+      }
+    } else if (filters.dateFrom && filters.dateTo && new Date(filters.dateFrom) > new Date(filters.dateTo)) {
+      toast.error('Start date must be on or before end date.');
+      return;
+    }
     onApply();
   };
 

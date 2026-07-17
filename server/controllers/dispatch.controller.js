@@ -32,6 +32,16 @@ exports.createDispatch = async (req, res) => {
   const order = await ExportOrder.findById(exportOrderId);
   if (!order) return res.status(404).json({ message: 'Export Order not found.' });
 
+  if (['draft', 'cancelled'].includes(order.status)) {
+    return res.status(400).json({ message: `Cannot dispatch an order in status: ${order.status}` });
+  }
+
+  if (!['partial', 'paid'].includes(order.paymentStatus)) {
+    return res.status(400).json({
+      message: 'Payment confirmation required before dispatch. Order payment status must be partial or paid.'
+    });
+  }
+
   // Generate Dispatch Number
   const dispatchNumber = await generateExportNumber('dispatch');
 
@@ -65,43 +75,47 @@ exports.createDispatch = async (req, res) => {
     });
     await dispatch.save(saveOpts);
 
-    // 2. Adjust inventory items and log stock movements
+    // 2. Adjust inventory only if not already deducted on confirm
     for (const item of items) {
-      // Find InventoryItem for product + warehouse
-      const inventoryItem = await InventoryItem.findOne({
-        product: item.product,
-        warehouse: order.warehouse
-      }).session(sessionObj);
+      if (!order.stockDeductedOnConfirm) {
+        const inventoryItem = await InventoryItem.findOne({
+          product: item.product,
+          warehouse: order.warehouse
+        }).session(sessionObj);
 
-      if (!inventoryItem) {
-        throw new Error(`Inventory item record not found for product ${item.product} in warehouse ${order.warehouse}`);
+        if (!inventoryItem) {
+          throw new Error(`Inventory item record not found for product ${item.product} in warehouse ${order.warehouse}`);
+        }
+
+        if (inventoryItem.quantityOnHand < item.quantityDispatched) {
+          throw new Error(`Insufficient stock for product in warehouse.`);
+        }
+
+        const quantityBefore = inventoryItem.quantityOnHand;
+        inventoryItem.quantityOnHand -= item.quantityDispatched;
+        await inventoryItem.save(saveOpts);
+
+        const movement = new StockMovement({
+          product: item.product,
+          warehouse: order.warehouse,
+          type: 'issue',
+          quantity: -item.quantityDispatched,
+          quantityBefore,
+          quantityAfter: inventoryItem.quantityOnHand,
+          reference: dispatchNumber,
+          note: `Dispatched in shipment ${dispatchNumber} for Export Order ${order.orderNumber}`,
+          performedBy: req.user?._id
+        });
+        await movement.save(saveOpts);
       }
-
-      if (inventoryItem.quantityOnHand < item.quantityDispatched) {
-        throw new Error(`Insufficient stock for product in warehouse.`);
-      }
-
-      const quantityBefore = inventoryItem.quantityOnHand;
-      inventoryItem.quantityOnHand -= item.quantityDispatched;
-      await inventoryItem.save(saveOpts);
-
-      // Create StockMovement
-      const movement = new StockMovement({
-        product: item.product,
-        warehouse: order.warehouse,
-        type: 'issue',
-        quantity: -item.quantityDispatched,
-        quantityBefore,
-        quantityAfter: inventoryItem.quantityOnHand,
-        reference: dispatchNumber,
-        note: `Dispatched in shipment ${dispatchNumber} for Export Order ${order.orderNumber}`,
-        performedBy: req.user?._id
-      });
-      await movement.save(saveOpts);
 
       // Update ExportOrder quantityDispatched
       const orderItem = order.items.find(i => i.product.toString() === item.product.toString());
       if (orderItem) {
+        const remaining = orderItem.quantityOrdered - (orderItem.quantityDispatched || 0);
+        if (item.quantityDispatched > remaining) {
+          throw new Error(`Cannot dispatch more than remaining ordered quantity for a line item.`);
+        }
         orderItem.quantityDispatched += item.quantityDispatched;
       }
     }

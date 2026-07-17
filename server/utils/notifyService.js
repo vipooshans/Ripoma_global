@@ -122,6 +122,20 @@ const sendNotification = async ({
       pref = await NotificationPreference.create({ user: recipientId });
     }
 
+    // 2b. Dedup: skip if unread alert already exists for same recipient/type/entity
+    if (entityId) {
+      const existing = await Notification.findOne({
+        recipient: recipientId,
+        type,
+        entityId,
+        isRead: false
+      }).sort({ createdAt: -1 });
+      if (existing) {
+        console.log(`[NOTIFY DEDUP] Skipped duplicate ${type} for user ${recipientId} entity ${entityId}`);
+        return existing;
+      }
+    }
+
     // 3. Evaluate quiet hours window (exceptions for critical error severities)
     if (pref.quietHoursEnabled && severity !== 'error') {
       const isQuiet = isInsideQuietHours(pref.quietHoursStart, pref.quietHoursEnd);

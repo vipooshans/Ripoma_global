@@ -26,10 +26,11 @@ import {
   ShoppingBag,
   Star,
   Headphones,
+  Settings,
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, hasRole } = useAuth();
 
   const navigation = [
     { group: 'Home', items: [
@@ -75,6 +76,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Analytics Dashboard', to: '/reports', icon: LayoutDashboard, show: true },
       { name: 'Sales Report', to: '/reports/sales', icon: FileText, show: true },
       { name: 'Financial Ageing', to: '/reports/financial', icon: Wallet, show: true },
+      { name: 'Inventory Report', to: '/reports/inventory', icon: Package, show: true },
       { name: 'Business Intelligence', to: '/reports/business-analytics', icon: Activity, show: true },
       { name: 'Report Builder', to: '/reports/builder', icon: Layers, show: true },
       { name: 'Automations Schedule', to: '/reports/scheduled', icon: Calendar, show: true },
@@ -93,8 +95,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'System Audit Log', to: '/notifications/activity-log', icon: Activity, show: true },
     ]},
     { group: 'Admin', items: [
-      { name: 'Users', to: '/admin/users', icon: Users, show: hasPermission('users:read') },
-      { name: 'Roles', to: '/admin/roles', icon: ShieldCheck, show: hasPermission('users:read') },
+      { name: 'Users', to: '/admin/users', icon: Users, show: hasRole('admin') },
+      { name: 'Roles', to: '/admin/roles', icon: ShieldCheck, show: hasRole('admin') },
+      { name: 'Settings', to: '/admin/settings', icon: Settings, show: hasRole('admin') },
       { name: 'My Profile', to: '/profile', icon: User, show: true },
     ]}
   ];

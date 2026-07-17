@@ -43,6 +43,7 @@ const taxDutyRoutes = require('./routes/taxDuty.routes');
 const currencyRoutes = require('./routes/currency.routes');
 const profitAnalysisRoutes = require('./routes/profitAnalysis.routes');
 const reportRoutes = require('./routes/report.routes');
+const settingsRoutes = require('./routes/settings.routes');
 const activityLogger = require('./middleware/activityLogger');
 
 const notificationRoutes = require('./routes/notification.routes');
@@ -209,6 +210,7 @@ app.use('/api/tax-duty', taxDutyRoutes);
 app.use('/api/currency', currencyRoutes);
 app.use('/api/profit-analysis', profitAnalysisRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/notification-preferences', notificationPreferenceRoutes);
 app.use('/api/reminders', reminderRoutes);

@@ -1,8 +1,10 @@
 const cron = require('node-cron');
 const Document = require('../models/Document');
+const User = require('../models/User');
+const { sendNotification } = require('../utils/notifyService');
 
 /**
- * Runs daily at 07:00 — marks expired documents and logs expiry alerts.
+ * Runs daily at 07:00 — marks expired documents and sends expiry alerts.
  */
 const startDocumentExpiryCheck = () => {
   cron.schedule('0 7 * * *', async () => {
@@ -10,7 +12,6 @@ const startDocumentExpiryCheck = () => {
     try {
       const now = new Date();
 
-      // Mark documents whose expiryDate has passed as expired
       const expiredResult = await Document.updateMany(
         { expiryDate: { $lte: now }, isExpired: false, isDeleted: false },
         { $set: { isExpired: true } }
@@ -19,7 +20,6 @@ const startDocumentExpiryCheck = () => {
         console.log(`[DocExpiryCron] Marked ${expiredResult.modifiedCount} document(s) as expired.`);
       }
 
-      // Find documents expiring in the next 30 days that haven't been alerted
       const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       const expiringSoon = await Document.find({
         expiryDate: { $gt: now, $lte: thirtyDaysFromNow },
@@ -29,11 +29,32 @@ const startDocumentExpiryCheck = () => {
       });
 
       if (expiringSoon.length > 0) {
-        // Mark alertSent flag — actual email notification can be plugged in here
+        const staffToNotify = await User.find({
+          role: { $in: ['admin', 'manager'] },
+          deleted: { $ne: true },
+          status: 'active'
+        });
+
+        for (const doc of expiringSoon) {
+          for (const staff of staffToNotify) {
+            await sendNotification({
+              recipientId: staff._id,
+              type: 'document_expiring',
+              severity: 'warning',
+              title: `Document expiring: ${doc.name}`,
+              body: `"${doc.name}" expires on ${new Date(doc.expiryDate).toLocaleDateString()}.`,
+              actionUrl: `/documents/${doc._id}`,
+              actionLabel: 'View Document',
+              entityType: 'Document',
+              entityId: doc._id,
+              entityRef: doc.name
+            });
+          }
+        }
+
         const ids = expiringSoon.map(d => d._id);
         await Document.updateMany({ _id: { $in: ids } }, { $set: { expiryAlertSent: true } });
-        console.log(`[DocExpiryCron] Alert flag set for ${expiringSoon.length} document(s) expiring soon.`);
-        // TODO: Send email notifications via nodemailer or notification service
+        console.log(`[DocExpiryCron] Alerted for ${expiringSoon.length} document(s) expiring soon.`);
       }
 
       console.log('[DocExpiryCron] Done.');

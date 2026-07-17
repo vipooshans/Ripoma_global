@@ -15,8 +15,10 @@ const OrderCreate = () => {
   const isEditMode = !!id;
 
   const { data: existingOrder, isLoading: isLoadingOrder } = useExportOrderDetail(id);
-  const { data: customersData } = useCustomers();
-  const customers = customersData?.customers || [];
+  const { data: customersData } = useCustomers({ limit: 200 });
+  const customers = (customersData?.customers || []).filter(
+    (c) => c.status !== 'inactive'
+  );
   const { data: warehousesData = [] } = useWarehouses();
   const warehousesList = warehousesData || [];
 

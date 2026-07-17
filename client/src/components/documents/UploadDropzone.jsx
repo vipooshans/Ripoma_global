@@ -2,14 +2,22 @@ import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileCheck } from 'lucide-react';
 
-const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 
-const UploadDropzone = ({ onFilesAccepted, multiple = false, accept }) => {
+export const DOCUMENT_ACCEPT = {
+  'application/pdf': ['.pdf'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png']
+};
+
+const UploadDropzone = ({ onFilesAccepted, multiple = false, accept = DOCUMENT_ACCEPT }) => {
   const onDrop = useCallback((acceptedFiles) => {
     if (onFilesAccepted) onFilesAccepted(acceptedFiles);
   }, [onFilesAccepted]);
 
-  const { getRootProps, getInputProps, isDragActive, acceptedFiles } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, acceptedFiles, fileRejections } = useDropzone({
     onDrop,
     multiple,
     maxSize: MAX_SIZE,
@@ -45,7 +53,10 @@ const UploadDropzone = ({ onFilesAccepted, multiple = false, accept }) => {
             <p className="text-slate-300 font-semibold">
               {isDragActive ? 'Drop your file here' : 'Drag & drop or click to upload'}
             </p>
-            <p className="text-slate-500 text-sm mt-1">Maximum file size: 50 MB</p>
+            <p className="text-slate-500 text-sm mt-1">PDF, DOCX, XLSX, JPG, PNG — max 20 MB</p>
+            {fileRejections?.length > 0 && (
+              <p className="text-rose-400 text-xs mt-2">File rejected: check type and size.</p>
+            )}
           </div>
         </div>
       )}

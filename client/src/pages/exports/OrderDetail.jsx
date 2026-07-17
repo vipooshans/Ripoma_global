@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   useExportOrderDetail,
@@ -9,6 +9,7 @@ import {
 } from '../../hooks/useExportOrders';
 import { useInvoices, useCreateInvoice } from '../../hooks/useInvoices';
 import { useDispatches } from '../../hooks/useDispatches';
+import { documentService } from '../../services/documentService';
 import ExportOrderStatusBadge from '../../components/exports/ExportOrderStatusBadge';
 import PaymentStatusBadge from '../../components/exports/PaymentStatusBadge';
 import LineItemsTable from '../../components/exports/LineItemsTable';
@@ -22,6 +23,7 @@ const OrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
+  const [linkedDocs, setLinkedDocs] = useState([]);
 
   // Queries
   const { data: order, isLoading, error, refetch } = useExportOrderDetail(id);
@@ -30,6 +32,14 @@ const OrderDetail = () => {
 
   const invoices = invoicesData?.invoices || [];
   const dispatches = dispatchesData?.dispatches || [];
+
+  useEffect(() => {
+    if (!id) return;
+    documentService
+      .getDocuments({ entityType: 'ExportOrder', entityId: id, limit: 50 })
+      .then(({ data }) => setLinkedDocs(data.documents || []))
+      .catch(() => setLinkedDocs([]));
+  }, [id]);
 
   // Mutations
   const confirmMutation = useConfirmExportOrder();
@@ -376,8 +386,16 @@ const OrderDetail = () => {
 
               {/* Uploaded Documents List */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <h3 className="font-semibold text-slate-800 text-sm border-b pb-2">Order Documents & Certifications</h3>
-                {order.documents?.length === 0 ? (
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h3 className="font-semibold text-slate-800 text-sm">Order Documents & Certifications</h3>
+                  <Link
+                    to={`/documents/upload?entityType=ExportOrder&entityId=${order._id}&entityRef=${encodeURIComponent(order.orderNumber || '')}`}
+                    className="text-[11px] font-bold text-teal-700 hover:underline"
+                  >
+                    Upload Document
+                  </Link>
+                </div>
+                {order.documents?.length === 0 && linkedDocs.length === 0 ? (
                   <p className="text-xs text-slate-400 py-4 text-center">No documents uploaded.</p>
                 ) : (
                   <div className="divide-y divide-slate-100">
@@ -385,17 +403,32 @@ const OrderDetail = () => {
                       <div key={doc._id || idx} className="py-2.5 flex justify-between items-center text-xs">
                         <div>
                           <span className="font-semibold text-slate-700 block">{doc.name}</span>
-                          <span className="text-[10px] text-slate-400 block capitalize">Type: {doc.type.replace(/_/g, ' ')}</span>
+                          <span className="text-[10px] text-slate-400 block capitalize">Type: {doc.type?.replace(/_/g, ' ')}</span>
                         </div>
-                        {/* If local PDF route exists, let's open it */}
-                        <a
-                          href={doc.url.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}${doc.url}` : doc.url}
-                          target="_blank"
-                          rel="noreferrer"
+                        {doc.url && (
+                          <a
+                            href={doc.url.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}${doc.url}` : doc.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-indigo-600 hover:text-indigo-800 font-bold"
+                          >
+                            Download
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                    {linkedDocs.map((doc) => (
+                      <div key={doc._id} className="py-2.5 flex justify-between items-center text-xs">
+                        <div>
+                          <span className="font-semibold text-slate-700 block">{doc.name}</span>
+                          <span className="text-[10px] text-slate-400 block capitalize">Library · {doc.category}</span>
+                        </div>
+                        <Link
+                          to={`/documents/${doc._id}`}
                           className="text-indigo-600 hover:text-indigo-800 font-bold"
                         >
-                          Download 📥
-                        </a>
+                          Open
+                        </Link>
                       </div>
                     ))}
                   </div>

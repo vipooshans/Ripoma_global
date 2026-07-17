@@ -58,6 +58,25 @@ const CustomerForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.companyName) { toast.error('Company name is required.'); return; }
+
+    const contacts = Array.isArray(form.contacts) ? form.contacts : [];
+    const primary = contacts.find((c) => c?.isPrimary) || contacts[0];
+    const email = (primary?.email || '').trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('A primary contact with a valid email is required.');
+      setActiveTab(1);
+      return;
+    }
+
+    const street = (form.address?.street || '').trim();
+    const city = (form.address?.city || '').trim();
+    const country = (form.address?.country || '').trim();
+    if (!street || !city || !country) {
+      toast.error('Address street, city, and country are required.');
+      setActiveTab(0);
+      return;
+    }
+
     const payload = {
       ...form,
       tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
@@ -183,9 +202,9 @@ const CustomerForm = () => {
             <div className="pt-2 border-t border-slate-100 space-y-3">
               <span className="text-[10px] text-slate-450 font-bold uppercase tracking-wider block">Billing Address</span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="md:col-span-2"><label className="form-label">Street</label><input type="text" className="form-input" value={form.address.street} onChange={e => setForm(f => ({ ...f, address: { ...f.address, street: e.target.value } }))} /></div>
-                <div><label className="form-label">City</label><input type="text" className="form-input" value={form.address.city} onChange={e => setForm(f => ({ ...f, address: { ...f.address, city: e.target.value } }))} /></div>
-                <div><label className="form-label">Country</label><input type="text" className="form-input" value={form.address.country} onChange={e => setForm(f => ({ ...f, address: { ...f.address, country: e.target.value } }))} /></div>
+                <div className="md:col-span-2"><label className="form-label required">Street</label><input type="text" className="form-input" value={form.address.street} onChange={e => setForm(f => ({ ...f, address: { ...f.address, street: e.target.value } }))} required /></div>
+                <div><label className="form-label required">City</label><input type="text" className="form-input" value={form.address.city} onChange={e => setForm(f => ({ ...f, address: { ...f.address, city: e.target.value } }))} required /></div>
+                <div><label className="form-label required">Country</label><input type="text" className="form-input" value={form.address.country} onChange={e => setForm(f => ({ ...f, address: { ...f.address, country: e.target.value } }))} required /></div>
               </div>
             </div>
 

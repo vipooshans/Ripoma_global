@@ -195,7 +195,23 @@ exports.listPayments = async (req, res) => {
 // POST /api/payments
 exports.createPayment = async (req, res) => {
   try {
-    const paymentData = req.body;
+    const paymentData = { ...req.body };
+
+    const amount = parseFloat(paymentData.amount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ message: 'Amount must be a positive number.' });
+    }
+    if (!paymentData.paymentMethod) {
+      return res.status(400).json({ message: 'Payment method is required.' });
+    }
+
+    const hasOrderLink = !!(paymentData.importOrder || paymentData.exportOrder || paymentData.invoice);
+    const hasExpenseLink = !!paymentData.expense;
+    if (!hasOrderLink && !hasExpenseLink) {
+      return res.status(400).json({
+        message: 'Payment must be linked to an import order, export order, invoice, or expense.'
+      });
+    }
     
     // Generate new PAYMENT code
     paymentData.paymentNumber = await generatePaymentNumber('payment');
@@ -340,6 +356,16 @@ exports.updatePayment = async (req, res) => {
 
     if (payment.status !== 'pending') {
       return res.status(400).json({ message: 'Only payments with a pending status can be edited.' });
+    }
+
+    if (req.body.amount !== undefined) {
+      const amount = parseFloat(req.body.amount);
+      if (Number.isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ message: 'Amount must be a positive number.' });
+      }
+    }
+    if (req.body.paymentMethod !== undefined && !req.body.paymentMethod) {
+      return res.status(400).json({ message: 'Payment method is required.' });
     }
 
     const updatableFields = [
