@@ -42,6 +42,7 @@ const ExportOrderSchema = new mongoose.Schema(
 
     orderDate: { type: Date, default: Date.now },
     confirmedDate: { type: Date },
+    stockDeductedOnConfirm: { type: Boolean, default: false },
     requestedDeliveryDate: { type: Date },
     estimatedDispatchDate: { type: Date },
 

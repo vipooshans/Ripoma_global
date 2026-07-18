@@ -22,13 +22,14 @@ const PaymentSchema = new mongoose.Schema(
     counterpartyId: { type: mongoose.Schema.Types.ObjectId }, // ref Customer or Supplier
     counterpartyName: { type: String }, // denormalized name for display
 
-    amount: { type: Number, required: true },
+    amount: { type: Number, required: true, min: [0.01, 'Amount must be greater than 0'] },
     currency: { type: String, required: true, default: 'USD' },
     exchangeRate: { type: Number, default: 1 }, // to base currency
     amountInBaseCurrency: { type: Number }, // computed pre-save: amount * exchangeRate
 
     paymentMethod: { 
-      type: String, 
+      type: String,
+      required: true,
       enum: ['bank_transfer', 'cheque', 'cash', 'credit_card', 'letter_of_credit', 'other'] 
     },
     referenceNumber: { type: String }, // bank reference, cheque number, transaction ID

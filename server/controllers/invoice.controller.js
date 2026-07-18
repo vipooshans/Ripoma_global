@@ -77,7 +77,7 @@ exports.createInvoice = async (req, res) => {
 // 2. List Invoices
 exports.listInvoices = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, status, type, customer, dateFrom, dateTo, sort } = req.query;
+    const { page = 1, limit = 10, search, status, type, customer, dateFrom, dateTo, sort, exportOrder } = req.query;
     const query = {};
 
     if (search) {
@@ -93,6 +93,7 @@ exports.listInvoices = async (req, res) => {
     if (status) query.status = status;
     if (type) query.type = type;
     if (customer) query.customer = customer;
+    if (exportOrder) query.exportOrder = exportOrder;
 
     if (dateFrom || dateTo) {
       query.issueDate = {};

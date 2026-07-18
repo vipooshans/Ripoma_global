@@ -107,7 +107,12 @@ exports.listExpenses = async (req, res) => {
 // POST /api/expenses
 exports.createExpense = async (req, res) => {
   try {
-    const expenseData = req.body;
+    const expenseData = { ...req.body };
+
+    const amount = parseFloat(expenseData.amount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ message: 'Amount must be a positive number.' });
+    }
     
     expenseData.expenseNumber = await generatePaymentNumber('expense');
     expenseData.submittedBy = req.user._id;

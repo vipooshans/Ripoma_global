@@ -66,6 +66,36 @@ const SupplierForm = () => {
     e.preventDefault();
     if (!form.companyName) { toast.error('Company name is required.'); return; }
 
+    const contacts = Array.isArray(form.contacts) ? form.contacts : [];
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let hasComplete = false;
+
+    for (let i = 0; i < contacts.length; i++) {
+      const c = contacts[i] || {};
+      const name = (c.name || '').trim();
+      const email = (c.email || '').trim();
+      const phone = (c.phone || '').trim();
+      const anySet = !!(name || email || phone);
+      if (!anySet) continue;
+      if (!name || !email || !phone) {
+        toast.error(`Contact ${i + 1}: name, email, and phone are all required.`);
+        setActiveTab(1);
+        return;
+      }
+      if (!emailRe.test(email)) {
+        toast.error(`Contact ${i + 1}: please provide a valid email address.`);
+        setActiveTab(1);
+        return;
+      }
+      hasComplete = true;
+    }
+
+    if (!hasComplete) {
+      toast.error('At least one contact with name, email, and phone is required.');
+      setActiveTab(1);
+      return;
+    }
+
     const payload = {
       ...form,
       tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],

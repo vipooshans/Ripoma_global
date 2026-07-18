@@ -1,6 +1,9 @@
 const Customer = require('../models/Customer');
+const ExportOrder = require('../models/ExportOrder');
 const { generateCustomerCode } = require('../utils/codeGenerator');
 const Papa = require('papaparse');
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Helper: compute credit utilisation flag
 const getCreditFlag = (customer) => {
@@ -9,6 +12,29 @@ const getCreditFlag = (customer) => {
   if (util >= 1.0) return 'over_limit';
   if (util >= 0.8) return 'near_limit';
   return 'ok';
+};
+
+/** Require companyName, email (primary contact), address street/city/country */
+const validateCustomerDetails = ({ companyName, contacts, address }) => {
+  if (!companyName || !String(companyName).trim()) {
+    return 'Company name is required.';
+  }
+
+  const list = Array.isArray(contacts) ? contacts : [];
+  const primary = list.find((c) => c?.isPrimary) || list[0];
+  const email = (primary?.email || '').trim();
+  if (!email || !EMAIL_RE.test(email)) {
+    return 'A primary contact with a valid email is required.';
+  }
+
+  const street = (address?.street || '').trim();
+  const city = (address?.city || '').trim();
+  const country = (address?.country || '').trim();
+  if (!street || !city || !country) {
+    return 'Address street, city, and country are required.';
+  }
+
+  return null;
 };
 
 // ─── GET /api/customers ───────────────────────────────────────────────────────
@@ -57,8 +83,8 @@ exports.getCustomers = async (req, res) => {
 // ─── POST /api/customers ──────────────────────────────────────────────────────
 exports.createCustomer = async (req, res) => {
   try {
-    const { companyName } = req.body;
-    if (!companyName) return res.status(400).json({ message: 'companyName is required.' });
+    const detailError = validateCustomerDetails(req.body);
+    if (detailError) return res.status(400).json({ message: detailError });
 
     const code = req.body.code || await generateCustomerCode();
     const existing = await Customer.findOne({ code });
@@ -92,6 +118,17 @@ exports.getCustomerById = async (req, res) => {
 // ─── PUT /api/customers/:id ───────────────────────────────────────────────────
 exports.updateCustomer = async (req, res) => {
   try {
+    const existing = await Customer.findOne({ _id: req.params.id, deleted: { $ne: true } });
+    if (!existing) return res.status(404).json({ message: 'Customer not found.' });
+
+    const merged = {
+      companyName: req.body.companyName !== undefined ? req.body.companyName : existing.companyName,
+      contacts: req.body.contacts !== undefined ? req.body.contacts : existing.contacts,
+      address: req.body.address !== undefined ? req.body.address : existing.address
+    };
+    const detailError = validateCustomerDetails(merged);
+    if (detailError) return res.status(400).json({ message: detailError });
+
     const customer = await Customer.findOneAndUpdate(
       { _id: req.params.id, deleted: { $ne: true } },
       { ...req.body, updatedAt: new Date() },
@@ -139,13 +176,29 @@ exports.updateCustomerStatus = async (req, res) => {
 // ─── GET /api/customers/:id/stats ────────────────────────────────────────────
 exports.getCustomerStats = async (req, res) => {
   try {
-    // Placeholder — will be populated when ExportOrder model is wired in Module 4
     const customer = await Customer.findById(req.params.id).lean();
+    if (!customer || customer.deleted) {
+      return res.status(404).json({ message: 'Customer not found.' });
+    }
+
+    const orders = await ExportOrder.find({
+      customer: req.params.id,
+      status: { $ne: 'cancelled' }
+    })
+      .select('orderNumber status grandTotal orderDate confirmedDate createdAt paymentStatus')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
     return res.status(200).json({
-      totalOrders: 0,
-      totalRevenue: 0,
-      outstandingBalance: customer?.outstandingBalance || 0,
-      avgOrderValue: 0
+      totalOrders,
+      totalRevenue,
+      outstandingBalance: customer.outstandingBalance || 0,
+      avgOrderValue,
+      recentOrders: orders.slice(0, 20)
     });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
@@ -163,13 +216,32 @@ exports.importCustomersCSV = async (req, res) => {
 
     let created = 0, skipped = 0;
     for (const row of data) {
-      if (!row.companyName) { skipped++; continue; }
+      const contacts = (row.primaryContactName || row.primaryContactEmail || row.primaryContactPhone)
+        ? [{
+            name: row.primaryContactName,
+            email: row.primaryContactEmail,
+            phone: row.primaryContactPhone,
+            isPrimary: true
+          }]
+        : [];
+      const address = {
+        street: row.street || row.addressStreet || '',
+        city: row.city || row.addressCity || '',
+        country: row.country || row.addressCountry || ''
+      };
+      const detailError = validateCustomerDetails({
+        companyName: row.companyName,
+        contacts,
+        address
+      });
+      if (detailError) { skipped++; continue; }
       try {
         const code = await generateCustomerCode();
         const customer = new Customer({
           companyName: row.companyName?.trim(),
           type: row.type || 'retailer',
-          country: row.country,
+          country: address.country,
+          address,
           currency: row.currency || 'USD',
           paymentTerms: row.paymentTerms,
           creditLimit: row.creditLimit ? parseFloat(row.creditLimit) : 0,
@@ -179,12 +251,7 @@ exports.importCustomersCSV = async (req, res) => {
           rating: row.rating ? parseFloat(row.rating) : undefined,
           notes: row.notes,
           code,
-          contacts: row.primaryContactName ? [{
-            name: row.primaryContactName,
-            email: row.primaryContactEmail,
-            phone: row.primaryContactPhone,
-            isPrimary: true
-          }] : [],
+          contacts,
           createdBy: req.user?._id
         });
         await customer.save();

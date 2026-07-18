@@ -102,6 +102,7 @@ const GoodsReceiptForm = () => {
       notes,
       items: activeReceiptItems.map(i => ({
         product: i.product,
+        quantityExpected: Math.max(0, (i.quantityOrdered || 0) - (i.quantityAlreadyReceived || 0)),
         quantityReceived: i.quantityReceived,
         condition: i.condition,
         batchNumber: i.batchNumber,

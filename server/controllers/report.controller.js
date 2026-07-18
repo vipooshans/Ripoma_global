@@ -5,12 +5,27 @@ const { aggregateKPIs } = require('../utils/reports/kpiAggregator');
 const { aggregateSales } = require('../utils/reports/salesAggregator');
 const { aggregateFinancials } = require('../utils/reports/financialAggregator');
 const { aggregateAnalytics } = require('../utils/reports/businessAnalyticsAggregator');
+const { aggregateInventory } = require('../utils/reports/inventoryAggregator');
 const { generateInsights } = require('../utils/reports/insightGenerator');
 const { generateExport } = require('../utils/reports/exportBuilder');
 const { calculateNextRun, runScheduledReport } = require('../jobs/scheduledReportRunner');
 const generateReportNumber = require('../utils/reportNumberGenerator');
 const storageAdapter = require('../utils/storage');
 const mongoose = require('mongoose');
+
+const parseAndValidateDateRange = (dateFrom, dateTo, { allowDefault = true } = {}) => {
+  const defaults = resolvePresetDates('last_30d');
+  const start = dateFrom ? new Date(dateFrom) : (allowDefault ? defaults.start : null);
+  const end = dateTo ? new Date(dateTo) : (allowDefault ? defaults.end : null);
+
+  if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return { error: 'Valid dateFrom and dateTo are required.' };
+  }
+  if (start > end) {
+    return { error: 'dateFrom must be on or before dateTo.' };
+  }
+  return { start, end };
+};
 
 // Helper to resolve preset dates dynamically
 const resolvePresetDates = (preset, customStart, customEnd) => {
@@ -82,11 +97,19 @@ const getReportData = async (definition, dateRange = null) => {
       }
       break;
     }
-    default: {
-      const Product = require('../models/Product');
-      data = await Product.find({}).lean();
+    case 'inventory': {
+      const res = await aggregateInventory({});
+      data = res.rows || [];
       if (columns.length === 0) {
-        columns = ['sku', 'name', 'category', 'unitCost', 'unitPrice', 'status'];
+        columns = ['sku', 'name', 'warehouse', 'quantityOnHand', 'quantityAvailable', 'stockValue', 'isLowStock'];
+      }
+      break;
+    }
+    default: {
+      const res = await aggregateInventory({});
+      data = res.rows || [];
+      if (columns.length === 0) {
+        columns = ['sku', 'name', 'warehouse', 'quantityOnHand', 'stockValue'];
       }
       break;
     }
@@ -110,15 +133,12 @@ exports.getDashboardKPIs = async (req, res) => {
 exports.getSalesReport = async (req, res) => {
   try {
     const { dateFrom, dateTo, groupBy } = req.query;
-    
-    // Default to last 30 days if dates are blank
-    const defaults = resolvePresetDates('last_30d');
-    const start = dateFrom ? new Date(dateFrom) : defaults.start;
-    const end = dateTo ? new Date(dateTo) : defaults.end;
+    const range = parseAndValidateDateRange(dateFrom, dateTo);
+    if (range.error) return res.status(400).json({ message: range.error });
 
     const data = await aggregateSales({ 
-      dateFrom: start, 
-      dateTo: end, 
+      dateFrom: range.start, 
+      dateTo: range.end, 
       groupBy: groupBy || 'month' 
     });
 
@@ -133,14 +153,12 @@ exports.getSalesReport = async (req, res) => {
 exports.getFinancialReport = async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
-    
-    const defaults = resolvePresetDates('last_30d');
-    const start = dateFrom ? new Date(dateFrom) : defaults.start;
-    const end = dateTo ? new Date(dateTo) : defaults.end;
+    const range = parseAndValidateDateRange(dateFrom, dateTo);
+    if (range.error) return res.status(400).json({ message: range.error });
 
     const data = await aggregateFinancials({ 
-      dateFrom: start, 
-      dateTo: end 
+      dateFrom: range.start, 
+      dateTo: range.end 
     });
 
     return res.status(200).json(data);
@@ -150,16 +168,29 @@ exports.getFinancialReport = async (req, res) => {
   }
 };
 
+// GET /api/reports/inventory
+exports.getInventoryReport = async (req, res) => {
+  try {
+    const { warehouse, lowStockOnly } = req.query;
+    const data = await aggregateInventory({
+      warehouse: warehouse || undefined,
+      lowStockOnly: lowStockOnly === 'true' || lowStockOnly === true
+    });
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('Inventory Aggregation Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // GET /api/reports/business-analytics
 exports.getBusinessAnalytics = async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
-    
-    const defaults = resolvePresetDates('last_30d');
-    const start = dateFrom ? new Date(dateFrom) : defaults.start;
-    const end = dateTo ? new Date(dateTo) : defaults.end;
+    const range = parseAndValidateDateRange(dateFrom, dateTo);
+    if (range.error) return res.status(400).json({ message: range.error });
 
-    const stats = await aggregateAnalytics({ dateFrom: start, dateTo: end });
+    const stats = await aggregateAnalytics({ dateFrom: range.start, dateTo: range.end });
     const insights = generateInsights(stats);
 
     return res.status(200).json({ ...stats, insights });

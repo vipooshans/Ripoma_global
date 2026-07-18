@@ -1,7 +1,48 @@
 const Supplier = require('../models/Supplier');
+const ImportOrder = require('../models/ImportOrder');
 const { generateSupplierCode } = require('../utils/codeGenerator');
 const Papa = require('papaparse');
 const multer = require('multer');
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Validates contacts[]:
+ * - At least one contact with name, valid email, and phone
+ * - Any contact with any of name/email/phone set must have all three
+ * Returns error message string or null
+ */
+const validateContacts = (contacts) => {
+  if (!Array.isArray(contacts) || contacts.length === 0) {
+    return 'At least one contact with name, email, and phone is required.';
+  }
+
+  let hasComplete = false;
+
+  for (let i = 0; i < contacts.length; i++) {
+    const c = contacts[i] || {};
+    const name = (c.name || '').trim();
+    const email = (c.email || '').trim();
+    const phone = (c.phone || '').trim();
+    const anySet = !!(name || email || phone);
+
+    if (!anySet) continue;
+
+    if (!name || !email || !phone) {
+      return `Contact ${i + 1}: name, email, and phone are all required when any contact field is set.`;
+    }
+    if (!EMAIL_RE.test(email)) {
+      return `Contact ${i + 1}: please provide a valid email address.`;
+    }
+    hasComplete = true;
+  }
+
+  if (!hasComplete) {
+    return 'At least one contact with name, email, and phone is required.';
+  }
+
+  return null;
+};
 
 // ─── GET /api/suppliers ───────────────────────────────────────────────────────
 exports.getSuppliers = async (req, res) => {
@@ -49,6 +90,9 @@ exports.createSupplier = async (req, res) => {
     const { companyName } = req.body;
     if (!companyName) return res.status(400).json({ message: 'companyName is required.' });
 
+    const contactError = validateContacts(req.body.contacts);
+    if (contactError) return res.status(400).json({ message: contactError });
+
     const code = req.body.code || await generateSupplierCode();
     const existing = await Supplier.findOne({ code });
     if (existing) return res.status(400).json({ message: `Code ${code} already in use.` });
@@ -82,6 +126,15 @@ exports.getSupplierById = async (req, res) => {
 // ─── PUT /api/suppliers/:id ───────────────────────────────────────────────────
 exports.updateSupplier = async (req, res) => {
   try {
+    if (req.body.companyName !== undefined && !req.body.companyName) {
+      return res.status(400).json({ message: 'companyName is required.' });
+    }
+
+    if (req.body.contacts !== undefined) {
+      const contactError = validateContacts(req.body.contacts);
+      if (contactError) return res.status(400).json({ message: contactError });
+    }
+
     const supplier = await Supplier.findOneAndUpdate(
       { _id: req.params.id, deleted: { $ne: true } },
       { ...req.body, updatedAt: new Date() },
@@ -97,12 +150,24 @@ exports.updateSupplier = async (req, res) => {
 // ─── DELETE /api/suppliers/:id ────────────────────────────────────────────────
 exports.deleteSupplier = async (req, res) => {
   try {
-    const supplier = await Supplier.findByIdAndUpdate(
-      req.params.id,
-      { deleted: true, deletedAt: new Date() },
-      { new: true }
-    );
+    const supplier = await Supplier.findOne({ _id: req.params.id, deleted: { $ne: true } });
     if (!supplier) return res.status(404).json({ message: 'Supplier not found.' });
+
+    const activeOrderCount = await ImportOrder.countDocuments({
+      supplier: req.params.id,
+      status: { $nin: ['received', 'cancelled'] }
+    });
+
+    if (activeOrderCount > 0) {
+      return res.status(400).json({
+        message: `Cannot archive supplier. There ${activeOrderCount === 1 ? 'is' : 'are'} ${activeOrderCount} active import order${activeOrderCount === 1 ? '' : 's'}. Complete or cancel them first.`
+      });
+    }
+
+    supplier.deleted = true;
+    supplier.deletedAt = new Date();
+    await supplier.save();
+
     return res.status(200).json({ message: 'Supplier archived.' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
@@ -168,8 +233,32 @@ exports.importSuppliersCSV = async (req, res) => {
     }
 
     let created = 0, skipped = 0;
-    for (const row of data) {
-      if (!row.companyName) { skipped++; continue; }
+    const rowErrors = [];
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNum = i + 2;
+      if (!row.companyName) {
+        skipped++;
+        rowErrors.push({ row: rowNum, reason: 'companyName is required.' });
+        continue;
+      }
+
+      const contacts = (row.primaryContactName || row.primaryContactEmail || row.primaryContactPhone)
+        ? [{
+            name: row.primaryContactName,
+            email: row.primaryContactEmail,
+            phone: row.primaryContactPhone,
+            isPrimary: true
+          }]
+        : [];
+
+      const contactError = validateContacts(contacts);
+      if (contactError) {
+        skipped++;
+        rowErrors.push({ row: rowNum, reason: contactError });
+        continue;
+      }
+
       try {
         const code = await generateSupplierCode();
         const supplier = new Supplier({
@@ -184,22 +273,20 @@ exports.importSuppliersCSV = async (req, res) => {
           rating: row.rating ? parseFloat(row.rating) : undefined,
           notes: row.notes,
           code,
-          contacts: row.primaryContactName ? [{
-            name: row.primaryContactName,
-            email: row.primaryContactEmail,
-            phone: row.primaryContactPhone,
-            isPrimary: true
-          }] : [],
+          contacts,
           createdBy: req.user?._id
         });
         await supplier.save();
         created++;
-      } catch (e) { skipped++; }
+      } catch (e) {
+        skipped++;
+        rowErrors.push({ row: rowNum, reason: e.message || 'Save failed.' });
+      }
     }
 
     return res.status(200).json({
       message: `Import complete. ${created} created, ${skipped} skipped.`,
-      created, skipped
+      created, skipped, errors: rowErrors
     });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });

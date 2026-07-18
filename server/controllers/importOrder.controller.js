@@ -69,9 +69,21 @@ exports.listOrders = async (req, res) => {
 // 2. Create Import Order
 exports.createOrder = async (req, res) => {
   try {
-    const { items, shippingCost, otherCharges, ...rest } = req.body;
+    const { items, shippingCost, otherCharges, supplier, orderDate, expectedDeliveryDate, ...rest } = req.body;
+    if (!supplier) {
+      return res.status(400).json({ message: 'Supplier is required.' });
+    }
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'At least one order item is required.' });
+    }
+    if (!items.every((i) => i.product)) {
+      return res.status(400).json({ message: 'Each line item must include a product.' });
+    }
+    if (!orderDate) {
+      return res.status(400).json({ message: 'Order date is required.' });
+    }
+    if (!expectedDeliveryDate) {
+      return res.status(400).json({ message: 'Expected delivery date is required.' });
     }
 
     // Generate PO Number
@@ -82,6 +94,10 @@ exports.createOrder = async (req, res) => {
 
     const order = new ImportOrder({
       ...rest,
+      supplier,
+      orderDate,
+      expectedDeliveryDate,
+      status: 'draft',
       poNumber,
       items: totals.items,
       subtotal: totals.subtotal,
@@ -136,10 +152,41 @@ exports.updateOrder = async (req, res) => {
       return res.status(400).json({ message: 'Orders can only be modified in draft or pending status.' });
     }
 
-    const { items, shippingCost, otherCharges, ...rest } = req.body;
-    const totals = calculateTotals(items || order.items, shippingCost ?? order.shippingCost, otherCharges ?? order.otherCharges);
+    const { items, shippingCost, otherCharges, status: _ignoredStatus, ...rest } = req.body;
+
+    const supplier = rest.supplier !== undefined ? rest.supplier : order.supplier;
+    const orderDate = rest.orderDate !== undefined ? rest.orderDate : order.orderDate;
+    const expectedDeliveryDate = rest.expectedDeliveryDate !== undefined
+      ? rest.expectedDeliveryDate
+      : order.expectedDeliveryDate;
+    const lineItems = items || order.items;
+
+    if (!supplier) {
+      return res.status(400).json({ message: 'Supplier is required.' });
+    }
+    if (!lineItems || lineItems.length === 0) {
+      return res.status(400).json({ message: 'At least one order item is required.' });
+    }
+    if (!lineItems.every((i) => i.product)) {
+      return res.status(400).json({ message: 'Each line item must include a product.' });
+    }
+    if (!orderDate) {
+      return res.status(400).json({ message: 'Order date is required.' });
+    }
+    if (!expectedDeliveryDate) {
+      return res.status(400).json({ message: 'Expected delivery date is required.' });
+    }
+
+    const totals = calculateTotals(
+      lineItems,
+      shippingCost ?? order.shippingCost,
+      otherCharges ?? order.otherCharges
+    );
 
     Object.assign(order, rest);
+    order.supplier = supplier;
+    order.orderDate = orderDate;
+    order.expectedDeliveryDate = expectedDeliveryDate;
     order.items = totals.items;
     order.subtotal = totals.subtotal;
     order.taxTotal = totals.taxTotal;
@@ -147,6 +194,7 @@ exports.updateOrder = async (req, res) => {
     order.shippingCost = shippingCost ?? order.shippingCost;
     order.otherCharges = otherCharges ?? order.otherCharges;
     order.grandTotal = totals.grandTotal;
+    // Status changes only via dedicated submit/approve endpoints
 
     await order.save();
     res.json({ order, message: 'Purchase Order updated.' });

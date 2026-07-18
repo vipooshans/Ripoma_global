@@ -10,6 +10,7 @@ router.use(authMiddleware);
 router.get('/dashboard', reportController.getDashboardKPIs);
 router.get('/sales', reportController.getSalesReport);
 router.get('/financial', reportController.getFinancialReport);
+router.get('/inventory', reportController.getInventoryReport);
 router.get('/business-analytics', reportController.getBusinessAnalytics);
 
 // Saved custom Report Definitions (Report Builder)

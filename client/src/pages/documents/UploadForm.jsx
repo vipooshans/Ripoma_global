@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Upload, Tag, Link as LinkIcon, Calendar, Loader, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { documentService } from '../../services/documentService';
-import UploadDropzone from '../../components/documents/UploadDropzone';
+import UploadDropzone, { DOCUMENT_ACCEPT } from '../../components/documents/UploadDropzone';
 import UploadProgressRow from '../../components/documents/UploadProgressRow';
 import { CATEGORY_LABELS } from '../../components/documents/DocumentCard';
 import { ENTITY_LABELS } from '../../components/documents/LinkedEntityChips';
@@ -12,6 +12,7 @@ const STEPS = ['Select File', 'Document Details', 'Link & Tags', 'Review & Uploa
 
 const UploadForm = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
   const [file, setFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -33,6 +34,17 @@ const UploadForm = () => {
   const [tagInput, setTagInput] = useState('');
   const [linkedEntities, setLinkedEntities] = useState([]);
   const [entityInput, setEntityInput] = useState({ entityType: 'ImportOrder', entityId: '', entityRef: '' });
+
+  useEffect(() => {
+    const entityType = searchParams.get('entityType');
+    const entityId = searchParams.get('entityId');
+    const entityRef = searchParams.get('entityRef') || '';
+    if (entityType && entityId) {
+      setLinkedEntities([{ entityType, entityId, entityRef }]);
+      setEntityInput({ entityType, entityId: '', entityRef: '' });
+      setStep(0);
+    }
+  }, [searchParams]);
 
   const handleFileAccepted = (files) => {
     const f = files[0];
@@ -128,7 +140,7 @@ const UploadForm = () => {
             <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
               <Upload size={18} className="text-teal-400" /> Select File
             </h2>
-            <UploadDropzone onFilesAccepted={handleFileAccepted} />
+            <UploadDropzone onFilesAccepted={handleFileAccepted} accept={DOCUMENT_ACCEPT} />
             {file && (
               <div className="flex items-center justify-between p-3 bg-slate-700 rounded-xl text-sm">
                 <div>

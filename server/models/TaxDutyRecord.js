@@ -30,6 +30,7 @@ const TaxDutyRecordSchema = new mongoose.Schema(
     amountInBaseCurrency: { type: Number },
 
     dueDate: { type: Date },
+    dueAlertSent: { type: Boolean, default: false },
     filedDate: { type: Date },
     paidDate: { type: Date },
     referenceNumber: { type: String }, // customs declaration or tax filing number

@@ -54,8 +54,13 @@ const SupplierDetail = () => {
 
   const handleDelete = async () => {
     if (!window.confirm('Archive this supplier?')) return;
-    try { await deleteMut.mutateAsync(id); toast.success('Archived.'); navigate('/suppliers'); }
-    catch { toast.error('Failed.'); }
+    try {
+      await deleteMut.mutateAsync(id);
+      toast.success('Archived.');
+      navigate('/suppliers');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to archive supplier.');
+    }
   };
 
   const mask = (str) => str ? '•'.repeat(str.length - 4) + str.slice(-4) : '—';

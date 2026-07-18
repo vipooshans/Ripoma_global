@@ -117,7 +117,7 @@ const Dashboard = () => {
             <span>Add Product</span>
           </Link>
           <Link
-            to="/inventory/stock/adjust"
+            to="/inventory/stock"
             className="btn-secondary flex items-center gap-1.5 text-xs py-2 px-3.5"
           >
             <ArrowDownUp size={14} />

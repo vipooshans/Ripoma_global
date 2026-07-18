@@ -48,14 +48,39 @@ const SupplierList = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Archive this supplier?')) return;
-    try { await deleteMut.mutateAsync(id); toast.success('Supplier archived.'); }
-    catch { toast.error('Failed.'); }
+    try {
+      await deleteMut.mutateAsync(id);
+      toast.success('Supplier archived.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to archive supplier.');
+    }
   };
 
   const handleBulkDelete = async () => {
     if (!selectedIds.length || !window.confirm(`Archive ${selectedIds.length} suppliers?`)) return;
-    for (const id of selectedIds) { try { await api.delete(`/suppliers/${id}`); } catch {} }
-    refetch(); setSelectedIds([]); toast.success('Bulk archive complete.');
+    let successCount = 0;
+    let failCount = 0;
+    let lastError = '';
+    for (const id of selectedIds) {
+      try {
+        await api.delete(`/suppliers/${id}`);
+        successCount++;
+      } catch (err) {
+        failCount++;
+        lastError = err.response?.data?.message || lastError;
+      }
+    }
+    refetch();
+    setSelectedIds([]);
+    if (failCount > 0) {
+      toast.error(
+        lastError
+          ? `${successCount} archived, ${failCount} failed. ${lastError}`
+          : `${successCount} archived, ${failCount} failed.`
+      );
+    } else {
+      toast.success('Bulk archive complete.');
+    }
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

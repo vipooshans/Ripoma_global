@@ -5,6 +5,7 @@ const ReportExport = require('../models/ReportExport');
 const { generateExport } = require('../utils/reports/exportBuilder');
 const { aggregateSales } = require('../utils/reports/salesAggregator');
 const { aggregateFinancials } = require('../utils/reports/financialAggregator');
+const { aggregateInventory } = require('../utils/reports/inventoryAggregator');
 const Supplier = require('../models/Supplier');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
@@ -97,12 +98,20 @@ const getReportData = async (definition) => {
       }
       break;
     }
-    case 'inventory':
+    case 'inventory': {
+      const inv = await aggregateInventory({});
+      data = inv.rows || [];
+      if (columns.length === 0) {
+        columns = ['sku', 'name', 'warehouse', 'quantityOnHand', 'quantityAvailable', 'stockValue', 'isLowStock'];
+      }
+      break;
+    }
     case 'custom':
     default: {
-      data = await Product.find({}).lean();
+      const inv = await aggregateInventory({});
+      data = inv.rows || [];
       if (columns.length === 0) {
-        columns = ['sku', 'name', 'category', 'unitCost', 'unitPrice', 'status'];
+        columns = ['sku', 'name', 'warehouse', 'quantityOnHand', 'stockValue'];
       }
       break;
     }

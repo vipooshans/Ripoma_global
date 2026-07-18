@@ -116,8 +116,14 @@ const PaymentForm = () => {
     if (!amount || parseFloat(amount) <= 0) {
       return toast.error('Amount must be greater than zero.');
     }
+    if (!paymentMethod) {
+      return toast.error('Payment method is required.');
+    }
     if (counterpartyType !== 'other' && !counterpartyId) {
       return toast.error('Please select a valid counterparty.');
+    }
+    if (!linkType || !linkId) {
+      return toast.error('Link this payment to an order, invoice, or expense.');
     }
 
     const payload = {
@@ -285,7 +291,7 @@ const PaymentForm = () => {
                 onChange={(e) => { setLinkType(e.target.value); setLinkId(''); }}
                 className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-250 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
               >
-                <option value="">No Link</option>
+                <option value="" disabled>Select link type...</option>
                 {counterpartyType === 'customer' && (
                   <>
                     <option value="invoice">Customer Invoice</option>

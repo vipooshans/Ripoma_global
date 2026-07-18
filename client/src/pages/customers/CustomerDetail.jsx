@@ -16,7 +16,7 @@ const STATUS_COLORS = {
   vip: 'bg-purple-50 text-purple-700 border-purple-200'
 };
 
-const TABS = ['Overview', 'Contacts', 'Documents', 'Communications', 'Credit Info'];
+const TABS = ['Overview', 'Orders', 'Contacts', 'Documents', 'Communications', 'Credit Info'];
 
 const CustomerDetail = () => {
   const { id } = useParams();
@@ -125,6 +125,49 @@ const CustomerDetail = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'Orders' && (
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            {!stats?.recentOrders?.length ? (
+              <p className="text-slate-400 text-xs text-center py-10">No export orders for this customer yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="text-left py-2.5 px-4 font-bold">Order</th>
+                      <th className="text-left py-2.5 px-4 font-bold">Status</th>
+                      <th className="text-left py-2.5 px-4 font-bold">Payment</th>
+                      <th className="text-right py-2.5 px-4 font-bold">Total</th>
+                      <th className="text-left py-2.5 px-4 font-bold">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {stats.recentOrders.map((o) => (
+                      <tr key={o._id} className="hover:bg-slate-50/80">
+                        <td className="py-2.5 px-4">
+                          <Link to={`/exports/orders/${o._id}`} className="font-bold text-teal-700 hover:underline">
+                            {o.orderNumber}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 px-4 capitalize font-semibold text-slate-700">{o.status?.replace(/_/g, ' ')}</td>
+                        <td className="py-2.5 px-4 capitalize text-slate-600">{o.paymentStatus || '—'}</td>
+                        <td className="py-2.5 px-4 text-right font-extrabold text-slate-800">
+                          ${(o.grandTotal || 0).toLocaleString()}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-500">
+                          {o.orderDate || o.createdAt
+                            ? new Date(o.orderDate || o.createdAt).toLocaleDateString()
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

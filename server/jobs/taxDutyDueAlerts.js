@@ -15,9 +15,11 @@ const runTaxDutyDueCheck = async () => {
     const future30Days = new Date();
     future30Days.setDate(today.getDate() + 30);
 
+    // One-shot: skip records already alerted
     const upcomingRecords = await TaxDutyRecord.find({
       status: { $ne: 'paid' },
-      dueDate: { $gte: today, $lte: future30Days }
+      dueDate: { $gte: today, $lte: future30Days },
+      dueAlertSent: { $ne: true }
     });
 
     if (upcomingRecords.length === 0) {
@@ -48,6 +50,8 @@ const runTaxDutyDueCheck = async () => {
           entityRef: record.recordNumber
         });
       }
+      record.dueAlertSent = true;
+      await record.save();
       console.log(`[CRON ALERT] Tax/Duty record ${record.recordNumber} flagged as due within 30 days (Due: ${new Date(record.dueDate).toLocaleDateString()}).`);
     }
 

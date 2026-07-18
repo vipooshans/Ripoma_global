@@ -2,6 +2,9 @@ const ExportOrder = require('../models/ExportOrder');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const Warehouse = require('../models/Warehouse');
+const InventoryItem = require('../models/InventoryItem');
+const StockMovement = require('../models/StockMovement');
+const mongoose = require('mongoose');
 const generateExportNumber = require('../utils/soNumberGenerator');
 const calculateExportTotals = require('../utils/exportTotalsCalculator');
 const checkCreditLimit = require('../utils/creditLimitChecker');
@@ -88,6 +91,17 @@ exports.createOrder = async (req, res) => {
     const { items, shippingCharge = 0, otherCharges = 0, customer, ...rest } = req.body;
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'At least one order item is required.' });
+    }
+    if (!customer) {
+      return res.status(400).json({ message: 'Customer is required.' });
+    }
+
+    const customerRecord = await Customer.findOne({ _id: customer, deleted: { $ne: true } });
+    if (!customerRecord) {
+      return res.status(400).json({ message: 'Customer not found.' });
+    }
+    if (customerRecord.status === 'inactive') {
+      return res.status(400).json({ message: 'Inactive customers cannot place orders.' });
     }
 
     // Recalculate totals
@@ -200,6 +214,7 @@ exports.updateOrder = async (req, res) => {
 };
 
 // 5. Confirm Export Order
+// 5. Confirm Export Order (approval) — validates stock and deducts inventory
 exports.confirmOrder = async (req, res) => {
   try {
     const order = await ExportOrder.findById(req.params.id);
@@ -209,16 +224,94 @@ exports.confirmOrder = async (req, res) => {
       return res.status(400).json({ message: 'Only draft orders can be confirmed.' });
     }
 
-    order.status = 'confirmed';
-    order.confirmedDate = Date.now();
-    order.timeline.push({
-      action: 'confirmed',
-      details: 'Order confirmed and released for processing.',
-      performedBy: req.user?._id
-    });
+    const customerRecord = await Customer.findOne({ _id: order.customer, deleted: { $ne: true } });
+    if (!customerRecord) {
+      return res.status(400).json({ message: 'Customer not found.' });
+    }
+    if (customerRecord.status === 'inactive') {
+      return res.status(400).json({ message: 'Inactive customers cannot have orders confirmed.' });
+    }
 
-    await order.save();
-    res.json({ order, message: 'Export Order confirmed.' });
+    if (!order.warehouse) {
+      return res.status(400).json({ message: 'Order warehouse is required before confirmation.' });
+    }
+    if (!order.items || order.items.length === 0) {
+      return res.status(400).json({ message: 'Order has no line items.' });
+    }
+
+    const runConfirm = async (sessionObj) => {
+      const saveOpts = sessionObj ? { session: sessionObj } : {};
+
+      for (const line of order.items) {
+        const inventoryItem = await InventoryItem.findOne({
+          product: line.product,
+          warehouse: order.warehouse
+        }).session(sessionObj || null);
+
+        const onHand = inventoryItem?.quantityOnHand || 0;
+        if (!inventoryItem || onHand < line.quantityOrdered) {
+          const product = await Product.findById(line.product).select('sku name');
+          const label = product ? `${product.sku} (${product.name})` : String(line.product);
+          throw new Error(
+            `Insufficient stock for ${label}. Available: ${onHand}, ordered: ${line.quantityOrdered}.`
+          );
+        }
+
+        const quantityBefore = inventoryItem.quantityOnHand;
+        inventoryItem.quantityOnHand -= line.quantityOrdered;
+        await inventoryItem.save(saveOpts);
+
+        const movement = new StockMovement({
+          product: line.product,
+          warehouse: order.warehouse,
+          type: 'issue',
+          quantity: -line.quantityOrdered,
+          quantityBefore,
+          quantityAfter: inventoryItem.quantityOnHand,
+          reference: order.orderNumber,
+          note: `Stock deducted on confirmation of Export Order ${order.orderNumber}`,
+          performedBy: req.user?._id
+        });
+        await movement.save(saveOpts);
+      }
+
+      order.status = 'confirmed';
+      order.confirmedDate = Date.now();
+      order.stockDeductedOnConfirm = true;
+      order.timeline.push({
+        action: 'confirmed',
+        details: 'Order confirmed; inventory deducted for ordered quantities.',
+        performedBy: req.user?._id
+      });
+      await order.save(saveOpts);
+      return order;
+    };
+
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+      const result = await runConfirm(session);
+      await session.commitTransaction();
+      session.endSession();
+      return res.json({ order: result, message: 'Export Order confirmed.' });
+    } catch (txErr) {
+      await session.abortTransaction();
+      session.endSession();
+
+      if (
+        txErr.message?.includes('replica set') ||
+        txErr.message?.includes('transaction') ||
+        txErr.message?.includes('Transaction')
+      ) {
+        try {
+          const result = await runConfirm(null);
+          return res.json({ order: result, message: 'Export Order confirmed.' });
+        } catch (fallbackErr) {
+          return res.status(400).json({ message: fallbackErr.message });
+        }
+      }
+      return res.status(400).json({ message: txErr.message });
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -234,6 +327,12 @@ exports.transitionStatus = async (req, res) => {
     const validStatuses = ['processing', 'ready_to_ship', 'in_transit', 'delivered', 'returned'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid target status.' });
+    }
+
+    if (status === 'ready_to_ship' && !['partial', 'paid'].includes(order.paymentStatus)) {
+      return res.status(400).json({
+        message: 'Payment confirmation required before marking ready to ship.'
+      });
     }
 
     order.status = status;

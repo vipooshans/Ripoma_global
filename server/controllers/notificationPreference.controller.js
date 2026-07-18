@@ -53,6 +53,25 @@ exports.updatePreferences = async (req, res) => {
       preferences.typeOverrides = typeOverrides;
     }
 
+    // Schedule next digest when daily/weekly digest is enabled
+    const digestMode = preferences.emailDigest;
+    if (digestMode === 'daily' || digestMode === 'weekly') {
+      const now = new Date();
+      const next = new Date(now);
+      const [h, m] = String(preferences.digestTime || '08:00').split(':').map(Number);
+      next.setHours(h || 8, m || 0, 0, 0);
+      if (next <= now) next.setDate(next.getDate() + 1);
+      if (digestMode === 'weekly') {
+        const targetDow = preferences.digestDayOfWeek ?? 1;
+        while (next.getDay() !== targetDow) {
+          next.setDate(next.getDate() + 1);
+        }
+      }
+      preferences.nextDigestAt = next;
+    } else if (digestMode === 'instant' || digestMode === 'none') {
+      preferences.nextDigestAt = undefined;
+    }
+
     await preferences.save();
 
     res.status(200).json({ success: true, preferences });
