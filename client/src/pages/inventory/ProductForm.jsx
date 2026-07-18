@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -9,7 +9,11 @@ import {
   useSuppliers
 } from '../../hooks/useInventory';
 import { flattenCategoryOptions } from '../../utils/categoryUtils';
-import { ArrowLeft, Save, Eye, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Upload, X } from 'lucide-react';
+
+const MAX_PRODUCT_IMAGES = 5;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const ProductForm = () => {
   const { id } = useParams();
@@ -34,7 +38,7 @@ const ProductForm = () => {
     unitCost: 0,
     sellingPrice: 0,
     currency: 'USD',
-    images: [''],
+    images: [],
     barcode: '',
     hsCode: '',
     countryOfOrigin: '',
@@ -49,6 +53,16 @@ const ProductForm = () => {
     lowStockThreshold: 10,
     reorderQuantity: 50
   });
+  const [pendingImages, setPendingImages] = useState([]);
+  const pendingImagesRef = useRef([]);
+
+  useEffect(() => {
+    pendingImagesRef.current = pendingImages;
+  }, [pendingImages]);
+
+  useEffect(() => () => {
+    pendingImagesRef.current.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+  }, []);
 
   // Populate data when editing
   useEffect(() => {
@@ -63,7 +77,7 @@ const ProductForm = () => {
         unitCost: p.unitCost || 0,
         sellingPrice: p.sellingPrice || 0,
         currency: p.currency || 'USD',
-        images: p.images && p.images.length > 0 ? p.images : [''],
+        images: p.images || [],
         barcode: p.barcode || '',
         hsCode: p.hsCode || '',
         countryOfOrigin: p.countryOfOrigin || '',
@@ -102,22 +116,50 @@ const ProductForm = () => {
     }));
   };
 
-  const handleImageChange = (index, value) => {
-    const updatedImages = [...formData.images];
-    updatedImages[index] = value;
-    setFormData((prev) => ({ ...prev, images: updatedImages }));
+  const handleImageFiles = (event) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    const validFiles = selectedFiles.filter((file) => {
+      if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+        toast.error(`${file.name}: only JPEG, PNG, and WebP images are allowed.`);
+        return false;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        toast.error(`${file.name}: image must be 5 MB or smaller.`);
+        return false;
+      }
+      return true;
+    });
+
+    const availableSlots = MAX_PRODUCT_IMAGES - formData.images.length - pendingImages.length;
+    if (availableSlots <= 0) {
+      toast.error(`A product can have at most ${MAX_PRODUCT_IMAGES} images.`);
+      return;
+    }
+    if (validFiles.length > availableSlots) {
+      toast.error(`Only ${availableSlots} more image${availableSlots === 1 ? '' : 's'} can be added.`);
+    }
+
+    const additions = validFiles.slice(0, availableSlots).map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file)
+    }));
+    setPendingImages((prev) => [...prev, ...additions]);
   };
 
-  const addImageField = () => {
-    setFormData((prev) => ({ ...prev, images: [...prev.images, ''] }));
-  };
-
-  const removeImageField = (index) => {
-    const updatedImages = formData.images.filter((_, i) => i !== index);
+  const removeExistingImage = (index) => {
     setFormData((prev) => ({
       ...prev,
-      images: updatedImages.length > 0 ? updatedImages : ['']
+      images: prev.images.filter((_, imageIndex) => imageIndex !== index)
     }));
+  };
+
+  const removePendingImage = (index) => {
+    setPendingImages((prev) => {
+      URL.revokeObjectURL(prev[index].previewUrl);
+      return prev.filter((_, imageIndex) => imageIndex !== index);
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -150,7 +192,7 @@ const ProductForm = () => {
       ? formData.tags.split(',').map((t) => t.trim()).filter((t) => t !== '')
       : [];
 
-    const cleanedImages = formData.images.map((img) => img.trim()).filter((img) => img !== '');
+    const cleanedImages = formData.images.filter((img) => typeof img === 'string' && img.trim() !== '');
     const cleanedFaqs = (formData.faqs || [])
       .map((f) => ({ question: (f.question || '').trim(), answer: (f.answer || '').trim() }))
       .filter((f) => f.question && f.answer);
@@ -171,10 +213,17 @@ const ProductForm = () => {
 
     try {
       if (isEdit) {
-        await updateMutation.mutateAsync({ id, ...payload });
+        await updateMutation.mutateAsync({
+          id,
+          payload,
+          imageFiles: pendingImages.map(({ file }) => file)
+        });
         toast.success('Product updated successfully.');
       } else {
-        await createMutation.mutateAsync(payload);
+        await createMutation.mutateAsync({
+          payload,
+          imageFiles: pendingImages.map(({ file }) => file)
+        });
         toast.success('Product catalogued successfully.');
       }
       navigate('/inventory/products');
@@ -567,53 +616,65 @@ const ProductForm = () => {
             Product Images
           </h3>
 
-          <div className="space-y-2">
-            {formData.images.map((img, idx) => (
-              <div key={idx} className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  className="form-input text-xs"
-                  placeholder="https://example.com/image.jpg"
-                  value={img}
-                  onChange={(e) => handleImageChange(idx, e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImageField(idx)}
-                  className="p-2 border border-slate-200 text-rose-500 hover:bg-rose-50 rounded-lg shrink-0"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addImageField}
-              className="text-xs font-bold text-teal-650 hover:text-teal-800 flex items-center gap-1 mt-1"
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <label
+              className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-dashed text-xs font-bold transition-colors ${
+                formData.images.length + pendingImages.length >= MAX_PRODUCT_IMAGES
+                  ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                  : 'border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-100 cursor-pointer'
+              }`}
             >
-              + Add Image URL Field
-            </button>
+              <Upload size={15} />
+              Choose image files
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                disabled={formData.images.length + pendingImages.length >= MAX_PRODUCT_IMAGES}
+                onChange={handleImageFiles}
+                className="hidden"
+              />
+            </label>
+            <p className="text-[11px] text-slate-400">
+              JPEG, PNG, or WebP. Up to {MAX_PRODUCT_IMAGES} images, 5 MB each.
+            </p>
           </div>
 
-          {/* Previews grid */}
-          {formData.images.some((url) => url.trim() !== '') && (
+          {(formData.images.length > 0 || pendingImages.length > 0) && (
             <div className="pt-4 border-t border-slate-100 space-y-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Live Image Previews</span>
-              <div className="flex flex-wrap gap-2">
-                {formData.images
-                  .filter((url) => url.trim() !== '')
-                  .map((url, idx) => (
-                    <div key={idx} className="w-16 h-16 rounded border border-slate-200 overflow-hidden bg-slate-50 relative group">
-                      <img
-                        src={url}
-                        alt={`Preview ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  ))}
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                Image previews ({formData.images.length + pendingImages.length}/{MAX_PRODUCT_IMAGES})
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {formData.images.map((url, idx) => (
+                  <div key={url} className="aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-50 relative group">
+                    <img src={url} alt={`Existing product ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeExistingImage(idx)}
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-slate-900/75 text-white hover:bg-rose-600"
+                      aria-label={`Remove existing image ${idx + 1}`}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+                {pendingImages.map(({ file, previewUrl }, idx) => (
+                  <div key={previewUrl} className="aspect-square rounded-lg border border-teal-200 overflow-hidden bg-teal-50 relative group">
+                    <img src={previewUrl} alt={file.name} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-12px)] truncate rounded bg-slate-900/70 px-1.5 py-0.5 text-[9px] text-white">
+                      {file.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removePendingImage(idx)}
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-slate-900/75 text-white hover:bg-rose-600"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}

@@ -125,6 +125,16 @@ AWS_S3_BUCKET=ripoma-documents
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 
+# Product image storage: local (default) or r2
+PRODUCT_IMAGE_STORAGE_PROVIDER=local
+
+# Cloudflare R2 product images (when PRODUCT_IMAGE_STORAGE_PROVIDER=r2)
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_PRODUCT_BUCKET=ripoma-product-images
+R2_PUBLIC_URL=https://images.example.com
+
 # Optional — email (auth verification/reset, reports, digests)
 SMTP_HOST=
 SMTP_PORT=587
@@ -133,6 +143,13 @@ SMTP_USER=
 SMTP_PASS=
 EMAIL_FROM=notifications@ripomaglobal.com
 ```
+
+For hosted product images, create a dedicated public R2 bucket and attach a custom
+domain, then set `R2_PUBLIC_URL` to that domain without a trailing slash. Do not
+reuse the private document bucket: product image URLs are intentionally public.
+The R2 API token needs Object Read & Write access to the product-image bucket.
+If the frontend will fetch image data with JavaScript, configure the bucket CORS
+policy to allow `GET` and `HEAD` from the deployed frontend origin.
 
 Optional client override in `client/.env`:
 
