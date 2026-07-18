@@ -211,15 +211,15 @@ exports.updateUser = async (req, res) => {
 // DELETE /api/users/:id
 exports.deleteUser = async (req, res) => {
   try {
-    const user = await User.findOne({ _id: req.params.id, deleted: { $ne: true } });
-    if (!user) {
+    const result = await User.updateOne(
+      { _id: req.params.id, deleted: { $ne: true } },
+      { $set: { deleted: true, status: 'suspended' } },
+      { runValidators: true }
+    );
+
+    if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'User not found.' });
     }
-
-    // Soft delete: set deleted flag, status suspended
-    user.deleted = true;
-    user.status = 'suspended';
-    await user.save();
 
     return res.status(200).json({ message: 'User soft-deleted successfully.' });
   } catch (error) {

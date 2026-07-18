@@ -125,11 +125,21 @@ export const useProductDetail = (id) => {
   });
 };
 
+const buildProductFormData = (payload, imageFiles = []) => {
+  const formData = new FormData();
+  formData.append('productData', JSON.stringify(payload));
+  imageFiles.forEach((file) => formData.append('images', file));
+  return formData;
+};
+
 export const useCreateProduct = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload) => {
-      const { data } = await api.post('/products', payload);
+    mutationFn: async ({ payload, imageFiles }) => {
+      const formData = buildProductFormData(payload, imageFiles);
+      const { data } = await api.post('/products', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       return data;
     },
     onSuccess: () => {
@@ -141,8 +151,11 @@ export const useCreateProduct = () => {
 export const useUpdateProduct = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...payload }) => {
-      const { data } = await api.put(`/products/${id}`, payload);
+    mutationFn: async ({ id, payload, imageFiles }) => {
+      const formData = buildProductFormData(payload, imageFiles);
+      const { data } = await api.put(`/products/${id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       return data;
     },
     onSuccess: (data, variables) => {

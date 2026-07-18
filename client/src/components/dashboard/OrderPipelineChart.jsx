@@ -37,7 +37,7 @@ const OrderPipelineChart = ({ data, loading }) => {
     : [];
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-4">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-4 min-w-0">
       <div className="mb-4">
         <h3 className="text-sm font-bold text-slate-800">Order Pipeline</h3>
         <p className="text-xs text-slate-500 mt-0.5">Import & export status distribution</p>
@@ -52,8 +52,8 @@ const OrderPipelineChart = ({ data, loading }) => {
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
               Imports
             </p>
-            <div className="w-full h-[180px]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
+            <div className="w-full h-[180px] min-w-0">
+              <ResponsiveContainer width="100%" height={180} minWidth={0} debounce={50}>
                 <BarChart data={importData} margin={{ top: 0, right: 4, left: -24, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                   <XAxis
@@ -90,8 +90,8 @@ const OrderPipelineChart = ({ data, loading }) => {
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
               Exports
             </p>
-            <div className="w-full h-[180px]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
+            <div className="w-full h-[180px] min-w-0">
+              <ResponsiveContainer width="100%" height={180} minWidth={0} debounce={50}>
                 <BarChart data={exportData} margin={{ top: 0, right: 4, left: -24, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                   <XAxis

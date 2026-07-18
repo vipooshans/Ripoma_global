@@ -2,9 +2,78 @@ const Product = require('../models/Product');
 const Category = require('../models/Category');
 const Supplier = require('../models/Supplier');
 const InventoryItem = require('../models/InventoryItem');
+const sharp = require('sharp');
 const { generateSKU } = require('../utils/skuGenerator');
 const { parseCSV, unparseCSV } = require('../utils/csvParser');
 const { getTotalStockForProduct } = require('../utils/stockCalculator');
+const {
+  uploadProductImage,
+  deleteManagedProductImage
+} = require('../utils/storage/productImageStorage');
+
+const MAX_PRODUCT_IMAGES = 5;
+const IMAGE_FORMAT_BY_MIME = {
+  'image/jpeg': 'jpeg',
+  'image/png': 'png',
+  'image/webp': 'webp'
+};
+
+const createRequestError = (message) => {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+};
+
+const parseProductPayload = (req) => {
+  if (req.body?.productData === undefined) return req.body || {};
+
+  try {
+    const payload = JSON.parse(req.body.productData);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('Product data must be an object.');
+    }
+    return payload;
+  } catch (_) {
+    throw createRequestError('Product data is not valid JSON.');
+  }
+};
+
+const normalizeImageUrls = (images) => {
+  if (images === undefined) return undefined;
+  if (!Array.isArray(images)) {
+    throw createRequestError('Product images must be an array.');
+  }
+  return images.filter((url) => typeof url === 'string' && url.trim()).map((url) => url.trim());
+};
+
+const uploadProductImages = async (files, userId, urls = []) => {
+  for (const file of files || []) {
+    let metadata;
+    try {
+      metadata = await sharp(file.buffer).metadata();
+    } catch (_) {
+      throw createRequestError(`${file.originalname} is not a valid image file.`);
+    }
+    if (metadata.format !== IMAGE_FORMAT_BY_MIME[file.mimetype]) {
+      throw createRequestError(`${file.originalname} must be a JPEG, PNG, or WebP image.`);
+    }
+
+    const { url } = await uploadProductImage(file, userId);
+    urls.push(url);
+  }
+  return urls;
+};
+
+const cleanupProductImages = async (urls) => {
+  const results = await Promise.allSettled(
+    [...new Set(urls || [])].map((url) => deleteManagedProductImage(url))
+  );
+  results.forEach((result) => {
+    if (result.status === 'rejected') {
+      console.error('[ProductImages] Cleanup failed:', result.reason);
+    }
+  });
+};
 
 /** Returns { unitCost, sellingPrice } or { error } */
 const parseAndValidatePrices = (unitCostRaw, sellingPriceRaw, { requireSellingPrice = true } = {}) => {
@@ -140,6 +209,7 @@ exports.getProductById = async (req, res) => {
 
 // POST /api/products
 exports.createProduct = async (req, res) => {
+  let uploadedImageUrls = [];
   try {
     const {
       sku,
@@ -164,7 +234,7 @@ exports.createProduct = async (req, res) => {
       supplier,
       lowStockThreshold,
       reorderQuantity
-    } = req.body;
+    } = parseProductPayload(req);
 
     if (!name || !category) {
       return res.status(400).json({ message: 'Name and Category are required.' });
@@ -195,6 +265,12 @@ exports.createProduct = async (req, res) => {
 
     // Fallback barcode to SKU if not provided
     const finalBarcode = barcode || finalSku;
+    const retainedImages = normalizeImageUrls(images) || [];
+    if (retainedImages.length + (req.files?.length || 0) > MAX_PRODUCT_IMAGES) {
+      return res.status(400).json({ message: `A product can have at most ${MAX_PRODUCT_IMAGES} images.` });
+    }
+
+    await uploadProductImages(req.files, req.user?._id, uploadedImageUrls);
 
     const product = new Product({
       sku: finalSku,
@@ -205,7 +281,7 @@ exports.createProduct = async (req, res) => {
       unitCost: priceCheck.unitCost,
       sellingPrice: priceCheck.sellingPrice,
       currency: currency || 'USD',
-      images: images || [],
+      images: [...retainedImages, ...uploadedImageUrls],
       barcode: finalBarcode,
       hsCode,
       countryOfOrigin,
@@ -227,21 +303,27 @@ exports.createProduct = async (req, res) => {
     await product.save();
     return res.status(201).json({ message: 'Product catalogued successfully.', product });
   } catch (error) {
+    await cleanupProductImages(uploadedImageUrls);
     console.error('Create Product Error:', error);
+    if (error.statusCode || error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(error.statusCode || 400).json({ message: error.message });
+    }
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 // PUT /api/products/:id
 exports.updateProduct = async (req, res) => {
+  const uploadedImageUrls = [];
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = parseProductPayload(req);
 
     const product = await Product.findOne({ _id: id, deleted: false });
     if (!product) {
       return res.status(404).json({ message: 'Product not found.' });
     }
+    const previousImages = [...(product.images || [])];
 
     // If Category is being updated, verify it exists
     if (updates.category && updates.category !== product.category.toString()) {
@@ -276,6 +358,17 @@ exports.updateProduct = async (req, res) => {
       updates.sellingPrice = priceCheck.sellingPrice;
     }
 
+    const retainedImages = normalizeImageUrls(updates.images);
+    const baseImages = retainedImages === undefined ? previousImages : retainedImages;
+    if (baseImages.length + (req.files?.length || 0) > MAX_PRODUCT_IMAGES) {
+      return res.status(400).json({ message: `A product can have at most ${MAX_PRODUCT_IMAGES} images.` });
+    }
+
+    await uploadProductImages(req.files, req.user?._id, uploadedImageUrls);
+    if (updates.images !== undefined || uploadedImageUrls.length > 0) {
+      updates.images = [...baseImages, ...uploadedImageUrls];
+    }
+
     // Direct mappings
     const fieldsToUpdate = [
       'name', 'description', 'category', 'unit', 'unitCost', 'sellingPrice',
@@ -302,11 +395,15 @@ exports.updateProduct = async (req, res) => {
     });
 
     await product.save();
+    const retainedSet = new Set(product.images || []);
+    const removedImages = previousImages.filter((url) => !retainedSet.has(url));
+    await cleanupProductImages(removedImages);
     return res.status(200).json({ message: 'Product updated successfully.', product });
   } catch (error) {
+    await cleanupProductImages(uploadedImageUrls);
     console.error('Update Product Error:', error);
-    if (error.name === 'ValidationError' || error.name === 'CastError') {
-      return res.status(400).json({ message: error.message });
+    if (error.statusCode || error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(error.statusCode || 400).json({ message: error.message });
     }
     return res.status(500).json({ message: 'Internal server error' });
   }
@@ -340,6 +437,7 @@ exports.deleteProduct = async (req, res) => {
 
     product.deleted = true;
     await product.save();
+    await cleanupProductImages(product.images || []);
 
     return res.status(200).json({ message: 'Product soft-deleted successfully.' });
   } catch (error) {

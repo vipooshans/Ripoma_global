@@ -22,7 +22,7 @@ const ChartSkeleton = () => (
 
 const RevenueExpensesChart = ({ data, loading }) => {
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-4">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-4 min-w-0">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-sm font-bold text-slate-800">Revenue vs. Expenses</h3>
@@ -44,7 +44,7 @@ const RevenueExpensesChart = ({ data, loading }) => {
         <ChartSkeleton />
       ) : (
         <div className="w-full min-w-0 h-[240px]">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
+          <ResponsiveContainer width="100%" height={240} minWidth={0} debounce={50}>
             <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">

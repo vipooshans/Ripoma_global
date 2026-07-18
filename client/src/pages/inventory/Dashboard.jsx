@@ -31,8 +31,7 @@ import {
   Tooltip,
   PieChart,
   Pie,
-  Cell,
-  Legend
+  Cell
 } from 'recharts';
 
 const COLORS = ['#0D9488', '#0F172A', '#3B82F6', '#F59E0B', '#EF4444', '#10B981', '#8B5CF6'];
@@ -209,15 +208,15 @@ const Dashboard = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
         {/* Top Products by Value (Bar Chart) */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 lg:col-span-2 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 lg:col-span-2 space-y-4 min-w-0">
           <div>
             <h3 className="font-extrabold text-slate-800 text-sm">Top Assets Valuation</h3>
             <p className="text-[10px] text-slate-400">Total valuation based on unit purchasing costs.</p>
           </div>
-          <div className="h-[300px] w-full text-xs font-semibold">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] w-full min-w-0 text-xs font-semibold">
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topProductsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} />
                 <YAxis stroke="#94A3B8" fontSize={10} tickLine={false} />
@@ -238,13 +237,13 @@ const Dashboard = () => {
         </div>
 
         {/* Stock by Warehouse (Doughnut) */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 lg:col-span-1 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 lg:col-span-1 space-y-4 min-w-0">
           <div>
             <h3 className="font-extrabold text-slate-800 text-sm">Depot Distribution</h3>
             <p className="text-[10px] text-slate-400">Proportion of physical stock items across locations.</p>
           </div>
-          <div className="h-[300px] w-full text-xs font-semibold flex flex-col justify-center items-center">
-            <ResponsiveContainer width="100%" height="90%">
+          <div className="h-[300px] w-full min-w-0 text-xs font-semibold flex flex-col justify-center items-center">
+            <ResponsiveContainer width="100%" height={270}>
               <PieChart>
                 <Pie
                   data={warehouseDistData}
