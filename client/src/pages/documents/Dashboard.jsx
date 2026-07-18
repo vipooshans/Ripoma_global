@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FileText, Upload, AlertTriangle, Clock, HardDrive,
-  Download, Eye, TrendingUp, ArrowRight, Loader
+  TrendingUp, ArrowRight, Loader
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -58,7 +58,6 @@ const Dashboard = () => {
   const uploadTrend = data?.uploadTrend || [];
   const recentUploads = data?.recentUploads || [];
   const expiringDocsList = data?.expiringDocsList || [];
-  const recentActivity = data?.recentActivity || [];
 
   return (
     <div className="space-y-6">
@@ -144,7 +143,7 @@ const Dashboard = () => {
       </div>
 
       {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Uploads */}
         <div className="lg:col-span-1 bg-slate-800 border border-slate-700 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
@@ -195,29 +194,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="lg:col-span-1 bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-300 text-sm flex items-center gap-2">
-              <Eye size={14} className="text-teal-400" /> Recent Activity
-            </h3>
-            <Link to="/documents/activity" className="text-xs text-teal-400 hover:text-teal-300 transition-colors">View all</Link>
-          </div>
-          <div className="space-y-2">
-            {recentActivity.length === 0 && <p className="text-slate-600 text-sm">No recent activity</p>}
-            {recentActivity.map((act, idx) => (
-              <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-400">
-                <div className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5 flex-shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-slate-300">{act.performedBy?.firstName} {act.performedBy?.lastName}</span>
-                  {' '}<span className="text-teal-400 font-medium">{act.action?.replace(/_/g, ' ')}</span>
-                  {act.document && <span> · {act.document.name}</span>}
-                  <div className="text-slate-600 mt-0.5">{new Date(act.createdAt).toLocaleString()}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

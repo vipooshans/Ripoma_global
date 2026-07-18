@@ -86,7 +86,7 @@ import ExportOrderDetail from './pages/exports/OrderDetail';
 import InvoiceView from './pages/exports/InvoiceView';
 import InvoiceList from './pages/exports/InvoiceList';
 import DispatchForm from './pages/exports/DispatchForm';
-import DispatchBoard from './pages/exports/DispatchBoard';
+import OrderStatusBoard from './pages/exports/OrderStatusBoard';
 
 // Document Management Module
 import DocumentsDashboard from './pages/documents/Dashboard';
@@ -194,6 +194,7 @@ function App() {
           <Route path="admin/users/:id/edit" element={<UserForm />} />
           <Route path="admin/roles" element={<RolesPermissions />} />
           <Route path="admin/settings" element={<AdminOnlyRoute><SystemSettings /></AdminOnlyRoute>} />
+          <Route path="admin/activity-log" element={<AdminOnlyRoute><ActivityLogPage /></AdminOnlyRoute>} />
           <Route path="profile" element={<Profile />} />
 
           {/* Product & Inventory Management Module */}
@@ -246,7 +247,8 @@ function App() {
           <Route path="exports/invoices" element={<InvoiceList />} />
           <Route path="exports/invoices/:id" element={<InvoiceView />} />
           <Route path="exports/dispatch/create" element={<DispatchForm />} />
-          <Route path="exports/dispatch/board" element={<DispatchBoard />} />
+          <Route path="exports/order-status" element={<OrderStatusBoard />} />
+          <Route path="exports/dispatch/board" element={<Navigate to="/exports/order-status" replace />} />
 
           {/* Document Management Module */}
           <Route path="documents" element={<DocumentsDashboard />} />

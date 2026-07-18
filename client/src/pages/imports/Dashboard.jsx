@@ -10,7 +10,6 @@ import {
   Truck,
   TrendingUp,
   Plus,
-  Calendar,
   ArrowRight,
   Clock,
   AlertCircle,
@@ -102,13 +101,6 @@ const Dashboard = () => {
           >
             <CheckSquare size={14} />
             <span>Approvals Queue</span>
-          </Link>
-          <Link
-            to="/imports/delivery-schedule"
-            className="bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 py-2 px-3.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
-          >
-            <Calendar size={14} className="text-teal-650" />
-            <span>Delivery Schedule</span>
           </Link>
         </div>
       </div>
@@ -297,31 +289,6 @@ const Dashboard = () => {
               <ArrowRight size={14} className="text-slate-400 group-hover:translate-x-0.5 transition-all" />
             </Link>
 
-            <Link
-              to="/imports/tracking"
-              className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100/70 transition-all group font-bold text-xs text-slate-850"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 group-hover:scale-105 transition-all">
-                  <Truck size={16} />
-                </div>
-                <span>Logistics Kanban Board</span>
-              </div>
-              <ArrowRight size={14} className="text-slate-400 group-hover:translate-x-0.5 transition-all" />
-            </Link>
-
-            <Link
-              to="/imports/delivery-schedule"
-              className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100/70 transition-all group font-bold text-xs text-slate-850"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-sky-50 text-sky-650 border border-sky-100 group-hover:scale-105 transition-all">
-                  <Calendar size={16} />
-                </div>
-                <span>Delivery Calendar</span>
-              </div>
-              <ArrowRight size={14} className="text-slate-400 group-hover:translate-x-0.5 transition-all" />
-            </Link>
           </div>
         </div>
       </div>

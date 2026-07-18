@@ -58,7 +58,7 @@ const Dashboard = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
-            Notification Control Centre
+            Notifications
             {unreadCount > 0 && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-teal-500/10 text-teal-400 border border-teal-500/20">
                 {unreadCount} Unread
@@ -82,7 +82,7 @@ const Dashboard = () => {
             onClick={() => navigate('/notifications/centre')}
             className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-teal-600/20 transition-all duration-200"
           >
-            Open Alert Centre
+            View All Notifications
           </button>
         </div>
       </div>
@@ -147,7 +147,7 @@ const Dashboard = () => {
         {/* Alerts Log - 2 Cols */}
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-white">Recent Activities & Alerts</h2>
+            <h2 className="text-lg font-bold text-white">Recent Notifications</h2>
             <button 
               onClick={() => navigate('/notifications/centre')}
               className="text-xs text-teal-400 hover:text-teal-300 font-semibold"
@@ -261,20 +261,6 @@ const Dashboard = () => {
                 className="w-full p-3 bg-slate-950 hover:bg-slate-850 border border-slate-800/80 rounded-lg text-xs font-semibold text-slate-350 hover:text-white text-left transition-colors flex items-center justify-between"
               >
                 <span>📅 Manage Task Reminders</span>
-                <span className="text-teal-400">&rarr;</span>
-              </button>
-              <button
-                onClick={() => navigate('/notifications/settings')}
-                className="w-full p-3 bg-slate-950 hover:bg-slate-850 border border-slate-800/80 rounded-lg text-xs font-semibold text-slate-350 hover:text-white text-left transition-colors flex items-center justify-between"
-              >
-                <span>⚙️ Alert Settings & Quiet Hours</span>
-                <span className="text-teal-400">&rarr;</span>
-              </button>
-              <button
-                onClick={() => navigate('/notifications/activity-log')}
-                className="w-full p-3 bg-slate-950 hover:bg-slate-850 border border-slate-800/80 rounded-lg text-xs font-semibold text-slate-350 hover:text-white text-left transition-colors flex items-center justify-between"
-              >
-                <span>📋 System Audit Activity Log</span>
                 <span className="text-teal-400">&rarr;</span>
               </button>
             </div>
