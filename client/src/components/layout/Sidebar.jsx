@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   Truck,
   BookUser,
-  Phone,
   FileText,
   Calendar,
   Layers,
@@ -27,22 +26,24 @@ import {
   Star,
   Headphones,
   Settings,
+  Bell,
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user, logout, hasPermission, hasRole } = useAuth();
 
   const navigation = [
-    { group: 'Home', items: [
-      { name: 'Command Centre', to: '/dashboard', icon: Home, show: true },
+    { group: 'Command Centre', items: [
+      { name: 'Dashboard', to: '/dashboard', icon: Home, show: true },
+      { name: 'Notifications', to: '/notifications', icon: Bell, show: true },
     ]},
     { group: 'Inventory', items: [
       { name: 'Dashboard', to: '/inventory', icon: LayoutDashboard, show: true },
       { name: 'Products', to: '/inventory/products', icon: Package, show: true },
       { name: 'Categories', to: '/inventory/categories', icon: Layers, show: true },
       { name: 'Warehouses', to: '/inventory/warehouses', icon: Building, show: true },
-      { name: 'Movements', to: '/inventory/stock', icon: ArrowDownUp, show: true },
-      { name: 'Alerts', to: '/inventory/alerts', icon: AlertTriangle, show: true },
+      { name: 'Inventory / Stock', to: '/inventory/stock', icon: ArrowDownUp, show: true },
+      { name: 'Low Stock Alerts', to: '/inventory/alerts', icon: AlertTriangle, show: true },
       { name: 'Web Orders', to: '/inventory/storefront-orders', icon: ShoppingBag, show: true },
       { name: 'Product Reviews', to: '/inventory/storefront-reviews', icon: Star, show: true },
       { name: 'Customer Support', to: '/inventory/storefront-support', icon: Headphones, show: true },
@@ -50,54 +51,44 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { group: 'CRM', items: [
       { name: 'Suppliers', to: '/suppliers', icon: Truck, show: true },
       { name: 'Customers', to: '/customers', icon: BookUser, show: true },
-      { name: 'Contacts', to: '/contacts', icon: Phone, show: true },
     ]},
     { group: 'Procurement & Imports', items: [
       { name: 'Imports Dashboard', to: '/imports', icon: Globe, show: true },
       { name: 'Purchase Orders', to: '/imports/orders', icon: FileText, show: true },
-      { name: 'Logistics Tracking', to: '/imports/tracking', icon: Truck, show: true },
-      { name: 'Delivery Calendar', to: '/imports/delivery-schedule', icon: Calendar, show: true },
     ]},
     { group: 'Sales & Exports', items: [
       { name: 'Exports Dashboard', to: '/exports', icon: Globe, show: true },
       { name: 'Sales Orders', to: '/exports/orders', icon: FileText, show: true },
       { name: 'Invoices', to: '/exports/invoices', icon: FileText, show: true },
-      { name: 'Dispatch Board', to: '/exports/dispatch/board', icon: Truck, show: true },
+      { name: 'Order Status', to: '/exports/order-status', icon: Truck, show: true },
     ]},
-    { group: 'Financial Control', items: [
+    { group: 'Finance', items: [
       { name: 'Finance Dashboard', to: '/finance', icon: LayoutDashboard, show: hasPermission('finance:read') },
-      { name: 'Payments Ledger', to: '/finance/payments', icon: ArrowDownUp, show: hasPermission('finance:read') },
+      { name: 'Payments', to: '/finance/payments', icon: ArrowDownUp, show: hasPermission('finance:read') },
       { name: 'Expenses', to: '/finance/expenses', icon: Wallet, show: hasPermission('finance:read') },
-      { name: 'P&L Analytics', to: '/finance/profit', icon: Activity, show: hasPermission('finance:read') },
-      { name: 'Tax & Duties', to: '/finance/taxes', icon: FileText, show: hasPermission('finance:read') },
-      { name: 'Currency Center', to: '/finance/currency', icon: Globe, show: hasPermission('finance:read') },
+      { name: 'Profit & Loss', to: '/finance/profit', icon: Activity, show: hasPermission('finance:read') },
+      { name: 'Currency Converter', to: '/finance/currency', icon: Globe, show: hasPermission('finance:read') },
     ]},
-    { group: 'Intelligence Center', items: [
-      { name: 'Analytics Dashboard', to: '/reports', icon: LayoutDashboard, show: true },
+    { group: 'Reports', items: [
+      { name: 'Dashboard', to: '/reports', icon: LayoutDashboard, show: true },
       { name: 'Sales Report', to: '/reports/sales', icon: FileText, show: true },
-      { name: 'Financial Ageing', to: '/reports/financial', icon: Wallet, show: true },
       { name: 'Inventory Report', to: '/reports/inventory', icon: Package, show: true },
-      { name: 'Business Intelligence', to: '/reports/business-analytics', icon: Activity, show: true },
-      { name: 'Report Builder', to: '/reports/builder', icon: Layers, show: true },
-      { name: 'Automations Schedule', to: '/reports/scheduled', icon: Calendar, show: true },
-      { name: 'Export History', to: '/reports/history', icon: FolderOpen, show: true },
+      { name: 'Financial Report', to: '/reports/financial', icon: Wallet, show: true },
     ]},
     { group: 'Document Management', items: [
-      { name: 'Doc Dashboard', to: '/documents', icon: FolderOpen, show: true },
-      { name: 'Library', to: '/documents/library', icon: FileText, show: true },
+      { name: 'Dashboard', to: '/documents', icon: LayoutDashboard, show: true },
+      { name: 'Documents', to: '/documents/library', icon: FolderOpen, show: true },
       { name: 'Invoices', to: '/documents/invoices', icon: FileText, show: true },
-      { name: 'Activity Log', to: '/documents/activity', icon: Activity, show: true },
     ]},
-    { group: 'Alerts & Activity', items: [
-      { name: 'Control Centre', to: '/notifications', icon: AlertTriangle, show: true },
-      { name: 'Task Reminders', to: '/notifications/reminders', icon: Calendar, show: true },
-      { name: 'Alert Preferences', to: '/notifications/settings', icon: ShieldCheck, show: true },
-      { name: 'System Audit Log', to: '/notifications/activity-log', icon: Activity, show: true },
+    { group: 'Notifications', items: [
+      { name: 'Notifications', to: '/notifications', icon: Bell, show: true },
+      { name: 'Reminders', to: '/notifications/reminders', icon: Calendar, show: true },
     ]},
     { group: 'Admin', items: [
       { name: 'Users', to: '/admin/users', icon: Users, show: hasRole('admin') },
       { name: 'Roles', to: '/admin/roles', icon: ShieldCheck, show: hasRole('admin') },
       { name: 'Settings', to: '/admin/settings', icon: Settings, show: hasRole('admin') },
+      { name: 'Activity Log', to: '/admin/activity-log', icon: Activity, show: hasRole('admin') },
       { name: 'My Profile', to: '/profile', icon: User, show: true },
     ]}
   ];

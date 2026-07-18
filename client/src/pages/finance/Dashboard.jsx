@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowRight, TrendingUp, Calendar, ArrowUpRight, DollarSign } from 'lucide-react';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -17,14 +17,12 @@ import FinanceKpiRow from '../../components/finance/FinanceKpiRow';
 import PLSummaryCard from '../../components/finance/PLSummaryCard';
 import { usePaymentsDashboard, useOverduePayments, usePayments } from '../../hooks/usePayments';
 import { useExpensesDashboard } from '../../hooks/useExpenses';
-import { useUpcomingTaxDuty } from '../../hooks/useTaxDuty';
 import { useProfitAnalysisSummary, useProfitAnalysisByPeriod } from '../../hooks/useProfitAnalysis';
 
 const Dashboard = () => {
   const { data: kpiData, isLoading: kpiLoading } = usePaymentsDashboard();
   const { data: plSummary, isLoading: summaryLoading } = useProfitAnalysisSummary();
   const { data: plPeriod, isLoading: periodLoading } = useProfitAnalysisByPeriod({ months: 12 });
-  const { data: upcomingTaxes } = useUpcomingTaxDuty();
   const { data: overdueList } = useOverduePayments();
   const { data: expensesDash, isLoading: expensesLoading } = useExpensesDashboard();
   
@@ -37,7 +35,6 @@ const Dashboard = () => {
 
   const overdueRecSum = overdueReceivables.reduce((acc, p) => acc + (p.amountInBaseCurrency || 0), 0);
   const overduePaySum = overduePayables.reduce((acc, p) => acc + (p.amountInBaseCurrency || 0), 0);
-  const taxesDueCount = (upcomingTaxes || []).length;
 
   // 2. Process Stacked Bar Chart (Monthly Revenue vs COGS vs Expenses)
   const barChartData = (plPeriod || []).map(p => ({
@@ -199,26 +196,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {taxesDueCount > 0 && (
-          <div className="bg-orange-50 border border-orange-200 text-orange-950 rounded-xl p-4 flex items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-start gap-3">
-              <AlertCircle size={18} className="text-orange-600 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-extrabold text-xs">Warning: Customs & Taxes Due</h4>
-                <p className="text-[11px] text-orange-800 mt-0.5">
-                  You have <strong className="font-bold">{taxesDueCount} tax/duty records</strong> due in the next 30 days.
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/finance/tax-duty"
-              className="text-[11px] font-bold text-orange-850 hover:text-orange-950 flex items-center gap-0.5 hover:underline"
-            >
-              <span>View Tax Center</span>
-              <ArrowRight size={12} />
-            </Link>
-          </div>
-        )}
       </div>
 
       {/* KPI Cards Row */}

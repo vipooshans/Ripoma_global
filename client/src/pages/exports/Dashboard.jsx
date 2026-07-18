@@ -55,10 +55,10 @@ const Dashboard = () => {
             ➕ New Export Order
           </Link>
           <Link
-            to="/exports/dispatch/board"
+            to="/exports/order-status"
             className="border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition flex items-center gap-1.5"
           >
-            🚚 Dispatch Kanban
+            Order Status
           </Link>
         </div>
       </div>
@@ -232,10 +232,10 @@ const Dashboard = () => {
               <span className="text-slate-400">➔</span>
             </Link>
             <Link
-              to="/exports/dispatch/board"
+              to="/exports/order-status"
               className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition border border-slate-100 flex items-center justify-between"
             >
-              <span>🚚 Dispatch Kanban & Shipments</span>
+              <span>View Order Status</span>
               <span className="text-slate-400">➔</span>
             </Link>
           </div>

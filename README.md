@@ -14,7 +14,7 @@ The repository is split into a **React (Vite)** frontend and a **Node.js (Expres
 | **Inventory** | Products, warehouses, stock movements, low-stock alerts |
 | **CRM** | Suppliers, customers, contact directory |
 | **Procurement & Imports** | Purchase orders, approvals, goods receipt, import tracking, delivery calendar |
-| **Sales & Exports** | Sales orders, invoices, dispatch board |
+| **Sales & Exports** | Sales orders, invoices, five-stage order status board |
 | **Financial Control** | Payments, expenses, P&L, tax & duties, multi-currency |
 | **Intelligence Center** | Sales/financial reports, business analytics, custom report builder, scheduled exports |
 | **Document Management** | Document library, invoice archive, activity log |

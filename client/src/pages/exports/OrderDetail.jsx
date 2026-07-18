@@ -350,7 +350,7 @@ const OrderDetail = () => {
                   {dispatches.map((disp) => (
                     <div
                       key={disp._id}
-                      onClick={() => navigate(`/exports/dispatch/board`)} // Redirects to board to show drag & drop status
+                      onClick={() => navigate('/exports/order-status')}
                       className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-slate-300 cursor-pointer shadow-sm hover:shadow transition space-y-3 border-l-4 border-l-slate-800"
                     >
                       <div className="flex justify-between items-start">

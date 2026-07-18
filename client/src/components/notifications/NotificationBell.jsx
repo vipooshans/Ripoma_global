@@ -152,7 +152,7 @@ const NotificationBell = () => {
           </div>
 
           {/* Footer actions */}
-          <div className="bg-slate-900 border-t border-slate-800 grid grid-cols-2 text-center text-xs divide-x divide-slate-800">
+          <div className="bg-slate-900 border-t border-slate-800 text-center text-xs">
             <button
               onClick={() => {
                 setIsOpen(false);
@@ -160,16 +160,7 @@ const NotificationBell = () => {
               }}
               className="py-3 text-slate-450 hover:text-slate-200 transition-colors font-medium"
             >
-              Alert Centre
-            </button>
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                navigate('/notifications/settings');
-              }}
-              className="py-3 text-slate-450 hover:text-slate-200 transition-colors font-medium"
-            >
-              Preferences
+              View All Notifications
             </button>
           </div>
         </div>

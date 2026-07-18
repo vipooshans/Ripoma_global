@@ -62,7 +62,7 @@ const ActivityLog = () => {
       {/* Header */}
       <div className="mb-6">
         <div className="text-xs text-slate-500 mb-1 flex items-center gap-1.5">
-          <span className="hover:text-slate-350 cursor-pointer" onClick={() => navigate('/notifications')}>Control Centre</span>
+          <span className="hover:text-slate-350 cursor-pointer" onClick={() => navigate('/admin/users')}>Admin</span>
           <span>/</span>
           <span className="text-slate-300">Audit Log</span>
         </div>
