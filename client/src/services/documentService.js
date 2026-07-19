@@ -1,25 +1,20 @@
-import axios from 'axios';
+import api from './api';
 
-const BASE = 'http://localhost:5000/api/documents';
-
-const getHeaders = () => {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+const BASE = '/documents';
 
 export const documentService = {
   getDashboard: () =>
-    axios.get(`${BASE}/dashboard`, { headers: getHeaders() }),
+    api.get(`${BASE}/dashboard`),
 
   getDocuments: (params = {}) =>
-    axios.get(BASE, { params, headers: getHeaders() }),
+    api.get(BASE, { params }),
 
   getById: (id) =>
-    axios.get(`${BASE}/${id}`, { headers: getHeaders() }),
+    api.get(`${BASE}/${id}`),
 
   upload: (formData, onProgress) =>
-    axios.post(BASE, formData, {
-      headers: { ...getHeaders(), 'Content-Type': 'multipart/form-data' },
+    api.post(BASE, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (progressEvent) => {
         if (onProgress) {
           const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -29,23 +24,23 @@ export const documentService = {
     }),
 
   update: (id, data) =>
-    axios.put(`${BASE}/${id}`, data, { headers: getHeaders() }),
+    api.put(`${BASE}/${id}`, data),
 
   delete: (id) =>
-    axios.delete(`${BASE}/${id}`, { headers: getHeaders() }),
+    api.delete(`${BASE}/${id}`),
 
   restore: (id) =>
-    axios.patch(`${BASE}/${id}/restore`, {}, { headers: getHeaders() }),
+    api.patch(`${BASE}/${id}/restore`),
 
   getDownloadUrl: (id) =>
-    axios.get(`${BASE}/${id}/download`, { headers: getHeaders() }),
+    api.get(`${BASE}/${id}/download`),
 
   getThumbnailUrl: (id) =>
-    axios.get(`${BASE}/${id}/thumbnail`, { headers: getHeaders() }),
+    api.get(`${BASE}/${id}/thumbnail`),
 
   uploadVersion: (id, formData, onProgress) =>
-    axios.post(`${BASE}/${id}/version`, formData, {
-      headers: { ...getHeaders(), 'Content-Type': 'multipart/form-data' },
+    api.post(`${BASE}/${id}/version`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (progressEvent) => {
         if (onProgress) {
           const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -55,16 +50,15 @@ export const documentService = {
     }),
 
   bulkDownload: (ids) =>
-    axios.post(`${BASE}/bulk-download`, { ids }, {
-      headers: getHeaders(),
+    api.post(`${BASE}/bulk-download`, { ids }, {
       responseType: 'blob'
     }),
 };
 
 export const activityService = {
   getGlobal: (params = {}) =>
-    axios.get('http://localhost:5000/api/document-activity', { params, headers: getHeaders() }),
+    api.get('/document-activity', { params }),
 
   getForDocument: (docId, params = {}) =>
-    axios.get(`http://localhost:5000/api/document-activity/${docId}`, { params, headers: getHeaders() }),
+    api.get(`/document-activity/${docId}`, { params }),
 };
