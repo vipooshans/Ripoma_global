@@ -97,9 +97,9 @@ const InvoicePreviewPanel = ({ invoice }) => {
               <tr key={item._id || idx}>
                 <td className="px-4 py-3 font-medium text-slate-800">{item.description}</td>
                 <td className="px-4 py-3 text-right">{item.quantity}</td>
-                <td className="px-4 py-3 text-right">${item.unitPrice.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right">Rs {item.unitPrice.toFixed(2)}</td>
                 <td className="px-4 py-3 text-right">{item.discount || 0}%</td>
-                <td className="px-4 py-3 text-right font-medium">${item.lineTotal.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right font-medium">Rs {item.lineTotal.toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
@@ -111,31 +111,31 @@ const InvoicePreviewPanel = ({ invoice }) => {
         <div className="w-80 space-y-2 text-sm text-slate-600">
           <div className="flex justify-between">
             <span>Subtotal:</span>
-            <span className="font-semibold text-slate-800">${subtotal.toFixed(2)}</span>
+            <span className="font-semibold text-slate-800">Rs {subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
             <span>Discount:</span>
-            <span className="font-semibold text-rose-600">-${discountTotal.toFixed(2)}</span>
+            <span className="font-semibold text-rose-600">-Rs {discountTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
             <span>Tax:</span>
-            <span className="font-semibold text-slate-800">${taxTotal.toFixed(2)}</span>
+            <span className="font-semibold text-slate-800">Rs {taxTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
             <span>Shipping Charge:</span>
-            <span className="font-semibold text-slate-800">${shippingCharge.toFixed(2)}</span>
+            <span className="font-semibold text-slate-800">Rs {shippingCharge.toFixed(2)}</span>
           </div>
           <div className="flex justify-between border-t pt-2 text-base font-bold text-slate-800">
             <span>Grand Total ({currency}):</span>
-            <span className="text-indigo-700">${grandTotal.toFixed(2)}</span>
+            <span className="text-indigo-700">Rs {grandTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between border-t pt-2 text-xs">
             <span>Amount Paid:</span>
-            <span className="text-emerald-600 font-semibold">${amountPaid.toFixed(2)}</span>
+            <span className="text-emerald-600 font-semibold">Rs {amountPaid.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-xs">
             <span>Amount Due:</span>
-            <span className="text-rose-600 font-bold">${amountDue.toFixed(2)}</span>
+            <span className="text-rose-600 font-bold">Rs {amountDue.toFixed(2)}</span>
           </div>
         </div>
       </div>

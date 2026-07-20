@@ -31,7 +31,7 @@ const OrderCreate = () => {
   const [customer, setCustomer] = useState('');
   const [warehouse, setWarehouse] = useState('');
   const [priority, setPriority] = useState('normal');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('LKR');
   const [incoterms, setIncoterms] = useState('EXW');
   const [paymentTerms, setPaymentTerms] = useState('');
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState('');
@@ -58,7 +58,7 @@ const OrderCreate = () => {
       setCustomer(existingOrder.customer?._id || existingOrder.customer || '');
       setWarehouse(existingOrder.warehouse?._id || existingOrder.warehouse || '');
       setPriority(existingOrder.priority || 'normal');
-      setCurrency(existingOrder.currency || 'USD');
+      setCurrency(existingOrder.currency || 'LKR');
       setIncoterms(existingOrder.incoterms || 'EXW');
       setPaymentTerms(existingOrder.paymentTerms || '');
       setRequestedDeliveryDate(existingOrder.requestedDeliveryDate ? existingOrder.requestedDeliveryDate.split('T')[0] : '');
@@ -80,7 +80,7 @@ const OrderCreate = () => {
     const cust = customers.find(c => c._id === customerId);
     if (cust) {
       setPaymentTerms(cust.paymentTerms || '');
-      setCurrency(cust.currency || 'USD');
+      setCurrency(cust.currency || 'LKR');
       if (cust.address) {
         setBillingAddress({
           street: cust.address.street || '',
@@ -287,7 +287,7 @@ const OrderCreate = () => {
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    placeholder="USD"
+                    placeholder="LKR"
                   />
                 </div>
 

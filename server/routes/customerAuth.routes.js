@@ -30,6 +30,7 @@ router.get('/legal', customerAuthController.getLegal);
 router.post('/register', authRegisterLimiter, customerAuthController.register);
 router.get('/verify-email/:token', customerAuthController.verifyEmail);
 router.post('/login', authLoginLimiter, customerAuthController.login);
+router.post('/google', authLoginLimiter, customerAuthController.loginWithGoogle);
 router.post('/logout', customerAuthController.logout);
 router.post('/refresh', customerAuthController.refresh);
 router.post('/forgot-password', authForgotLimiter, customerAuthController.forgotPassword);

@@ -5,7 +5,7 @@ const KpiScorecardGrid = ({ kpiData, isLoading }) => {
   const formatValue = (key, val) => {
     if (val === undefined || val === null) return 'N/A';
     if (key === 'revenue' || key === 'expenses') {
-      return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `Rs ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
     if (key === 'grossMargin') {
       return `${val.toFixed(1)}%`;

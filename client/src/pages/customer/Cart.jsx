@@ -29,7 +29,7 @@ const emptyEstimate = {
   shipping: 0,
   tax: 0,
   total: 0,
-  currency: 'USD',
+  currency: 'LKR',
   freeShippingMin: 500,
   coupon: null,
   messages: []
@@ -363,7 +363,7 @@ const CustomerCart = () => {
                     Add <strong className="text-teal-700">{formatPrice(freeShipRemaining, estimate.currency)}</strong> more for free shipping
                   </p>
                 )}
-                {estimate.messages?.filter((m) => !m.includes('Add $')).map((msg) => (
+                {estimate.messages?.filter((m) => !m.includes('Add Rs')).map((msg) => (
                   <p key={msg} className="text-[11px] text-teal-700 font-medium">{msg}</p>
                 ))}
 

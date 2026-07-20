@@ -53,7 +53,7 @@ const InventoryReport = () => {
         {[
           { label: 'Stock Lines', value: summary.lineCount, icon: Boxes, color: 'text-blue-600 bg-blue-50' },
           { label: 'Units On Hand', value: summary.totalOnHand?.toLocaleString(), icon: Package, color: 'text-teal-600 bg-teal-50' },
-          { label: 'Stock Value', value: `$${(summary.totalValue || 0).toLocaleString()}`, icon: DollarSign, color: 'text-emerald-600 bg-emerald-50' },
+          { label: 'Stock Value', value: `Rs ${(summary.totalValue || 0).toLocaleString()}`, icon: DollarSign, color: 'text-emerald-600 bg-emerald-50' },
           { label: 'Low Stock SKUs', value: summary.lowStockCount, icon: AlertTriangle, color: 'text-rose-600 bg-rose-50' }
         ].map((card) => (
           <div key={card.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">

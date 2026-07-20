@@ -21,8 +21,8 @@ const CreditLimitWarning = ({ customer, proposedTotal }) => {
           </h4>
           <p className="text-xs opacity-90 mb-3">
             {exceeds 
-              ? `The proposed order of $${total.toLocaleString()} will cause the customer's outstanding balance to exceed their credit limit.`
-              : `The proposed order of $${total.toLocaleString()} is within the customer's credit limit.`
+              ? `The proposed order of Rs ${total.toLocaleString()} will cause the customer's outstanding balance to exceed their credit limit.`
+              : `The proposed order of Rs ${total.toLocaleString()} is within the customer's credit limit.`
             }
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs mt-2 border-t pt-2 border-current border-opacity-10">

@@ -83,7 +83,7 @@ const Dashboard = () => {
     },
     {
       title: 'Stock Value',
-      value: `$${(kpi?.stockValue || 0).toLocaleString()}`,
+      value: `Rs ${(kpi?.stockValue || 0).toLocaleString()}`,
       desc: 'Base cost inventory asset value',
       icon: TrendingUp,
       color: 'text-emerald-600 bg-emerald-50 border-emerald-100'
@@ -228,7 +228,7 @@ const Dashboard = () => {
                     borderRadius: '8px',
                     borderColor: '#E2E8F0'
                   }}
-                  formatter={(val) => [`$${val.toLocaleString()}`, 'Valuation']}
+                  formatter={(val) => [`Rs ${val.toLocaleString()}`, 'Valuation']}
                 />
                 <Bar dataKey="value" fill="#0D9488" radius={[4, 4, 0, 0]} maxBarSize={45} />
               </BarChart>

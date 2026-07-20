@@ -95,16 +95,16 @@ exports.getKpis = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      revenueMTD: { value: revenueValue, currency: 'USD', trendPercent },
+      revenueMTD: { value: revenueValue, currency: 'LKR', trendPercent },
       activeImportOrders: { count: activeImportCount, pendingApproval: pendingApprovalCount },
       activeExportOrders: { count: activeExportCount, readyToShip: readyToShipCount },
-      inventoryValue: { value: stockValue, currency: 'USD', lowStockCount: lowStockCountResult },
+      inventoryValue: { value: stockValue, currency: 'LKR', lowStockCount: lowStockCountResult },
       outstandingReceivables: { 
         value: receivablesAggr[0]?.total || 0, 
-        currency: 'USD', 
+        currency: 'LKR', 
         overdueCount 
       },
-      outstandingPayables: { value: payablesAggr[0]?.total || 0, currency: 'USD' },
+      outstandingPayables: { value: payablesAggr[0]?.total || 0, currency: 'LKR' },
       unreadNotifications: { count: unreadCount }
     });
   } catch (error) {

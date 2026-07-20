@@ -11,7 +11,7 @@ const TABS = ['Company Info', 'Contacts', 'Bank & Docs'];
 
 const emptyForm = {
   companyName: '', code: '', type: 'manufacturer', status: 'active',
-  country: '', website: '', taxId: '', currency: 'USD', paymentTerms: '',
+  country: '', website: '', taxId: '', currency: 'LKR', paymentTerms: '',
   leadTimeDays: '', rating: 0, tags: '', notes: '',
   address: { street: '', city: '', state: '', postalCode: '', country: '' },
   contacts: [],

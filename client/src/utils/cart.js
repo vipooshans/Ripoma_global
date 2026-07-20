@@ -6,7 +6,7 @@ export const toCartSnapshot = (product, qty = 1) => ({
   name: product.name,
   sku: product.sku,
   sellingPrice: Number(product.sellingPrice) || 0,
-  currency: product.currency || 'USD',
+  currency: product.currency || 'LKR',
   images: product.images || [],
   brand: product.brand || null,
   unit: product.unit || null,

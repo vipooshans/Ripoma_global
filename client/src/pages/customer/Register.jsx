@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import toast from 'react-hot-toast';
 import customerAuthService from '../../services/customerAuth.service';
+import { CustomerAuthContext } from '../../context/CustomerAuthContext';
+import GoogleSignInButton from '../../components/customer/GoogleSignInButton';
 import {
   User,
   Mail,
@@ -109,11 +111,29 @@ const StepIndicator = ({ currentStep }) => {
 // ─── Main Component ────────────────────────────────────────────────────────────
 const CustomerRegister = () => {
   const navigate = useNavigate();
+  const { loginWithGoogle } = useContext(CustomerAuthContext);
   const [step, setStep] = useState(1);
   const [step1Data, setStep1Data] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+
+  const handleGoogleCredential = useCallback(
+    async (credential) => {
+      try {
+        setGoogleSubmitting(true);
+        await loginWithGoogle(credential);
+        toast.success('Welcome! Your account is ready.');
+        navigate('/customer/profile', { replace: true });
+      } catch (err) {
+        toast.error(err.message || 'Google sign-in failed.');
+      } finally {
+        setGoogleSubmitting(false);
+      }
+    },
+    [loginWithGoogle, navigate]
+  );
 
   // Step 1 form
   const {
@@ -227,6 +247,28 @@ const CustomerRegister = () => {
               <div className="mb-6">
                 <h3 className="text-xl font-extrabold text-slate-800">Create Your Account</h3>
                 <p className="text-slate-500 text-sm mt-1">Fill in your personal details to get started.</p>
+              </div>
+
+              <div className="mb-5">
+                <GoogleSignInButton
+                  onCredential={handleGoogleCredential}
+                  disabled={submitting || googleSubmitting}
+                  text="signup_with"
+                />
+                <p className="text-[11px] text-slate-400 text-center mt-2">
+                  By continuing with Google, you agree to our Terms and Privacy Policy.
+                </p>
+              </div>
+
+              <div className="relative mb-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-white px-3 text-slate-400 font-semibold uppercase tracking-wide">
+                    or register with email
+                  </span>
+                </div>
               </div>
 
               <form onSubmit={handle1(onStep1Submit)} className="space-y-4">

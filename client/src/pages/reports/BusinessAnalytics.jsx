@@ -46,7 +46,7 @@ const BusinessAnalytics = () => {
   }, [filters.dateFrom, filters.dateTo]);
 
   const formatCurrency = (val) => {
-    return `$${(val || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    return `Rs ${(val || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   };
 
   const formatPercent = (val) => {
@@ -230,7 +230,7 @@ const BusinessAnalytics = () => {
               <LineChart data={monthlyTrend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                 <XAxis dataKey="month" stroke="#94A3B8" fontSize={9} tickLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `$${v}`} />
+                <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `Rs ${v}`} />
                 <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} formatter={v => formatCurrency(v)} />
                 <Legend iconType="circle" iconSize={8} />
                 <Line type="monotone" dataKey="revenue" stroke="#0D9488" strokeWidth={2.5} name="Revenue" dot={{ r: 3 }} />

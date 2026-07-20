@@ -89,7 +89,7 @@ const StorefrontOrderSchema = new mongoose.Schema(
     shipping: { type: Number, default: 0, min: 0 },
     tax: { type: Number, default: 0, min: 0 },
     grandTotal: { type: Number, required: true, min: 0 },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: 'LKR' },
     couponCode: { type: String, trim: true, uppercase: true, default: null },
     couponSnapshot: { type: CouponSnapshotSchema, default: null },
     shippingAddress: { type: ShippingAddressSnapshotSchema, required: true },
