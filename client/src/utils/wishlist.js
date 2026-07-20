@@ -20,7 +20,7 @@ const toSnapshot = (product) => ({
   name: product.name,
   sku: product.sku,
   sellingPrice: product.sellingPrice,
-  currency: product.currency,
+  currency: product.currency || 'LKR',
   images: product.images || [],
   brand: product.brand || null
 });

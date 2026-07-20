@@ -377,7 +377,7 @@ async function seedProducts() {
       sellingPrice: item.sellingPrice,
       unitCost: item.unitCost,
       unit: item.unit,
-      currency: 'USD',
+      currency: 'LKR',
       countryOfOrigin: item.countryOfOrigin,
       tags: item.tags,
       isFeatured: item.isFeatured,

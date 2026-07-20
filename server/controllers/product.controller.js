@@ -280,7 +280,7 @@ exports.createProduct = async (req, res) => {
       unit: unit || 'pcs',
       unitCost: priceCheck.unitCost,
       sellingPrice: priceCheck.sellingPrice,
-      currency: currency || 'USD',
+      currency: currency || 'LKR',
       images: [...retainedImages, ...uploadedImageUrls],
       barcode: finalBarcode,
       hsCode,

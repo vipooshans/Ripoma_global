@@ -8,7 +8,7 @@ const generateStorefrontOrderPdf = (order) => {
   const customerName =
     [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Customer';
   const addr = order.shippingAddress || {};
-  const currency = order.currency || 'USD';
+  const currency = order.currency || 'LKR';
 
   const billToLines = [
     customerName,

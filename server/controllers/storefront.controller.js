@@ -41,7 +41,7 @@ const formatProduct = (p, stock = null) => ({
     ? { id: p.category._id, name: p.category.name, description: p.category.description }
     : null,
   sellingPrice: p.sellingPrice,
-  currency: p.currency,
+  currency: 'LKR',
   images: p.images || [],
   tags: p.tags || [],
   unit: p.unit,
@@ -646,7 +646,7 @@ exports.getSearchSuggestions = async (req, res) => {
       sku: p.sku,
       image: p.images?.[0] || null,
       sellingPrice: p.sellingPrice,
-      currency: p.currency,
+      currency: 'LKR',
       brand: p.brand || null
     }));
 
@@ -795,7 +795,7 @@ const computeCartEstimate = (items, coupon) => {
   if (shipping > 0) {
     const remaining = round2(rules.freeShippingMin - merchandise);
     if (remaining > 0) {
-      messages.push(`Add $${remaining.toFixed(2)} more for free shipping`);
+      messages.push(`Add Rs ${remaining.toFixed(2)} more for free shipping`);
     }
   } else if (freeShippingCoupon) {
     messages.push('Free shipping applied via coupon');
@@ -1056,7 +1056,7 @@ exports.placeOrder = async (req, res) => {
       customer,
       type: 'order_placed',
       title: `Order ${order.orderNumber} placed`,
-      body: `Thanks for your order. Total ${order.currency || 'USD'} ${Number(order.grandTotal).toFixed(2)}. We'll update you as it progresses.`,
+      body: `Thanks for your order. Total Rs ${Number(order.grandTotal).toFixed(2)}. We'll update you as it progresses.`,
       severity: 'success',
       actionUrl: `/customer/orders/${order._id}`,
       actionLabel: 'View order',
