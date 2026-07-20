@@ -110,6 +110,19 @@ export const CustomerAuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (credential) => {
+    try {
+      setError(null);
+      const data = await customerAuthService.loginWithGoogle(credential);
+      setCustomerUser(data.customer);
+      return data.customer;
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Google sign-in failed. Please try again.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
   const logout = async () => {
     try {
       await customerAuthService.logout();
@@ -128,6 +141,7 @@ export const CustomerAuthProvider = ({ children }) => {
     error,
     isAuthenticated: !!customerUser,
     login,
+    loginWithGoogle,
     logout,
     setCustomerUser
   };

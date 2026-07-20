@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const CustomerAccount = require('../models/CustomerAccount');
 const CustomerSession = require('../models/CustomerSession');
 const StorefrontOrder = require('../models/StorefrontOrder');
@@ -9,6 +10,7 @@ const {
   getCustomerJwtSecret,
   getCustomerRefreshSecret,
   getFrontendUrl,
+  getGoogleClientId,
   isEmailVerificationRequired
 } = require('../utils/customerAuthConfig');
 const { validateCustomerPassword } = require('../utils/customerPasswordPolicy');
@@ -40,6 +42,8 @@ const toSafeCustomer = (customer) => ({
   lastLogin: customer.lastLogin,
   privacyConsentAt: customer.privacyConsentAt,
   privacyConsentVersion: customer.privacyConsentVersion,
+  hasPassword: Boolean(customer.password),
+  hasGoogle: Boolean(customer.googleId),
   createdAt: customer.createdAt
 });
 
@@ -296,6 +300,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    if (!customer.password) {
+      return res.status(401).json({
+        code: 'GOOGLE_ONLY_ACCOUNT',
+        message: 'This account uses Google Sign-In. Please continue with Google.'
+      });
+    }
+
     if (customer.lockUntil && customer.lockUntil > new Date()) {
       const mins = Math.ceil((customer.lockUntil - Date.now()) / 60000);
       return res.status(423).json({
@@ -346,6 +357,113 @@ exports.login = async (req, res) => {
   } catch (error) {
     console.error('Customer Login Error:', error);
     return res.status(500).json({ message: 'Internal server error during login.' });
+  }
+};
+
+exports.loginWithGoogle = async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ message: 'Google credential is required.' });
+    }
+
+    const clientId = getGoogleClientId();
+    if (!clientId) {
+      return res.status(503).json({
+        message: 'Google Sign-In is not configured on the server.'
+      });
+    }
+
+    const oauthClient = new OAuth2Client(clientId);
+    let payload;
+    try {
+      const ticket = await oauthClient.verifyIdToken({
+        idToken: credential,
+        audience: clientId
+      });
+      payload = ticket.getPayload();
+    } catch (verifyErr) {
+      console.error('Google token verify failed:', verifyErr.message);
+      return res.status(401).json({ message: 'Invalid Google credential.' });
+    }
+
+    if (!payload?.email || !payload.email_verified) {
+      return res.status(401).json({
+        message: 'Google account email is missing or not verified.'
+      });
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email.toLowerCase().trim();
+    const firstName = (payload.given_name || payload.name || 'Customer').trim().slice(0, 80);
+    const lastName = (payload.family_name || 'User').trim().slice(0, 80);
+
+    let customer =
+      (await CustomerAccount.findOne({ googleId })) ||
+      (await CustomerAccount.findOne({ email }));
+
+    if (customer?.deletedAt) {
+      return res.status(401).json({ message: 'Invalid Google credential.' });
+    }
+
+    if (customer) {
+      if (customer.status === 'suspended') {
+        return res.status(403).json({
+          message: 'Your account has been suspended. Please contact support.'
+        });
+      }
+      if (customer.status === 'inactive') {
+        return res.status(403).json({ message: 'Your account is currently inactive.' });
+      }
+
+      if (!customer.googleId) {
+        customer.googleId = googleId;
+      } else if (customer.googleId !== googleId) {
+        return res.status(409).json({
+          message: 'This email is already linked to a different Google account.'
+        });
+      }
+
+      customer.emailVerified = true;
+      customer.failedLoginAttempts = 0;
+      customer.lockUntil = null;
+      customer.lastLogin = new Date();
+      if (!customer.privacyConsentAt) {
+        customer.privacyConsentAt = new Date();
+        customer.privacyConsentVersion = PRIVACY_VERSION;
+      }
+      await customer.save();
+    } else {
+      customer = new CustomerAccount({
+        firstName,
+        lastName,
+        email,
+        googleId,
+        emailVerified: true,
+        privacyConsentAt: new Date(),
+        privacyConsentVersion: PRIVACY_VERSION,
+        lastLogin: new Date(),
+        notificationPrefs: {
+          orderUpdates: true,
+          shipmentUpdates: true,
+          paymentUpdates: true,
+          reminders: true,
+          marketing: false,
+          channels: { email: true, sms: false, inApp: true }
+        }
+      });
+      await customer.save();
+    }
+
+    const { accessToken } = await createSessionAndSetCookie(res, customer, req);
+
+    return res.status(200).json({
+      accessToken,
+      customer: toSafeCustomer(customer)
+    });
+  } catch (error) {
+    console.error('Customer Google Login Error:', error);
+    return res.status(500).json({ message: 'Internal server error during Google sign-in.' });
   }
 };
 
@@ -616,8 +734,8 @@ exports.changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: 'Current and new password are required.' });
+    if (!newPassword) {
+      return res.status(400).json({ message: 'New password is required.' });
     }
 
     const pw = validateCustomerPassword(newPassword);
@@ -630,9 +748,14 @@ exports.changePassword = async (req, res) => {
       return res.status(404).json({ message: 'Customer account not found.' });
     }
 
-    const isMatch = await customer.comparePassword(currentPassword);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Incorrect current password.' });
+    if (customer.password) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: 'Current and new password are required.' });
+      }
+      const isMatch = await customer.comparePassword(currentPassword);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Incorrect current password.' });
+      }
     }
 
     customer.password = newPassword;
@@ -750,18 +873,22 @@ exports.deleteMyAccount = async (req, res) => {
         message: 'Type DELETE to confirm account deletion.'
       });
     }
-    if (!password) {
-      return res.status(400).json({ message: 'Password is required.' });
-    }
 
     const customer = await CustomerAccount.findById(req.customerUser._id);
     if (!customer) {
       return res.status(404).json({ message: 'Customer account not found.' });
     }
 
-    const isMatch = await customer.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Incorrect password.' });
+    if (customer.password) {
+      if (!password) {
+        return res.status(400).json({ message: 'Password is required.' });
+      }
+      const isMatch = await customer.comparePassword(password);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Incorrect password.' });
+      }
+    } else if (!customer.googleId) {
+      return res.status(400).json({ message: 'Password is required.' });
     }
 
     customer.status = 'inactive';
@@ -772,6 +899,7 @@ exports.deleteMyAccount = async (req, res) => {
     customer.lastName = 'User';
     customer.companyName = '';
     customer.companyDetails = '';
+    customer.googleId = undefined;
     customer.shippingAddress = undefined;
     customer.billingAddress = undefined;
     await customer.save();

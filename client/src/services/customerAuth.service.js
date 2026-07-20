@@ -24,6 +24,14 @@ const customerAuthService = {
     return response.data;
   },
 
+  loginWithGoogle: async (credential) => {
+    const response = await api.post('/customer-auth/google', { credential });
+    if (response.data.accessToken) {
+      setCustomerAuthHeader(response.data.accessToken);
+    }
+    return response.data;
+  },
+
   logout: async () => {
     try {
       await api.post('/customer-auth/logout');

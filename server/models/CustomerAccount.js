@@ -37,7 +37,16 @@ const CustomerAccountSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true
+      required: function requiredPassword() {
+        return !this.googleId;
+      }
+    },
+    // Google Sign-In subject (sub). Sparse unique so email/password accounts omit it.
+    googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+      trim: true
     },
     // Optional company details
     companyName: {
@@ -126,9 +135,9 @@ const CustomerAccountSchema = new mongoose.Schema(
   }
 );
 
-// Hash password before saving
+// Hash password before saving (skip when unset — Google-only accounts)
 CustomerAccountSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   try {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
@@ -140,6 +149,7 @@ CustomerAccountSchema.pre('save', async function (next) {
 
 // Compare password helper
 CustomerAccountSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,6 +6,7 @@ import * as z from 'zod';
 import toast from 'react-hot-toast';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import customerAuthService from '../../services/customerAuth.service';
+import GoogleSignInButton from '../../components/customer/GoogleSignInButton';
 import {
   Eye,
   EyeOff,
@@ -23,11 +24,12 @@ const loginSchema = z.object({
 });
 
 const CustomerLogin = () => {
-  const { login } = useContext(CustomerAuthContext);
+  const { login, loginWithGoogle } = useContext(CustomerAuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState(null);
   const [resending, setResending] = useState(false);
 
@@ -60,6 +62,22 @@ const CustomerLogin = () => {
       setSubmitting(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(
+    async (credential) => {
+      try {
+        setGoogleSubmitting(true);
+        await loginWithGoogle(credential);
+        toast.success('Welcome! You are signed in with Google.');
+        navigate(from, { replace: true });
+      } catch (err) {
+        toast.error(err.message || 'Google sign-in failed.');
+      } finally {
+        setGoogleSubmitting(false);
+      }
+    },
+    [loginWithGoogle, navigate, from]
+  );
 
   const handleResendVerification = async () => {
     if (!unverifiedEmail) return;
@@ -132,6 +150,28 @@ const CustomerLogin = () => {
           <div className="mb-8">
             <h3 className="text-xl lg:text-2xl font-extrabold text-slate-800">Welcome Back</h3>
             <p className="text-slate-500 text-sm mt-1">Sign in to your customer account.</p>
+          </div>
+
+          <div className="mb-5">
+            <GoogleSignInButton
+              onCredential={handleGoogleCredential}
+              disabled={submitting || googleSubmitting}
+              text="signin_with"
+            />
+            <p className="text-[11px] text-slate-400 text-center mt-2">
+              By continuing with Google, you agree to our Terms and Privacy Policy.
+            </p>
+          </div>
+
+          <div className="relative mb-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-3 text-slate-400 font-semibold uppercase tracking-wide">
+                or continue with email
+              </span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -214,7 +254,7 @@ const CustomerLogin = () => {
             <button
               id="customer-login-submit"
               type="submit"
-              disabled={submitting}
+              disabled={submitting || googleSubmitting}
               className="btn-primary w-full py-2.5 mt-2"
             >
               {submitting ? (

@@ -43,10 +43,13 @@ const getFrontendUrl = () =>
   process.env.FRONTEND_URL ||
   (process.env.NODE_ENV === 'production' ? undefined : DEV_FRONTEND_URL);
 
+const getGoogleClientId = () => process.env.GOOGLE_CLIENT_ID || '';
+
 module.exports = {
   requireProductionEnv,
   getCustomerJwtSecret,
   getCustomerRefreshSecret,
   getFrontendUrl,
+  getGoogleClientId,
   isEmailVerificationRequired
 };
