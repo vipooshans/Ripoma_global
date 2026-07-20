@@ -50,7 +50,7 @@ const emptyEstimate = {
   shipping: 0,
   tax: 0,
   total: 0,
-  currency: 'USD',
+  currency: 'LKR',
   coupon: null
 };
 

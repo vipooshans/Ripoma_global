@@ -47,7 +47,7 @@ const SupplierDetail = () => {
 
   const kpiCards = [
     { title: 'Total Orders', value: stats?.totalOrders ?? '—', icon: ShoppingCart, colorClass: 'text-blue-600 bg-blue-50' },
-    { title: 'Total Spend', value: stats?.totalSpend ? `$${stats.totalSpend.toLocaleString()}` : '$0', icon: DollarSign, colorClass: 'text-teal-600 bg-teal-50' },
+    { title: 'Total Spend', value: stats?.totalSpend ? `Rs ${stats.totalSpend.toLocaleString()}` : 'Rs 0', icon: DollarSign, colorClass: 'text-teal-600 bg-teal-50' },
     { title: 'Avg Lead Time', value: stats?.avgLeadTimeDays ? `${stats.avgLeadTimeDays}d` : '—', icon: Clock, colorClass: 'text-purple-600 bg-purple-50' },
     { title: 'On-Time Delivery', value: stats?.onTimePercent !== undefined ? `${stats.onTimePercent}%` : '—', icon: Truck, colorClass: 'text-amber-600 bg-amber-50' }
   ];

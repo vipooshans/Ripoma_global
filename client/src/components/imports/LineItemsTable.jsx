@@ -4,18 +4,19 @@ import { Trash2 } from 'lucide-react';
 const LineItemsTable = ({
   items = [],
   isEditable = false,
-  currency = 'USD',
+  currency = 'LKR',
   onChangeItemField,
   onRemoveItem
 }) => {
   const currencySymbols = {
+    LKR: 'Rs',
     USD: '$',
     EUR: '€',
     CNY: '¥',
     GBP: '£'
   };
 
-  const symbol = currencySymbols[currency] || '$';
+  const symbol = currencySymbols[currency] || 'Rs';
 
   if (items.length === 0) {
     return (

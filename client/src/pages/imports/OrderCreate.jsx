@@ -47,7 +47,7 @@ const OrderCreate = () => {
     orderDate: new Date().toISOString().split('T')[0],
     expectedDeliveryDate: '',
     priority: 'normal',
-    currency: 'USD',
+    currency: 'LKR',
     exchangeRate: 1,
     shippingMethod: 'sea',
     incoterms: 'FOB',

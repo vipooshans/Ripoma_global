@@ -49,7 +49,7 @@ const FinancialReport = () => {
   }, [filters.dateFrom, filters.dateTo]);
 
   const formatCurrency = (val) => {
-    return `$${(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `Rs ${(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const pl = data?.plSummary || { revenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, opex: 0, netProfit: 0, grossMargin: 0, netMargin: 0 };
@@ -156,7 +156,7 @@ const FinancialReport = () => {
                 <ComposedChart data={monthlyTrend} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="month" stroke="#94A3B8" fontSize={9} tickLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `$${v}`} />
+                  <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `Rs ${v}`} />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
                   <Legend iconType="circle" iconSize={8} />
                   <Bar dataKey="revenue" fill="#0D9488" name="Revenue ($)" radius={[2, 2, 0, 0]} />

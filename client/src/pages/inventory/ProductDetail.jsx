@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProductDetail, useStockMovements } from '../../hooks/useInventory';
+import { formatPrice } from '../../utils/formatPrice';
 import {
   ArrowLeft,
   Edit2,
@@ -215,7 +216,7 @@ const ProductDetail = () => {
                   <DollarSign size={14} /> Purchasing Cost:
                 </span>
                 <span className="text-slate-800 font-bold">
-                  {product.currency} {product.unitCost?.toFixed(2)}
+                  {formatPrice(product.unitCost, product.currency)}
                 </span>
               </div>
 
@@ -225,7 +226,7 @@ const ProductDetail = () => {
                   <DollarSign size={14} /> Selling Value:
                 </span>
                 <span className="text-teal-600 font-extrabold">
-                  {product.currency} {product.sellingPrice?.toFixed(2)}
+                  {formatPrice(product.sellingPrice, product.currency)}
                 </span>
               </div>
 

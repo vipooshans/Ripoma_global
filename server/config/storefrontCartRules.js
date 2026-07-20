@@ -3,7 +3,7 @@
  * Keep freeShippingMin aligned with homepage promo copy.
  */
 const STOREFRONT_CART_RULES = {
-  currency: 'USD',
+  currency: 'LKR',
   freeShippingMin: 500,
   flatShipping: 25,
   taxRate: 0.08

@@ -40,15 +40,15 @@ const OrderTotalsSidebar = ({
       <div className="space-y-2 text-sm text-slate-600">
         <div className="flex justify-between">
           <span>Subtotal:</span>
-          <span className="font-semibold text-slate-800">${subtotal.toFixed(2)}</span>
+          <span className="font-semibold text-slate-800">Rs {subtotal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
           <span>Discount:</span>
-          <span className="font-semibold text-rose-600">-${discountTotal.toFixed(2)}</span>
+          <span className="font-semibold text-rose-600">-Rs {discountTotal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
           <span>Tax:</span>
-          <span className="font-semibold text-slate-800">${taxTotal.toFixed(2)}</span>
+          <span className="font-semibold text-slate-800">Rs {taxTotal.toFixed(2)}</span>
         </div>
 
         {/* Shipping Charge */}
@@ -97,7 +97,7 @@ const OrderTotalsSidebar = ({
 
         <div className="flex justify-between border-t pt-3 text-base font-bold text-slate-800">
           <span>Grand Total:</span>
-          <span className="text-indigo-700">${grandTotal.toFixed(2)}</span>
+          <span className="text-indigo-700">Rs {grandTotal.toFixed(2)}</span>
         </div>
       </div>
     </div>

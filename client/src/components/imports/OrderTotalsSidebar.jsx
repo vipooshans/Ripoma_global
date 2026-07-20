@@ -7,17 +7,18 @@ const OrderTotalsSidebar = ({
   shippingCost = 0,
   otherCharges = 0,
   grandTotal = 0,
-  currency = 'USD',
+  currency = 'LKR',
   exchangeRate = 1
 }) => {
   const currencySymbols = {
+    LKR: 'Rs',
     USD: '$',
     EUR: '€',
     CNY: '¥',
     GBP: '£'
   };
 
-  const symbol = currencySymbols[currency] || '$';
+  const symbol = currencySymbols[currency] || 'Rs';
 
   return (
     <div className="bg-slate-900 border border-slate-800 text-white rounded-xl p-6 shadow-md h-fit space-y-6 lg:col-span-1">

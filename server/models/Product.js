@@ -9,7 +9,7 @@ const ProductSchema = new mongoose.Schema(
     unit: { type: String, enum: ['pcs', 'kg', 'g', 'l', 'ml', 'box', 'carton', 'roll', 'set'], default: 'pcs' },
     unitCost: { type: Number, default: 0 }, // base purchase cost
     sellingPrice: { type: Number, default: 0 },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: 'LKR' },
     images: [{ type: String }], // URL array
     barcode: { type: String },
     hsCode: { type: String }, // Harmonized System code for import/export

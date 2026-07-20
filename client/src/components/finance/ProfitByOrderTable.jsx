@@ -47,11 +47,11 @@ const ProfitByOrderTable = ({ orders }) => {
                     </td>
                     <td className="py-3 px-5 font-semibold text-slate-700 truncate max-w-[150px]">{o.counterparty}</td>
                     <td className="py-3 px-5 text-right font-mono font-bold text-slate-700">
-                      ${format(isImport ? o.expectedRevenue : o.revenue)}
+                      Rs {format(isImport ? o.expectedRevenue : o.revenue)}
                     </td>
-                    <td className="py-3 px-5 text-right font-mono font-bold text-slate-500">${format(o.cogs)}</td>
+                    <td className="py-3 px-5 text-right font-mono font-bold text-slate-500">Rs {format(o.cogs)}</td>
                     <td className={`py-3 px-5 text-right font-mono font-extrabold ${isPositive ? 'text-teal-650' : 'text-rose-650'}`}>
-                      ${format(o.profit)}
+                      Rs {format(o.profit)}
                     </td>
                     <td className="py-3 px-5 text-center shrink-0">
                       <div className="flex items-center justify-center">

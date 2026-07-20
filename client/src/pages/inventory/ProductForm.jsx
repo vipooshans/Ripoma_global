@@ -37,7 +37,7 @@ const ProductForm = () => {
     unit: 'pcs',
     unitCost: 0,
     sellingPrice: 0,
-    currency: 'USD',
+    currency: 'LKR',
     images: [],
     barcode: '',
     hsCode: '',

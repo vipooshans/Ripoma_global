@@ -94,7 +94,7 @@ const LineItemsTable = ({ items = [], warehouseId, onChange, readOnly = false })
                       {item.quantityDispatched}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">${item.unitPrice.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-right">Rs {item.unitPrice.toFixed(2)}</td>
                   <td className="px-6 py-4 text-right">{item.discount || 0}%</td>
                   <td className="px-6 py-4 text-right">{item.tax || 0}%</td>
                   <td className="px-6 py-4 text-right font-bold text-slate-900">${(item.lineTotal || 0).toFixed(2)}</td>
