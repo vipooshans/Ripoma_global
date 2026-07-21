@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const morgan = require('morgan');
+const { corsOriginDelegate } = require('./utils/corsOrigins');
 
 const Role = require('./models/Role');
 const User = require('./models/User');
@@ -83,10 +84,10 @@ app.use(cookieParser());
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// CORS config
+// CORS config — FRONTEND_URL + CORS_ORIGINS + optional Pages preview hosts
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:5174'],
+    origin: corsOriginDelegate,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
   })
