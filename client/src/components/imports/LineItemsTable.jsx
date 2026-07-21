@@ -9,14 +9,14 @@ const LineItemsTable = ({
   onRemoveItem
 }) => {
   const currencySymbols = {
-    LKR: 'Rs',
+    LKR: 'LKR',
     USD: '$',
     EUR: '€',
     CNY: '¥',
     GBP: '£'
   };
 
-  const symbol = currencySymbols[currency] || 'Rs';
+  const symbol = currencySymbols[currency] || 'LKR';
 
   if (items.length === 0) {
     return (

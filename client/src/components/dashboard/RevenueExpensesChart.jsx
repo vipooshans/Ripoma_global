@@ -11,9 +11,9 @@ import {
 } from 'recharts';
 
 const fmt = (v) => {
-  if (v >= 1_000_000) return `Rs ${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `Rs ${(v / 1_000).toFixed(0)}K`;
-  return `Rs ${v}`;
+  if (v >= 1_000_000) return `LKR ${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `LKR ${(v / 1_000).toFixed(0)}K`;
+  return `LKR ${v}`;
 };
 
 const ChartSkeleton = () => (

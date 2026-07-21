@@ -84,7 +84,7 @@ const WaterfallChart = ({ summary }) => {
                 stroke="#94A3B8" 
                 fontSize={9} 
                 tickLine={false} 
-                tickFormatter={(val) => `Rs ${val.toLocaleString()}`}
+                tickFormatter={(val) => `LKR ${val.toLocaleString()}`}
               />
               <Tooltip
                 contentStyle={{ fontSize: '11px', borderRadius: '8px', borderColor: '#E2E8F0' }}

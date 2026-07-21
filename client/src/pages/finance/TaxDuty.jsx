@@ -216,7 +216,7 @@ const TaxDuty = () => {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Taxes Filed (YTD)</span>
           <p className="text-xl font-extrabold text-slate-950 mt-1 tracking-tight">
-            {summaryLoading ? '...' : `Rs ${format(summary?.stats?.totalFiledYTD)}`}
+            {summaryLoading ? '...' : `LKR ${format(summary?.stats?.totalFiledYTD)}`}
           </p>
           <span className="text-[9px] text-slate-450 mt-1 block">Taxes marked in filed status</span>
         </div>
@@ -224,7 +224,7 @@ const TaxDuty = () => {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Taxes Paid (YTD)</span>
           <p className="text-xl font-extrabold text-teal-655 mt-1 tracking-tight">
-            {summaryLoading ? '...' : `Rs ${format(summary?.stats?.totalPaidYTD)}`}
+            {summaryLoading ? '...' : `LKR ${format(summary?.stats?.totalPaidYTD)}`}
           </p>
           <span className="text-[9px] text-teal-500/80 font-bold mt-1 block">Settled customs duties</span>
         </div>
@@ -232,7 +232,7 @@ const TaxDuty = () => {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Due in 30 Days</span>
           <p className="text-xl font-extrabold text-orange-650 mt-1 tracking-tight">
-            {summaryLoading ? '...' : `Rs ${format(summary?.stats?.dueSoon30Days)}`}
+            {summaryLoading ? '...' : `LKR ${format(summary?.stats?.dueSoon30Days)}`}
           </p>
           <span className="text-[9px] text-orange-550 font-bold mt-1 block">Taxes due with deadline alert</span>
         </div>
@@ -346,7 +346,7 @@ const TaxDuty = () => {
                         <td className="py-3.5 px-5 font-semibold text-slate-500">{linked}</td>
                         <td className="py-3.5 px-5 text-center font-mono font-bold text-slate-450">{r.hsCode || 'N/A'}</td>
                         <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-600">
-                          {r.taxableValue ? `Rs ${format(r.taxableValue)}` : 'N/A'}
+                          {r.taxableValue ? `LKR ${format(r.taxableValue)}` : 'N/A'}
                         </td>
                         <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-455">
                           {r.rate ? `${r.rate}%` : 'N/A'}
@@ -427,7 +427,7 @@ const TaxDuty = () => {
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 font-extrabold uppercase mr-2">Total Liability:</span>
-                      <span className="font-mono font-extrabold text-slate-900">Rs {format(countryGroup.totalBaseAmount)}</span>
+                      <span className="font-mono font-extrabold text-slate-900">LKR {format(countryGroup.totalBaseAmount)}</span>
                     </div>
                   </div>
 
@@ -465,7 +465,7 @@ const TaxDuty = () => {
                                 <td className="py-3 px-5 font-semibold text-slate-550">{linked}</td>
                                 <td className="py-3 px-5 text-center font-mono font-bold text-slate-450">{r.hsCode || 'N/A'}</td>
                                 <td className="py-3 px-5 text-right font-mono font-bold text-slate-650">
-                                  {r.taxableValue ? `Rs ${format(r.taxableValue)}` : 'N/A'}
+                                  {r.taxableValue ? `LKR ${format(r.taxableValue)}` : 'N/A'}
                                 </td>
                                 <td className="py-3 px-5 text-right font-mono font-bold text-slate-455">
                                   {r.rate ? `${r.rate}%` : 'N/A'}

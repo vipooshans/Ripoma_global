@@ -23,8 +23,8 @@ const formatDateDdMmYyyy = (value) => {
 const formatMoney = (amount, currency = 'LKR') => {
   const n = Number(amount || 0).toFixed(2);
   const code = String(currency || 'LKR').toUpperCase();
-  // Storefront displays LKR as Rs (including legacy USD catalog values)
-  if (code === 'LKR' || code === 'RS' || code === 'RS.' || code === 'USD') return `Rs. ${n}`;
+  // Storefront displays LKR (including legacy USD catalog values)
+  if (code === 'LKR' || code === 'RS' || code === 'RS.' || code === 'USD') return `LKR ${n}`;
   return `${code} ${n}`;
 };
 

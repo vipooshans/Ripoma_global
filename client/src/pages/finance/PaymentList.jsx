@@ -121,13 +121,13 @@ const PaymentList = () => {
         <div className="border-r border-slate-800/60 md:pr-4">
           <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Total Inbound (Receivable)</p>
           <p className="text-lg font-mono font-extrabold text-emerald-450 mt-1">
-            Rs {format(data?.summary?.totalInbound)}
+            LKR {format(data?.summary?.totalInbound)}
           </p>
         </div>
         <div className="border-r border-slate-800/60 md:px-4">
           <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Total Outbound (Payable)</p>
           <p className="text-lg font-mono font-extrabold text-rose-450 mt-1">
-            Rs {format(data?.summary?.totalOutbound)}
+            LKR {format(data?.summary?.totalOutbound)}
           </p>
         </div>
         <div className="md:pl-4">
@@ -135,7 +135,7 @@ const PaymentList = () => {
           <p className={`text-lg font-mono font-extrabold mt-1 ${
             (data?.summary?.net >= 0) ? 'text-teal-400' : 'text-rose-500'
           }`}>
-            Rs {format(data?.summary?.net)}
+            LKR {format(data?.summary?.net)}
           </p>
         </div>
       </div>

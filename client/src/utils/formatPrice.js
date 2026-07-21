@@ -2,7 +2,7 @@ export const DEFAULT_CURRENCY = 'LKR';
 
 /**
  * Format a money amount for storefront / customer display.
- * Always shows "Rs" (LKR) so catalog items still stored as USD display correctly.
+ * Always shows "LKR" so catalog items still stored as USD display correctly.
  */
 export const formatPrice = (price, _currency = DEFAULT_CURRENCY) => {
   if (!price && price !== 0) return '—';
@@ -12,8 +12,8 @@ export const formatPrice = (price, _currency = DEFAULT_CURRENCY) => {
     maximumFractionDigits: 2
   });
 
-  return `Rs ${amount}`;
+  return `LKR ${amount}`;
 };
 
 /** Compact symbol for inline totals (tables, charts). */
-export const currencySymbol = (_currency = DEFAULT_CURRENCY) => 'Rs';
+export const currencySymbol = (_currency = DEFAULT_CURRENCY) => 'LKR';

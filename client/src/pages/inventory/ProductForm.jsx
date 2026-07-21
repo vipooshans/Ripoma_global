@@ -433,7 +433,7 @@ const ProductForm = () => {
               >
                 <option value="USD">USD ($)</option>
                 <option value="EUR">EUR (€)</option>
-                <option value="LKR">LKR (Rs)</option>
+                <option value="LKR">LKR</option>
                 <option value="INR">INR (₹)</option>
               </select>
             </div>

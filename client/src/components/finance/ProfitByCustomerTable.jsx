@@ -35,10 +35,10 @@ const ProfitByCustomerTable = ({ customers }) => {
                   <tr key={idx} className="hover:bg-slate-50/50 transition-all">
                     <td className="py-3.5 px-5 font-bold text-slate-700">{c.customer}</td>
                     <td className="py-3.5 px-5 text-center font-mono font-bold text-slate-450">{c.code || 'N/A'}</td>
-                    <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-700">Rs {format(c.revenue)}</td>
-                    <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-500">Rs {format(c.cogs)}</td>
+                    <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-700">LKR {format(c.revenue)}</td>
+                    <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-500">LKR {format(c.cogs)}</td>
                     <td className={`py-3.5 px-5 text-right font-mono font-extrabold ${isPositive ? 'text-teal-650' : 'text-rose-650'}`}>
-                      Rs {format(c.profit)}
+                      LKR {format(c.profit)}
                     </td>
                     <td className="py-3.5 px-5 text-center shrink-0">
                       <div className="flex items-center justify-center">

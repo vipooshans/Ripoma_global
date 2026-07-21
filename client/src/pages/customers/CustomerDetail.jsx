@@ -46,9 +46,9 @@ const CustomerDetail = () => {
   const balanceAlert = c.creditFlag;
   const kpiCards = [
     { title: 'Total Orders', value: stats?.totalOrders ?? '—', icon: ShoppingCart, colorClass: 'text-blue-600 bg-blue-50' },
-    { title: 'Total Revenue', value: stats?.totalRevenue ? `Rs ${stats.totalRevenue.toLocaleString()}` : 'Rs 0', icon: TrendingUp, colorClass: 'text-teal-600 bg-teal-50' },
-    { title: 'Outstanding Balance', value: `Rs ${(c.outstandingBalance || 0).toLocaleString()}`, icon: DollarSign, colorClass: balanceAlert === 'over_limit' ? 'text-rose-600 bg-rose-50' : balanceAlert === 'near_limit' ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-50', alert: balanceAlert },
-    { title: 'Avg Order Value', value: stats?.avgOrderValue ? `Rs ${Math.round(stats.avgOrderValue).toLocaleString()}` : '—', icon: BarChart2, colorClass: 'text-purple-600 bg-purple-50' }
+    { title: 'Total Revenue', value: stats?.totalRevenue ? `LKR ${stats.totalRevenue.toLocaleString()}` : 'LKR 0', icon: TrendingUp, colorClass: 'text-teal-600 bg-teal-50' },
+    { title: 'Outstanding Balance', value: `LKR ${(c.outstandingBalance || 0).toLocaleString()}`, icon: DollarSign, colorClass: balanceAlert === 'over_limit' ? 'text-rose-600 bg-rose-50' : balanceAlert === 'near_limit' ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-50', alert: balanceAlert },
+    { title: 'Avg Order Value', value: stats?.avgOrderValue ? `LKR ${Math.round(stats.avgOrderValue).toLocaleString()}` : '—', icon: BarChart2, colorClass: 'text-purple-600 bg-purple-50' }
   ];
 
   const handleDelete = async () => {

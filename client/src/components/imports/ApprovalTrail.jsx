@@ -10,7 +10,7 @@ const ApprovalTrail = ({ approvals = [], requiredLevels = 1, grandTotal = 0 }) =
           <span>Approvals Trail Status</span>
         </h3>
         <p className="text-[10px] text-slate-450 mt-0.5 font-semibold">
-          Order value is <strong className="font-bold">Rs {grandTotal?.toLocaleString()}</strong>, triggering a{' '}
+          Order value is <strong className="font-bold">LKR {grandTotal?.toLocaleString()}</strong>, triggering a{' '}
           <strong>{requiredLevels}-level approval Gate</strong>.
         </p>
       </div>

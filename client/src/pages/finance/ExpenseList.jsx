@@ -126,7 +126,7 @@ const ExpenseList = () => {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Expenses This Month</span>
           <p className="text-xl font-extrabold text-slate-950 mt-1 tracking-tight">
-            Rs {format(data?.summary?.totalThisMonth)}
+            LKR {format(data?.summary?.totalThisMonth)}
           </p>
           <span className="text-[9px] text-slate-450 mt-1 block">Includes all approved/paid categories</span>
         </div>
@@ -134,7 +134,7 @@ const ExpenseList = () => {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Pending Approval</span>
           <p className="text-xl font-extrabold text-indigo-650 mt-1 tracking-tight">
-            Rs {format(data?.summary?.pendingApproval)}
+            LKR {format(data?.summary?.pendingApproval)}
           </p>
           <span className="text-[9px] text-indigo-500/80 font-bold mt-1 block">Awaiting manager check</span>
         </div>
@@ -142,7 +142,7 @@ const ExpenseList = () => {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Awaiting Payment</span>
           <p className="text-xl font-extrabold text-orange-650 mt-1 tracking-tight">
-            Rs {format(data?.summary?.awaitingPayment)}
+            LKR {format(data?.summary?.awaitingPayment)}
           </p>
           <span className="text-[9px] text-orange-550 font-bold mt-1 block">Approved but unpaid expenses</span>
         </div>

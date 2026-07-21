@@ -35,7 +35,7 @@ const FinanceKpiRow = ({ kpiData, plSummary, isLoading }) => {
     {
       title: 'Gross Profit (MTD)',
       value: plSummary?.grossProfit || 0,
-      desc: `Gross margin: Rs {format(plSummary?.grossMargin)}%`,
+      desc: `Gross margin: LKR {format(plSummary?.grossMargin)}%`,
       icon: TrendingUp,
       color: (plSummary?.grossProfit >= 0) 
         ? 'text-teal-600 bg-teal-50 border-teal-100' 
@@ -51,7 +51,7 @@ const FinanceKpiRow = ({ kpiData, plSummary, isLoading }) => {
       color: 'text-teal-700 bg-teal-50 border-teal-200',
       isCurrency: true,
       alertBadge: kpiData?.overdueReceivables > 0 ? {
-        text: `Rs {format(kpiData.overdueReceivables)} overdue`,
+        text: `LKR {format(kpiData.overdueReceivables)} overdue`,
         color: 'bg-rose-100 text-rose-800'
       } : null
     },
@@ -63,7 +63,7 @@ const FinanceKpiRow = ({ kpiData, plSummary, isLoading }) => {
       color: 'text-coral-700 bg-orange-50 border-orange-200',
       isCurrency: true,
       alertBadge: kpiData?.overduePayables > 0 ? {
-        text: `Rs {format(kpiData.overduePayables)} overdue`,
+        text: `LKR {format(kpiData.overduePayables)} overdue`,
         color: 'bg-rose-100 text-rose-800 animate-pulse'
       } : null
     },

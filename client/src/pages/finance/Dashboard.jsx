@@ -225,7 +225,7 @@ const Dashboard = () => {
                     stroke="#94A3B8" 
                     fontSize={9} 
                     tickLine={false} 
-                    tickFormatter={(val) => `Rs ${val.toLocaleString()}`}
+                    tickFormatter={(val) => `LKR ${val.toLocaleString()}`}
                   />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', borderColor: '#E2E8F0' }} />
                   <Legend verticalAlign="top" height={36} iconSize={10} iconType="circle" />
@@ -266,7 +266,7 @@ const Dashboard = () => {
                     stroke="#94A3B8" 
                     fontSize={9} 
                     tickLine={false}
-                    tickFormatter={(val) => `Rs ${val.toLocaleString()}`}
+                    tickFormatter={(val) => `LKR ${val.toLocaleString()}`}
                   />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', borderColor: '#E2E8F0' }} />
                   <Area type="monotone" dataKey="Cumulative Position" stroke="#0D9488" strokeWidth={3} fillOpacity={1} fill="url(#colorCash)" />
@@ -305,7 +305,7 @@ const Dashboard = () => {
                   margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                  <XAxis type="number" stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={(val) => `Rs ${val}`} />
+                  <XAxis type="number" stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={(val) => `LKR ${val}`} />
                   <YAxis dataKey="category" type="category" stroke="#94A3B8" fontSize={8} width={85} tickLine={false} />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', borderColor: '#E2E8F0' }} />
                   <Bar dataKey="Amount" fill="#0F172A" radius={[0, 4, 4, 0]} maxBarSize={16} />
