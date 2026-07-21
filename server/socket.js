@@ -10,7 +10,7 @@ const init = (httpServer) => {
     cors: {
       origin: corsOriginDelegate,
       credentials: true,
-      methods: ['GET', 'POST']
+      methods: ['GET', 'POST', 'OPTIONS']
     }
   });
 

@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const morgan = require('morgan');
-const { corsOriginDelegate } = require('./utils/corsOrigins');
+const { corsOptions } = require('./utils/corsOrigins');
 
 const Role = require('./models/Role');
 const User = require('./models/User');
@@ -74,6 +74,10 @@ const { initCustomerOrderReminderCron } = require('./jobs/customerOrderReminders
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// CORS must run first so preflight OPTIONS always get ACAO headers
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 // Middleware
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -83,15 +87,6 @@ app.use(cookieParser());
 // Serve uploaded files (local dev storage adapter)
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// CORS config — FRONTEND_URL + CORS_ORIGINS + optional Pages preview hosts
-app.use(
-  cors({
-    origin: corsOriginDelegate,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
-  })
-);
 
 app.use(activityLogger);
 

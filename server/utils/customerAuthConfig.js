@@ -39,9 +39,12 @@ const getCustomerRefreshSecret = () =>
   process.env.CUSTOMER_JWT_REFRESH_SECRET ||
   (process.env.NODE_ENV === 'production' ? undefined : DEV_REFRESH_FALLBACK);
 
-const getFrontendUrl = () =>
-  process.env.FRONTEND_URL ||
-  (process.env.NODE_ENV === 'production' ? undefined : DEV_FRONTEND_URL);
+const getFrontendUrl = () => {
+  const raw =
+    process.env.FRONTEND_URL ||
+    (process.env.NODE_ENV === 'production' ? undefined : DEV_FRONTEND_URL);
+  return raw ? String(raw).replace(/\/+$/, '') : raw;
+};
 
 const getGoogleClientId = () => process.env.GOOGLE_CLIENT_ID || '';
 
