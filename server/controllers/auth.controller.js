@@ -53,11 +53,12 @@ exports.login = async (req, res) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // Set refresh token in httpOnly cookie
+    // Set refresh token in httpOnly cookie (SameSite=None required for Pages ↔ Workers)
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -112,10 +113,11 @@ exports.refresh = async (req, res) => {
 
 // POST /api/auth/logout
 exports.logout = (req, res) => {
+  const isProd = process.env.NODE_ENV === 'production';
   res.clearCookie('refreshToken', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict'
   });
   return res.status(200).json({ message: 'Logged out successfully.' });
 };

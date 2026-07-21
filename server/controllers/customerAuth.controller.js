@@ -59,18 +59,20 @@ const generateRefreshToken = (customer, sessionId) =>
     { expiresIn: `${REFRESH_DAYS}d` }
   );
 
+// Cross-site (Pages → Workers) needs SameSite=None; Secure. Local keeps Strict.
+const isProd = process.env.NODE_ENV === 'production';
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  secure: isProd,
+  sameSite: isProd ? 'none' : 'strict',
   maxAge: REFRESH_DAYS * 24 * 60 * 60 * 1000
 };
 
 const clearRefreshCookie = (res) => {
   res.clearCookie('customerRefreshToken', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict'
   });
 };
 
