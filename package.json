@@ -1,0 +1,16 @@
+{
+  "name": "ripoma-cloudflare",
+  "private": true,
+  "description": "Cloudflare Worker gateway + Container for Rippoma Express API",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "containers:list": "wrangler containers list"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.0.30"
+  },
+  "devDependencies": {
+    "wrangler": "^4.112.0"
+  }
+}

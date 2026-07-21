@@ -2,6 +2,35 @@
   "name": "ripomaglobal1",
   "main": "worker/src/index.js",
   "compatibility_date": "2026-07-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": {
+    "NODE_ENV": "production",
+    "FRONTEND_URL": "https://ripoma-global.pages.dev",
+    "CORS_PAGES_HOST": "ripoma-global.pages.dev"
+  },
+  "containers": [
+    {
+      "class_name": "RipomaApi",
+      "image": "./server/Dockerfile",
+      "max_instances": 3,
+      "instance_type": "basic"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RIPOMA_API",
+        "class_name": "RipomaApi"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RipomaApi"]
+    }
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

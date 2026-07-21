@@ -74,6 +74,9 @@ const { initCustomerOrderReminderCron } = require('./jobs/customerOrderReminders
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Behind Cloudflare Worker / reverse proxies
+app.set('trust proxy', 1);
+
 // CORS must run first so preflight OPTIONS always get ACAO headers
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
@@ -233,7 +236,7 @@ const socketIO = require('./socket');
 const server = http.createServer(app);
 socketIO.init(server);
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(
     `[CUSTOMER AUTH] Email verification on login: ${isEmailVerificationRequired() ? 'required' : 'disabled'}`
