@@ -28,7 +28,7 @@ const ReceivablesAgeingTable = ({ details = [], summary = {}, title = 'Ageing An
       <div className="flex justify-between items-center border-b border-slate-100 pb-3">
         <h3 className="font-extrabold text-slate-800 text-sm">{title}</h3>
         <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">
-          Total Owed: Rs {format(summary.total)}
+          Total Owed: LKR {format(summary.total)}
         </span>
       </div>
 
@@ -36,23 +36,23 @@ const ReceivablesAgeingTable = ({ details = [], summary = {}, title = 'Ageing An
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 bg-slate-50 border border-slate-150 rounded-xl p-4 text-center">
         <div>
           <p className="text-[9px] text-slate-450 font-extrabold uppercase tracking-wider">Current</p>
-          <p className="text-xs font-mono font-extrabold text-slate-650 mt-1">Rs {format(summary.not_yet_due)}</p>
+          <p className="text-xs font-mono font-extrabold text-slate-650 mt-1">LKR {format(summary.not_yet_due)}</p>
         </div>
         <div>
           <p className="text-[9px] text-teal-650 font-extrabold uppercase tracking-wider">0–30 Days</p>
-          <p className="text-xs font-mono font-extrabold text-teal-650 mt-1">Rs {format(summary['0-30d'])}</p>
+          <p className="text-xs font-mono font-extrabold text-teal-650 mt-1">LKR {format(summary['0-30d'])}</p>
         </div>
         <div>
           <p className="text-[9px] text-amber-600 font-extrabold uppercase tracking-wider">31–60 Days</p>
-          <p className="text-xs font-mono font-extrabold text-amber-600 mt-1">Rs {format(summary['31-60d'])}</p>
+          <p className="text-xs font-mono font-extrabold text-amber-600 mt-1">LKR {format(summary['31-60d'])}</p>
         </div>
         <div>
           <p className="text-[9px] text-rose-600 font-extrabold uppercase tracking-wider">61–90 Days</p>
-          <p className="text-xs font-mono font-extrabold text-rose-650 mt-1">Rs {format(summary['61-90d'])}</p>
+          <p className="text-xs font-mono font-extrabold text-rose-650 mt-1">LKR {format(summary['61-90d'])}</p>
         </div>
         <div>
           <p className="text-[9px] text-red-800 font-extrabold uppercase tracking-wider">90d+ Overdue</p>
-          <p className="text-xs font-mono font-extrabold text-red-850 mt-1">Rs {format(summary['90d_plus'])}</p>
+          <p className="text-xs font-mono font-extrabold text-red-850 mt-1">LKR {format(summary['90d_plus'])}</p>
         </div>
       </div>
 
@@ -81,7 +81,7 @@ const ReceivablesAgeingTable = ({ details = [], summary = {}, title = 'Ageing An
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="py-3 px-4 font-bold text-slate-700">{item.customerName || item.counterpartyName}</td>
                   <td className="py-3 px-4 font-mono font-semibold text-slate-500">{item.invoiceNumber || item.paymentNumber}</td>
-                  <td className="py-3 px-4 text-right font-mono font-bold">Rs {format(item.amount)}</td>
+                  <td className="py-3 px-4 text-right font-mono font-bold">LKR {format(item.amount)}</td>
                   <td className="py-3 px-4 font-semibold text-slate-500">
                     {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'N/A'}
                   </td>

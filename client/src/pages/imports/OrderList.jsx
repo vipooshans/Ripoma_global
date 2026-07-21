@@ -261,7 +261,7 @@ const OrderList = () => {
                     </td>
                     <td className="py-3.5 px-4 text-center font-bold text-slate-500">{o.items?.length || 0}</td>
                     <td className="py-3.5 px-4 text-right font-extrabold text-slate-950">
-                      {o.grandTotal ? `Rs ${o.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                      {o.grandTotal ? `LKR ${o.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                       <span className="text-[10px] text-slate-400 font-normal ml-1">{o.currency}</span>
                     </td>
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">

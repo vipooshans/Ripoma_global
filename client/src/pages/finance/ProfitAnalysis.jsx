@@ -256,7 +256,7 @@ const ProfitAnalysis = () => {
                     stroke="#94A3B8" 
                     fontSize={9} 
                     tickLine={false} 
-                    tickFormatter={(val) => `Rs ${val.toLocaleString()}`}
+                    tickFormatter={(val) => `LKR ${val.toLocaleString()}`}
                   />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', borderColor: '#E2E8F0' }} />
                   <Line type="monotone" dataKey="netProfit" stroke="#0D9488" strokeWidth={3} activeDot={{ r: 5 }} dot={{ strokeWidth: 1.5, r: 2.5 }} />
@@ -296,7 +296,7 @@ const ProfitAnalysis = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => `Rs ${value.toLocaleString()}`} />
+                  <Tooltip formatter={(value) => `LKR ${value.toLocaleString()}`} />
                   <Legend layout="horizontal" verticalAlign="bottom" align="center" iconSize={8} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
@@ -362,10 +362,10 @@ const ProfitAnalysis = () => {
                             <td className="py-3 px-5 font-mono font-bold text-teal-650">{p.sku}</td>
                             <td className="py-3 px-5 font-bold text-slate-700 truncate max-w-[150px]">{p.name}</td>
                             <td className="py-3 px-5 text-center font-bold text-slate-500 font-mono">{p.unitsSold}</td>
-                            <td className="py-3 px-5 text-right font-mono font-bold text-slate-700">Rs {format(p.revenue)}</td>
-                            <td className="py-3 px-5 text-right font-mono font-bold text-slate-500">Rs {format(p.cogs)}</td>
+                            <td className="py-3 px-5 text-right font-mono font-bold text-slate-700">LKR {format(p.revenue)}</td>
+                            <td className="py-3 px-5 text-right font-mono font-bold text-slate-500">LKR {format(p.cogs)}</td>
                             <td className={`py-3 px-5 text-right font-mono font-extrabold ${isPositive ? 'text-teal-650' : 'text-rose-650'}`}>
-                              Rs {format(p.profit)}
+                              LKR {format(p.profit)}
                             </td>
                             <td className="py-3 px-5 text-center shrink-0">
                               <div className="flex items-center justify-center">

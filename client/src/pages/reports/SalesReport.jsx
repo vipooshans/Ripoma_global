@@ -50,7 +50,7 @@ const SalesReport = () => {
   }, [filters.dateFrom, filters.dateTo]);
 
   const formatCurrency = (val) => {
-    return `Rs ${(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `LKR ${(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Determine dynamic columns based on groupBy choice
@@ -167,7 +167,7 @@ const SalesReport = () => {
                 <ComposedChart data={trendData} margin={{ top: 10, right: -5, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="month" stroke="#94A3B8" fontSize={9} tickLine={false} />
-                  <YAxis yAxisId="left" stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `Rs ${v}`} />
+                  <YAxis yAxisId="left" stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `LKR ${v}`} />
                   <YAxis yAxisId="right" orientation="right" stroke="#94A3B8" fontSize={9} tickLine={false} />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
                   <Legend iconType="circle" iconSize={8} />
@@ -200,7 +200,7 @@ const SalesReport = () => {
                   margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                  <XAxis type="number" stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `Rs ${v}`} />
+                  <XAxis type="number" stroke="#94A3B8" fontSize={9} tickLine={false} tickFormatter={v => `LKR ${v}`} />
                   <YAxis dataKey="name" type="category" stroke="#94A3B8" fontSize={8} width={85} tickLine={false} />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
                   <Bar dataKey="revenue" fill="#1E3A5F" name="Revenue ($)" radius={[0, 4, 4, 0]} maxBarSize={14} />

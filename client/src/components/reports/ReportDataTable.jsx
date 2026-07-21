@@ -80,7 +80,7 @@ const ReportDataTable = ({ columns = [], data = [], defaultSortKey = '' }) => {
     
     const isMoney = /revenue|cogs|expense|profit|amount|total|charge|cost|price/i.test(col);
     if (isMoney && typeof val === 'number') {
-      return `Rs ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `LKR ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
     
     if (typeof val === 'number') {

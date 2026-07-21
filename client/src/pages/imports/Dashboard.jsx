@@ -64,7 +64,7 @@ const Dashboard = () => {
     },
     {
       title: 'Spend This Month',
-      value: `Rs ${(dash?.kpis?.totalMonthValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      value: `LKR ${(dash?.kpis?.totalMonthValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       desc: 'Excludes draft & cancelled orders',
       icon: TrendingUp,
       color: 'text-emerald-600 bg-emerald-50 border-emerald-100'
@@ -171,7 +171,7 @@ const Dashboard = () => {
                   <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} />
                   <Tooltip
                     contentStyle={{ fontSize: '11px', borderRadius: '8px', borderColor: '#E2E8F0' }}
-                    formatter={(val) => [`Rs ${val.toLocaleString()}`, 'Total Spend']}
+                    formatter={(val) => [`LKR ${val.toLocaleString()}`, 'Total Spend']}
                   />
                   <Line type="monotone" dataKey="spend" stroke="#0D9488" strokeWidth={3} activeDot={{ r: 6 }} dot={{ strokeWidth: 2, r: 3 }} />
                 </LineChart>

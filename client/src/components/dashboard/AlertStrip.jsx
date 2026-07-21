@@ -18,14 +18,14 @@ const AlertStrip = ({ alerts, onDismiss }) => {
       key: 'invoices',
       icon: FileText,
       color: 'rose',
-      message: `${alerts.overdueInvoices.count} overdue invoice${alerts.overdueInvoices.count > 1 ? 's' : ''} — Rs ${Number(alerts.overdueInvoices.totalAmount).toLocaleString()} outstanding`,
+      message: `${alerts.overdueInvoices.count} overdue invoice${alerts.overdueInvoices.count > 1 ? 's' : ''} — LKR ${Number(alerts.overdueInvoices.totalAmount).toLocaleString()} outstanding`,
       link: '/finance/payments',
     },
     alerts.overduePayments?.count > 0 && {
       key: 'payments',
       icon: AlertTriangle,
       color: 'orange',
-      message: `${alerts.overduePayments.count} overdue payment${alerts.overduePayments.count > 1 ? 's' : ''} — Rs ${Number(alerts.overduePayments.totalAmount).toLocaleString()} due`,
+      message: `${alerts.overduePayments.count} overdue payment${alerts.overduePayments.count > 1 ? 's' : ''} — LKR ${Number(alerts.overduePayments.totalAmount).toLocaleString()} due`,
       link: '/finance/payments',
     },
     alerts.lowStockProducts?.count > 0 && {
