@@ -1,5 +1,7 @@
 {
   "name": "ripomaglobal1",
+  "main": "worker/src/index.js",
+  "compatibility_date": "2026-07-21",
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

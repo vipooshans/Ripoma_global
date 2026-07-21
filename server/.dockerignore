@@ -1,0 +1,8 @@
+# Ignore local/dev artefacts when building the API image
+node_modules
+uploads
+.env
+.env.*
+*.log
+.git
+.gitignore
