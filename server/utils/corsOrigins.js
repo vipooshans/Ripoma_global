@@ -2,24 +2,37 @@
  * Build the list of allowed browser origins for CORS / Socket.IO.
  *
  * Supports:
- * - FRONTEND_URL (primary production / local URL)
+ * - FRONTEND_URL (primary production / local URL; trailing slash ignored)
  * - CORS_ORIGINS (comma-separated extra origins)
- * - Cloudflare Pages preview hosts: https://*.<project>.pages.dev
+ * - CORS_PAGES_HOST (e.g. ripoma-global.pages.dev) for all Pages + preview URLs
  * - Local Vite ports
  */
 
 const LOCAL_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
 
+/** Default Pages project host for this product (override with CORS_PAGES_HOST). */
+const DEFAULT_PAGES_HOST = 'ripoma-global.pages.dev';
+
+const normalizeOrigin = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return raw.replace(/\/+$/, '');
+  }
+};
+
 const parseList = (value) =>
   String(value || '')
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => normalizeOrigin(s))
     .filter(Boolean);
 
 /** Build regex that allows https://project.pages.dev and https://*.project.pages.dev */
 const pagesHostPattern = (pagesHost) => {
-  const host = String(pagesHost || '')
-    .trim()
+  const host = normalizeOrigin(pagesHost)
     .replace(/^https?:\/\//i, '')
     .replace(/\/$/, '');
   if (!host.endsWith('.pages.dev')) return null;
@@ -29,9 +42,8 @@ const pagesHostPattern = (pagesHost) => {
 
 const pagesPreviewPatternFromUrl = (url) => {
   try {
-    const { hostname } = new URL(url);
+    const { hostname } = new URL(normalizeOrigin(url) || url);
     if (!hostname.endsWith('.pages.dev')) return null;
-    // hash.project.pages.dev → project.pages.dev; project.pages.dev stays
     const parts = hostname.split('.');
     const projectHost = parts.length > 3 ? parts.slice(-3).join('.') : hostname;
     return pagesHostPattern(projectHost);
@@ -41,34 +53,61 @@ const pagesPreviewPatternFromUrl = (url) => {
 };
 
 const getAllowedOrigins = () => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = normalizeOrigin(process.env.FRONTEND_URL || 'http://localhost:5173');
   const extras = parseList(process.env.CORS_ORIGINS);
-  const origins = [...new Set([frontendUrl, ...extras, ...LOCAL_ORIGINS])];
+  const origins = [...new Set([frontendUrl, ...extras, ...LOCAL_ORIGINS].filter(Boolean))];
 
-  // Prefer explicit CORS_PAGES_HOST=ripoma-global.pages.dev for all preview deploys
+  const pagesHost = process.env.CORS_PAGES_HOST || DEFAULT_PAGES_HOST;
   const previewRe =
-    pagesHostPattern(process.env.CORS_PAGES_HOST) || pagesPreviewPatternFromUrl(frontendUrl);
+    pagesHostPattern(pagesHost) ||
+    pagesPreviewPatternFromUrl(frontendUrl) ||
+    pagesHostPattern(DEFAULT_PAGES_HOST);
 
   return { origins, previewRe };
 };
 
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const normalized = normalizeOrigin(origin);
+  const { origins, previewRe } = getAllowedOrigins();
+  return origins.includes(normalized) || Boolean(previewRe && previewRe.test(normalized));
+};
+
 /**
  * cors / socket.io compatible origin checker.
- * Returns the request origin when allowed, or false.
  */
 const corsOriginDelegate = (origin, callback) => {
-  // Non-browser / same-origin requests may omit Origin
   if (!origin) return callback(null, true);
 
-  const { origins, previewRe } = getAllowedOrigins();
-  if (origins.includes(origin) || (previewRe && previewRe.test(origin))) {
+  if (isOriginAllowed(origin)) {
     return callback(null, true);
   }
 
+  console.warn(`[CORS] Blocked origin: ${origin}`);
   return callback(null, false);
 };
 
+/** Express cors() options used by server.js */
+const corsOptions = {
+  origin: corsOriginDelegate,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Cookie'
+  ],
+  exposedHeaders: ['Set-Cookie'],
+  optionsSuccessStatus: 204
+};
+
 module.exports = {
+  normalizeOrigin,
   getAllowedOrigins,
-  corsOriginDelegate
+  isOriginAllowed,
+  corsOriginDelegate,
+  corsOptions
 };
