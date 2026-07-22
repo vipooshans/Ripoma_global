@@ -73,6 +73,8 @@ async function proxyToOrigin(request, apiOrigin) {
   headers.delete('host');
   headers.set('X-Forwarded-Host', incoming.host);
   headers.set('X-Forwarded-Proto', incoming.protocol.replace(':', ''));
+  // localtunnel interstitial bypass (harmless for Render/Fly)
+  headers.set('Bypass-Tunnel-Reminder', 'true');
 
   const init = {
     method: request.method,
@@ -85,7 +87,28 @@ async function proxyToOrigin(request, apiOrigin) {
     init.duplex = 'half';
   }
 
-  return fetch(target.toString(), init);
+  const upstream = await fetch(target.toString(), init);
+
+  // Surface upstream failures clearly (do not collapse into opaque 503)
+  if (upstream.status >= 502) {
+    const detail = await upstream.text().catch(() => '');
+    console.error('[proxy] upstream error', target.toString(), upstream.status, detail.slice(0, 500));
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'upstream_error',
+        status: upstream.status,
+        target: target.toString(),
+        detail: detail.slice(0, 2000)
+      }),
+      {
+        status: upstream.status,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+  }
+
+  return upstream;
 }
 
 export default {
@@ -125,9 +148,11 @@ export default {
     if (!apiOrigin) {
       return new Response(
         JSON.stringify({
+          success: false,
           error: 'api_origin_missing',
           message:
-            'Set the API_ORIGIN secret to your Express base URL (e.g. https://YOUR-SERVICE.onrender.com), then redeploy.'
+            'Express is not running inside this Worker. Set secret API_ORIGIN to your Node host (Render/Fly/Railway), e.g. https://YOUR-SERVICE.onrender.com',
+          hint: 'npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc'
         }),
         {
           status: 503,
@@ -146,9 +171,11 @@ export default {
       console.error('[proxy] failed:', error);
       return new Response(
         JSON.stringify({
+          success: false,
           error: 'backend_unavailable',
           message: `Could not reach API_ORIGIN (${apiOrigin}).`,
-          detail: String(error?.message || error)
+          detail: String(error?.message || error),
+          stack: String(error?.stack || '')
         }),
         {
           status: 503,
