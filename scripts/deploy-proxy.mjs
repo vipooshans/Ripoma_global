@@ -5,9 +5,11 @@
  * Usage: node scripts/deploy-proxy.mjs
  * Then set: npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc
  */
-const { spawnSync } = require('child_process');
-const path = require('path');
+import { spawnSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const config = 'wrangler.proxy.jsonc';
 
