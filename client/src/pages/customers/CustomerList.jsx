@@ -9,6 +9,7 @@ import {
   X, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, Crown
 } from 'lucide-react';
 import api from '../../services/api';
+import { apiUrl } from '../../config/apiBase';
 
 const STATUS_COLORS = {
   active: 'bg-teal-50 text-teal-700 border-teal-200',
@@ -89,7 +90,7 @@ const CustomerList = () => {
           <button onClick={() => setImportModal(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-2 px-3.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5">
             <Upload size={13} /> Import CSV
           </button>
-          <a href="http://localhost:5000/api/customers/export" download className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-2 px-3.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5">
+          <a href={apiUrl('/customers/export')} download className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-2 px-3.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5">
             <Download size={13} /> Export CSV
           </a>
           <Link to="/customers/add" className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5">

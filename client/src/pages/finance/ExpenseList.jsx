@@ -19,6 +19,7 @@ import { ExpenseStatusBadge, ExpensePaymentStatusBadge } from '../../components/
 import CurrencyAmountDisplay from '../../components/finance/CurrencyAmountDisplay';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { apiUrl } from '../../config/apiBase';
 
 const ExpenseList = () => {
   const navigate = useNavigate();
@@ -81,7 +82,7 @@ const ExpenseList = () => {
       dateFrom,
       dateTo
     }).toString();
-    window.open(`http://localhost:5000/api/expenses/export?${query}`, '_blank');
+    window.open(apiUrl(`/expenses/export?${query}`), '_blank');
   };
 
   const categories = [

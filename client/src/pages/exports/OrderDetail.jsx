@@ -13,6 +13,7 @@ import { documentService } from '../../services/documentService';
 import ExportOrderStatusBadge from '../../components/exports/ExportOrderStatusBadge';
 import PaymentStatusBadge from '../../components/exports/PaymentStatusBadge';
 import LineItemsTable from '../../components/exports/LineItemsTable';
+import { apiUrl } from '../../config/apiBase';
 import OrderTotalsSidebar from '../../components/exports/OrderTotalsSidebar';
 import OrderTimelineLog from '../../components/exports/OrderTimelineLog';
 import PaymentHistoryList from '../../components/exports/PaymentHistoryList';
@@ -407,7 +408,7 @@ const OrderDetail = () => {
                         </div>
                         {doc.url && (
                           <a
-                            href={doc.url.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}${doc.url}` : doc.url}
+                            href={doc.url.startsWith('/') ? apiUrl(doc.url.replace(/^\/api/, '') || doc.url) : doc.url}
                             target="_blank"
                             rel="noreferrer"
                             className="text-indigo-600 hover:text-indigo-800 font-bold"

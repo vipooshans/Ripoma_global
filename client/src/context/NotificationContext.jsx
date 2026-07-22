@@ -6,9 +6,11 @@ import { AuthContext } from './AuthContext';
 import api from '../services/api';
 import NotificationToast from '../components/notifications/NotificationToast';
 
+import { SOCKET_BASE_URL } from '../config/apiBase';
+
 export const NotificationContext = createContext(null);
 
-const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const socketUrl = SOCKET_BASE_URL;
 
 const getAuthToken = () => {
   // Check common Authorization header

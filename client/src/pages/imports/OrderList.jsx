@@ -16,6 +16,7 @@ import {
 import POStatusBadge from '../../components/imports/POStatusBadge';
 import PriorityBadge from '../../components/imports/PriorityBadge';
 import api from '../../services/api';
+import { apiUrl } from '../../config/apiBase';
 
 const OrderList = () => {
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ const OrderList = () => {
 
   const handleExportCSV = () => {
     // Open export route in a new tab or trigger download
-    window.open(`${api.defaults.baseURL || 'http://localhost:5000/api'}/import-orders/export`, '_blank');
+    window.open(apiUrl('/import-orders/export'), '_blank');
   };
 
   const orders = orderData?.orders || [];

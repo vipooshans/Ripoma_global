@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBase';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
@@ -109,12 +110,9 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
+      // Use the same axios instance so baseURL stays absolute and method stays POST
       const refreshPath = isCustomer ? '/customer-auth/refresh' : '/auth/refresh';
-      const response = await axios.post(
-        `${api.defaults.baseURL}${refreshPath}`,
-        {},
-        { withCredentials: true }
-      );
+      const response = await api.post(refreshPath, {});
       const { accessToken } = response.data;
 
       if (isCustomer) {

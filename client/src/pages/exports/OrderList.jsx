@@ -4,6 +4,7 @@ import { useExportOrders } from '../../hooks/useExportOrders';
 import { useCustomers } from '../../hooks/useCustomers';
 import ExportOrderStatusBadge from '../../components/exports/ExportOrderStatusBadge';
 import PaymentStatusBadge from '../../components/exports/PaymentStatusBadge';
+import { apiUrl } from '../../config/apiBase';
 
 const OrderList = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const OrderList = () => {
       priority,
       sort
     });
-    const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/export-orders/export?${params.toString()}`;
+    const url = apiUrl(`/export-orders/export?${params.toString()}`);
     window.open(url, '_blank');
   };
 

@@ -27,6 +27,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import api from '../../services/api';
+import { apiUrl } from '../../config/apiBase';
 
 const ProductList = () => {
   const navigate = useNavigate();
@@ -227,7 +228,7 @@ const ProductList = () => {
             <span>Import CSV</span>
           </button>
           <a
-            href="http://localhost:5000/api/products/export"
+            href={apiUrl('/products/export')}
             download
             className="bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 py-2 px-3.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
           >
