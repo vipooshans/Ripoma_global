@@ -1,28 +1,14 @@
-const PdfPrinter = require('pdfmake/js/printer').default;
+const pdfmake = require('pdfmake');
 
-// Initialize the printer with built-in Helvetica fonts to avoid disk TTF load overhead
-const fonts = {
+// Built-in Helvetica (Standard 14) — no disk TTF load
+pdfmake.addFonts({
   Helvetica: {
     normal: 'Helvetica',
     bold: 'Helvetica-Bold',
-    italic: 'Helvetica-Oblique',
-    bolditalic: 'Helvetica-BoldOblique'
+    italics: 'Helvetica-Oblique',
+    bolditalics: 'Helvetica-BoldOblique'
   }
-};
-const printer = new PdfPrinter(fonts);
-
-/**
- * Helper to collect a PDFKit stream into a Buffer
- */
-const getPdfBuffer = (pdfDoc) => {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    pdfDoc.on('data', chunk => chunks.push(chunk));
-    pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-    pdfDoc.on('error', err => reject(err));
-    pdfDoc.end();
-  });
-};
+});
 
 /**
  * Generates a PDF file buffer from tabular data.
@@ -156,9 +142,8 @@ const buildPdf = async (columns, data, reportName = 'Operational Report', dateRa
     }
   };
 
-  const pdfDoc = printer.createPdfKitDocument(docDefinition);
-  const buffer = await getPdfBuffer(pdfDoc);
-  
+  const buffer = await pdfmake.createPdf(docDefinition).getBuffer();
+
   return {
     buffer,
     mimeType: 'application/pdf'
