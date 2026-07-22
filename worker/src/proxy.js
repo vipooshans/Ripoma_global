@@ -89,20 +89,35 @@ async function proxyToOrigin(request, apiOrigin) {
 
   const upstream = await fetch(target.toString(), init);
 
-  // Surface upstream failures clearly (do not collapse into opaque 503)
+  // Cloudflare origin/tunnel failures (502/503/520/521/522/523/524/525/530)
   if (upstream.status >= 502) {
     const detail = await upstream.text().catch(() => '');
-    console.error('[proxy] upstream error', target.toString(), upstream.status, detail.slice(0, 500));
+    console.error('[proxy] upstream error', {
+      target: target.toString(),
+      status: upstream.status,
+      detail: detail.slice(0, 500)
+    });
+
+    const isTunnelDead =
+      upstream.status === 530 ||
+      /Origin DNS error|Tunnel Unavailable|Error 1016|Error 1033/i.test(detail);
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'upstream_error',
+        error: isTunnelDead ? 'api_origin_unreachable' : 'upstream_error',
         status: upstream.status,
         target: target.toString(),
-        detail: detail.slice(0, 2000)
+        message: isTunnelDead
+          ? 'API_ORIGIN tunnel/host is down. Start Express (and cloudflared), or set API_ORIGIN to a permanent Render/Fly URL.'
+          : 'Upstream API returned an error gateway status.',
+        detail: detail.includes('<!DOCTYPE')
+          ? detail.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)
+          : detail.slice(0, 2000)
       }),
       {
-        status: upstream.status,
+        // Prefer 503 for clients; keep original CF code in body.status
+        status: 503,
         headers: { 'Content-Type': 'application/json' }
       }
     );
