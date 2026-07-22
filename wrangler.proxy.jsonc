@@ -1,0 +1,28 @@
+/**
+ * Proxy-only Worker (no Cloudflare Containers).
+ * Use when Express runs on Render / Fly / Railway.
+ *
+ *   npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc
+ *   # value: https://YOUR-SERVICE.onrender.com
+ *   npm run deploy:proxy
+ */
+{
+  "name": "ripomaglobal1",
+  "main": "worker/src/proxy.js",
+  "compatibility_date": "2026-07-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": {
+    "NODE_ENV": "production",
+    "FRONTEND_URL": "https://ripoma-global.pages.dev",
+    "CORS_PAGES_HOST": "ripoma-global.pages.dev"
+  },
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "enabled": true,
+      "persist": true,
+      "invocation_logs": true
+    }
+  }
+}

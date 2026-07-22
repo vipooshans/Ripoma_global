@@ -1,3 +1,14 @@
+/**
+ * Rippoma API gateway.
+ *
+ * Deploy: npm run deploy  (Docker Desktop must be running for Containers)
+ *
+ * Mode A — Containers: set secrets (MONGODB_URI, JWT_*, CUSTOMER_JWT_*, …)
+ * Mode B — External Express: also set secret API_ORIGIN=https://….onrender.com
+ *          (Worker proxies; Containers still deploy but are unused when API_ORIGIN is set)
+ *
+ * Pages frontend vars: see client/.env.production.example
+ */
 {
   "name": "ripomaglobal1",
   "main": "worker/src/index.js",
@@ -8,6 +19,7 @@
     "NODE_ENV": "production",
     "FRONTEND_URL": "https://ripoma-global.pages.dev",
     "CORS_PAGES_HOST": "ripoma-global.pages.dev"
+    // Optional plaintext: "API_ORIGIN": "https://YOUR-SERVICE.onrender.com"
   },
   "containers": [
     {
