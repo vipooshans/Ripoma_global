@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../../config/apiBase';
 
 const InvoiceActionsSidebar = ({ invoice, onSend, onPay, isSending, isPaying }) => {
   const [showPayModal, setShowPayModal] = useState(false);
@@ -12,10 +13,7 @@ const InvoiceActionsSidebar = ({ invoice, onSend, onPay, isSending, isPaying }) 
   };
 
   const handleDownloadPdf = () => {
-    // Points directly to the backend PDF generation endpoint
-    const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/invoices/${invoice._id}/pdf`;
-    // We can open in a new tab or trigger direct download
-    window.open(url, '_blank');
+    window.open(apiUrl(`/invoices/${invoice._id}/pdf`), '_blank');
   };
 
   const handleSubmitPayment = (e) => {

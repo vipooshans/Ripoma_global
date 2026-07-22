@@ -15,6 +15,7 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { SOCKET_BASE_URL } from '../../config/apiBase';
 import { 
   useExpenseDetail, 
   useSubmitExpense, 
@@ -335,7 +336,7 @@ const ExpenseDetail = () => {
                   <span className="block text-[9px] text-slate-400">Attached receipt</span>
                 </div>
                 <a
-                  href={`http://localhost:5000${e.receiptUrl}`}
+                  href={`${SOCKET_BASE_URL}${e.receiptUrl}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-650 hover:underline mx-auto"

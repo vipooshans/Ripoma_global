@@ -16,6 +16,7 @@ import OverduePill from '../../components/finance/OverduePill';
 import CurrencyAmountDisplay from '../../components/finance/CurrencyAmountDisplay';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { apiUrl } from '../../config/apiBase';
 
 const PaymentList = () => {
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ const PaymentList = () => {
     }).toString();
     
     // Set windows location to trigger backend CSV download stream
-    window.open(`http://localhost:5000/api/payments/export?${query}`, '_blank');
+    window.open(apiUrl(`/payments/export?${query}`), '_blank');
   };
 
   return (
