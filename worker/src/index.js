@@ -1,8 +1,11 @@
 /**
- * Cloudflare Worker + Container gateway for the Rippoma Express API.
+ * Cloudflare Worker gateway for the Rippoma Express API.
  *
- * - OPTIONS / CORS answered at the edge (fast preflight)
- * - All other traffic proxied into the Node container (server/Dockerfile)
+ * Mode A — Cloudflare Containers (default): Express runs in server/Dockerfile
+ * Mode B — External origin: set secret/var API_ORIGIN (e.g. Render/Fly/Railway URL)
+ *          and the Worker reverse-proxies all traffic there.
+ *
+ * Express cannot run as a pure Worker (mongoose, socket.io, node-cron, sharp, pdfmake).
  */
 
 import { Container, getContainer } from '@cloudflare/containers';
@@ -16,10 +19,12 @@ const ALLOWED_ORIGINS = new Set([
 
 const PAGES_PREVIEW = /^https:\/\/([a-z0-9-]+\.)?ripoma-global\.pages\.dev$/i;
 
+/** Secrets / vars forwarded into the Container process env */
 const CONTAINER_ENV_KEYS = [
   'MONGODB_URI',
   'FRONTEND_URL',
   'CORS_PAGES_HOST',
+  'CORS_ORIGINS',
   'NODE_ENV',
   'JWT_SECRET',
   'JWT_REFRESH_SECRET',
@@ -30,6 +35,7 @@ const CONTAINER_ENV_KEYS = [
   'EMAIL_FROM',
   'SMTP_HOST',
   'SMTP_PORT',
+  'SMTP_SECURE',
   'SMTP_USER',
   'SMTP_PASS',
   'STORAGE_PROVIDER',
@@ -41,12 +47,31 @@ const CONTAINER_ENV_KEYS = [
   'R2_ACCOUNT_ID',
   'R2_ACCESS_KEY_ID',
   'R2_SECRET_ACCESS_KEY',
-  'R2_BUCKET_NAME',
-  'R2_PUBLIC_BASE_URL'
+  'R2_PRODUCT_BUCKET',
+  'R2_PUBLIC_URL',
+  'OPEN_EXCHANGE_RATES_APP_ID'
 ];
+
+function normalizeOrigin(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return raw.replace(/\/+$/, '');
+  }
+}
 
 function isAllowedOrigin(origin) {
   if (!origin) return false;
+  const frontend = normalizeOrigin(env.FRONTEND_URL);
+  if (frontend && origin === frontend) return true;
+  const extras = String(env.CORS_ORIGINS || '')
+    .split(',')
+    .map((s) => normalizeOrigin(s))
+    .filter(Boolean);
+  if (extras.includes(origin)) return true;
   return ALLOWED_ORIGINS.has(origin) || PAGES_PREVIEW.test(origin);
 }
 
@@ -96,12 +121,47 @@ function withCors(response, origin) {
   });
 }
 
+function getApiOrigin() {
+  const raw = env.API_ORIGIN;
+  if (!raw) return '';
+  return String(raw).replace(/\/+$/, '');
+}
+
+/**
+ * Reverse-proxy the incoming request to an external Express host (Render, etc.).
+ */
+async function proxyToOrigin(request, apiOrigin) {
+  const incoming = new URL(request.url);
+  const target = new URL(incoming.pathname + incoming.search, apiOrigin);
+
+  const headers = new Headers(request.headers);
+  headers.delete('host');
+  headers.set('X-Forwarded-Host', incoming.host);
+  headers.set('X-Forwarded-Proto', incoming.protocol.replace(':', ''));
+
+  const init = {
+    method: request.method,
+    headers,
+    redirect: 'manual'
+  };
+
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    init.body = request.body;
+    // Required for streaming request bodies in Workers
+    init.duplex = 'half';
+  }
+
+  return fetch(target.toString(), init);
+}
+
 export class RipomaApi extends Container {
   defaultPort = 8080;
   // Keep warm longer so Mongo + cron survive short idle gaps
   sleepAfter = '30m';
   enableInternet = true;
   envVars = buildContainerEnvVars();
+  // Express exposes GET /health after boot
+  pingEndpoint = '/health';
 
   onStart() {
     console.log('[RipomaApi] container started');
@@ -119,6 +179,7 @@ export class RipomaApi extends Container {
 export default {
   async fetch(request, workerEnv) {
     const origin = request.headers.get('Origin') || '';
+    const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -127,17 +188,47 @@ export default {
       });
     }
 
+    // Friendly root — this is an API gateway, not a website
+    if (url.pathname === '/' && request.method === 'GET') {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          service: 'ripoma-api-gateway',
+          mode: getApiOrigin() ? 'api_origin' : 'container',
+          health: '/health',
+          api: '/api'
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders(origin)
+          }
+        }
+      );
+    }
+
+    const apiOrigin = getApiOrigin();
+
     try {
-      const container = getContainer(workerEnv.RIPOMA_API);
-      const upstream = await container.fetch(request);
+      let upstream;
+
+      if (apiOrigin) {
+        upstream = await proxyToOrigin(request, apiOrigin);
+      } else {
+        const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
+        upstream = await container.fetch(request);
+      }
+
       return withCors(upstream, origin);
     } catch (error) {
       console.error('[RipomaApi] proxy failed:', error);
       return new Response(
         JSON.stringify({
-          error: 'container_unavailable',
-          message:
-            'Rippoma API container is starting or unavailable. Wait a minute and retry. Ensure Workers Paid + Containers are enabled and secrets are set.',
+          error: 'backend_unavailable',
+          message: apiOrigin
+            ? `Could not reach API_ORIGIN (${apiOrigin}). Check the Render/Fly URL and that Express is running.`
+            : 'Rippoma API container is starting or unavailable. Wait a minute and retry, or set API_ORIGIN to an external Express host. Requires Workers Paid + Containers when not using API_ORIGIN.',
           detail: String(error?.message || error)
         }),
         {

@@ -217,7 +217,16 @@ app.use('/api/activity-log', activityLogRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.get('/api/search', authMiddleware, globalSearch);
 
-// Health check
+// Root + health (used by Containers pingEndpoint and load balancers)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: 'ripoma-api',
+    health: '/health',
+    api: '/api'
+  });
+});
+
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'healthy', timestamp: new Date() });
 });

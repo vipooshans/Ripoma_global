@@ -265,6 +265,84 @@ Serve the `client/dist` folder with your preferred static host (Nginx, Vercel, S
 
 ---
 
+## Cloudflare production deploy
+
+The Express API **cannot** run as a pure Cloudflare Worker (it needs MongoDB via mongoose, Socket.IO, `node-cron`, `sharp`, `pdfmake`, and the filesystem). Deploy it as:
+
+- **Mode A:** Cloudflare Worker + **Containers** (`wrangler.jsonc` + `server/Dockerfile`), or
+- **Mode B:** Express on **Render / Fly / Railway**, with a thin Worker that reverse-proxies (`wrangler.proxy.jsonc`).
+
+The live error `api_not_deployed` means an old stub Worker is still published — redeploy with one of the modes below.
+
+### Mode B (recommended if you already use Render)
+
+> **Important:** Express cannot run as a pure Worker. Cloudflare **Containers** also require the **Workers Paid** plan (this account currently cannot list containers). Use Render/Fly for Express, then proxy with the Worker.
+
+1. Deploy `server/` to Render (Root Directory: `server`, Start: `npm start`, Node 20+).
+2. Set Render env: `NODE_ENV`, `MONGODB_URI`, `FRONTEND_URL`, `JWT_*`, `CUSTOMER_JWT_*`, SMTP, etc. (see Environment Variables above).
+3. On the **same Cloudflare account** that owns `*.ripomaglobal.workers.dev`, open  
+   [Workers onboarding](https://dash.cloudflare.com/?to=/:account/workers/onboarding) and register the `workers.dev` subdomain if prompted.
+4. Point the Worker at Render and publish:
+
+```bash
+# from repo root
+npm install
+npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc
+# paste: https://YOUR-SERVICE.onrender.com   (no /api, no trailing slash)
+npm run deploy:proxy
+```
+
+5. Cloudflare Pages env (build-time) — see `client/.env.production.example`:
+
+```env
+VITE_API_URL=https://ripomaglobal1.ripomaglobal.workers.dev/api
+VITE_SOCKET_URL=https://ripomaglobal1.ripomaglobal.workers.dev
+```
+
+Or skip the Worker and set `VITE_API_URL` / `VITE_SOCKET_URL` **directly** to the Render URL (simplest path).
+
+6. Smoke-test:
+
+```bash
+curl -s https://ripomaglobal1.ripomaglobal.workers.dev/
+# expect: {"ok":true,"service":"ripoma-api-gateway",...}  (not api_not_deployed)
+
+curl -s https://ripomaglobal1.ripomaglobal.workers.dev/health
+curl -s https://ripomaglobal1.ripomaglobal.workers.dev/api/storefront/categories
+curl -s https://ripomaglobal1.ripomaglobal.workers.dev/api/storefront/products
+curl -s https://ripomaglobal1.ripomaglobal.workers.dev/api/storefront/featured
+curl -s https://ripomaglobal1.ripomaglobal.workers.dev/api/storefront/promos
+curl -s https://ripomaglobal1.ripomaglobal.workers.dev/api/storefront/stats
+```
+
+If `/` still returns `worker-stub` / `api_not_deployed` after `deploy:proxy`, you are looking at a Worker on a **different Cloudflare account** than the one Wrangler is logged into (`npx wrangler whoami`). Log into the account that owns that hostname and redeploy there.
+
+### Mode A (Cloudflare Containers)
+
+Requires **Workers Paid** + Containers entitlement, **Docker Desktop** running locally, and a registered `workers.dev` subdomain.
+
+```bash
+npm install
+# put each secret (MONGODB_URI, JWT_SECRET, JWT_REFRESH_SECRET,
+# CUSTOMER_JWT_SECRET, CUSTOMER_JWT_REFRESH_SECRET, …)
+npx wrangler secret put MONGODB_URI
+npx wrangler secret put JWT_SECRET
+npx wrangler secret put JWT_REFRESH_SECRET
+npx wrangler secret put CUSTOMER_JWT_SECRET
+npx wrangler secret put CUSTOMER_JWT_REFRESH_SECRET
+npm run deploy
+```
+
+See `.dev.vars.example` for the full secret list. First request after idle may take ~30s while the container boots.
+
+If `wrangler containers list` returns Unauthorized, upgrade at https://dash.cloudflare.com/?to=/:account/workers/plans and use Mode B until then.
+
+### CORS
+
+`FRONTEND_URL` and `CORS_PAGES_HOST` (default `ripoma-global.pages.dev`) allow the Pages production + preview origins. Extra origins: `CORS_ORIGINS=https://custom.example.com`.
+
+---
+
 ## Development Notes
 
 - Uploaded files are stored under `server/uploads/` when using local storage.

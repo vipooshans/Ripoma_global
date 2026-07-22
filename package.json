@@ -4,7 +4,9 @@
   "description": "Cloudflare Worker gateway + Container for Rippoma Express API",
   "scripts": {
     "deploy": "wrangler deploy",
+    "deploy:proxy": "node scripts/deploy-proxy.mjs",
     "dev": "wrangler dev",
+    "dev:proxy": "wrangler dev -c wrangler.proxy.jsonc",
     "containers:list": "wrangler containers list"
   },
   "dependencies": {
