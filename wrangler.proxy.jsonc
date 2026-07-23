@@ -15,7 +15,8 @@
   "vars": {
     "NODE_ENV": "production",
     "FRONTEND_URL": "https://ripoma-global.pages.dev",
-    "CORS_PAGES_HOST": "ripoma-global.pages.dev"
+    "CORS_PAGES_HOST": "ripoma-global.pages.dev",
+    "GOOGLE_CLIENT_ID": "140622339758-03aobin1o3qfct6fdn3bpfe5hr2gujsv.apps.googleusercontent.com"
   },
   "observability": {
     "enabled": false,
