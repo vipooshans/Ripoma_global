@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 
 let gisScriptPromise = null;
+/** GIS allows initialize() only once per page load for a given client_id. */
+let gisInitializedClientId = null;
 
 const loadGisScript = () => {
   if (typeof window === 'undefined') return Promise.reject(new Error('No window'));
@@ -12,6 +14,10 @@ const loadGisScript = () => {
   gisScriptPromise = new Promise((resolve, reject) => {
     const existing = document.querySelector('script[data-google-gis="true"]');
     if (existing) {
+      if (window.google?.accounts?.id) {
+        resolve();
+        return;
+      }
       existing.addEventListener('load', () => resolve());
       existing.addEventListener('error', () => reject(new Error('Failed to load Google Sign-In')));
       return;
@@ -54,16 +60,20 @@ const GoogleSignInButton = ({ onCredential, disabled = false, text = 'continue_w
       .then(() => {
         if (cancelled || !buttonRef.current || !window.google?.accounts?.id) return;
 
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (response) => {
-            if (response?.credential) {
-              onCredentialRef.current?.(response.credential);
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true
-        });
+        // initialize() once per client_id (Strict Mode remounts must not re-call it).
+        if (gisInitializedClientId !== GOOGLE_CLIENT_ID) {
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: (response) => {
+              if (response?.credential) {
+                onCredentialRef.current?.(response.credential);
+              }
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true
+          });
+          gisInitializedClientId = GOOGLE_CLIENT_ID;
+        }
 
         buttonRef.current.innerHTML = '';
         window.google.accounts.id.renderButton(buttonRef.current, {
