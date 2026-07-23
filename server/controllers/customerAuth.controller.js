@@ -59,20 +59,35 @@ const generateRefreshToken = (customer, sessionId) =>
     { expiresIn: `${REFRESH_DAYS}d` }
   );
 
-// Cross-site (Pages → Workers) needs SameSite=None; Secure. Local keeps Strict.
-const isProd = process.env.NODE_ENV === 'production';
-const REFRESH_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? 'none' : 'strict',
-  maxAge: REFRESH_DAYS * 24 * 60 * 60 * 1000
+// Cross-site (Pages → Workers) needs SameSite=None; Secure.
+// Detect HTTPS via X-Forwarded-Proto so tunnel/proxy works with NODE_ENV=development.
+const refreshCookieOptions = (req) => {
+  const forwarded = String(req?.headers?.['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  const crossSite =
+    process.env.NODE_ENV === 'production' ||
+    process.env.CROSS_SITE_COOKIES === 'true' ||
+    forwarded === 'https' ||
+    req?.secure === true;
+
+  return {
+    httpOnly: true,
+    secure: crossSite,
+    sameSite: crossSite ? 'none' : 'strict',
+    path: '/',
+    maxAge: REFRESH_DAYS * 24 * 60 * 60 * 1000
+  };
 };
 
-const clearRefreshCookie = (res) => {
+const clearRefreshCookie = (res, req) => {
+  const opts = refreshCookieOptions(req);
   res.clearCookie('customerRefreshToken', {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'strict'
+    httpOnly: opts.httpOnly,
+    secure: opts.secure,
+    sameSite: opts.sameSite,
+    path: opts.path || '/'
   });
 };
 
@@ -97,7 +112,7 @@ const createSessionAndSetCookie = async (res, customer, req) => {
   session.refreshTokenHash = hashToken(refreshToken);
   await session.save();
 
-  res.cookie('customerRefreshToken', refreshToken, REFRESH_COOKIE_OPTIONS);
+  res.cookie('customerRefreshToken', refreshToken, refreshCookieOptions(req));
   return { accessToken: generateAccessToken(customer), session };
 };
 
@@ -526,10 +541,10 @@ exports.logout = async (req, res) => {
         /* ignore */
       }
     }
-    clearRefreshCookie(res);
+    clearRefreshCookie(res, req);
     return res.status(200).json({ message: 'Logged out successfully.' });
   } catch (error) {
-    clearRefreshCookie(res);
+    clearRefreshCookie(res, req);
     return res.status(200).json({ message: 'Logged out successfully.' });
   }
 };
@@ -546,7 +561,7 @@ exports.refresh = async (req, res) => {
     try {
       decoded = jwt.verify(refreshToken, getCustomerRefreshSecret());
     } catch (err) {
-      clearRefreshCookie(res);
+      clearRefreshCookie(res, req);
       const isExpired = err.name === 'TokenExpiredError';
       return res.status(401).json({
         code: isExpired ? 'CUSTOMER_TOKEN_EXPIRED' : undefined,
@@ -555,7 +570,7 @@ exports.refresh = async (req, res) => {
     }
 
     if (decoded.type !== 'customer' || !decoded.sid) {
-      clearRefreshCookie(res);
+      clearRefreshCookie(res, req);
       return res.status(401).json({ message: 'Invalid refresh token.' });
     }
 
@@ -566,7 +581,7 @@ exports.refresh = async (req, res) => {
       session.expiresAt < new Date() ||
       session.refreshTokenHash !== hashToken(refreshToken)
     ) {
-      clearRefreshCookie(res);
+      clearRefreshCookie(res, req);
       return res.status(401).json({
         code: 'CUSTOMER_TOKEN_EXPIRED',
         message: 'Session is no longer valid. Please sign in again.'
@@ -575,17 +590,17 @@ exports.refresh = async (req, res) => {
 
     const customer = await CustomerAccount.findById(decoded.id);
     if (!customer || customer.deletedAt) {
-      clearRefreshCookie(res);
+      clearRefreshCookie(res, req);
       return res.status(401).json({ message: 'Customer not found.' });
     }
 
     if (customer.status === 'suspended') {
-      clearRefreshCookie(res);
+      clearRefreshCookie(res, req);
       return res.status(403).json({ message: 'Your account has been suspended.' });
     }
 
     if (customer.status !== 'active') {
-      clearRefreshCookie(res);
+      clearRefreshCookie(res, req);
       return res.status(401).json({ message: 'Customer account is inactive.' });
     }
 
@@ -598,7 +613,7 @@ exports.refresh = async (req, res) => {
     if (meta.ip) session.ip = meta.ip;
     await session.save();
 
-    res.cookie('customerRefreshToken', newRefresh, REFRESH_COOKIE_OPTIONS);
+    res.cookie('customerRefreshToken', newRefresh, refreshCookieOptions(req));
 
     const accessToken = generateAccessToken(customer);
     return res.status(200).json({ authenticated: true, accessToken });
@@ -806,7 +821,7 @@ exports.changePassword = async (req, res) => {
     await customer.save();
 
     await revokeAllSessions(customer._id);
-    clearRefreshCookie(res);
+    clearRefreshCookie(res, req);
 
     return res.status(200).json({
       message: 'Password updated successfully. Please sign in again.',
@@ -852,7 +867,7 @@ exports.revokeSession = async (req, res) => {
 
     const currentSid = getCurrentSessionId(req);
     if (currentSid && String(session._id) === String(currentSid)) {
-      clearRefreshCookie(res);
+      clearRefreshCookie(res, req);
       return res.status(200).json({ message: 'Current session revoked.', requireReauth: true });
     }
 
@@ -866,7 +881,7 @@ exports.revokeSession = async (req, res) => {
 exports.logoutAllSessions = async (req, res) => {
   try {
     await revokeAllSessions(req.customerUser._id);
-    clearRefreshCookie(res);
+    clearRefreshCookie(res, req);
     return res.status(200).json({
       message: 'Signed out of all devices.',
       requireReauth: true
@@ -949,7 +964,7 @@ exports.deleteMyAccount = async (req, res) => {
     await customer.save();
 
     await revokeAllSessions(customer._id);
-    clearRefreshCookie(res);
+    clearRefreshCookie(res, req);
 
     return res.status(200).json({
       message: 'Your account has been deleted.',

@@ -78,6 +78,9 @@ UserSchema.pre('save', async function (next) {
 
 // Compare password helper
 UserSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password || candidatePassword == null || candidatePassword === '') {
+    return false;
+  }
   return bcrypt.compare(candidatePassword, this.password);
 };
 
