@@ -6,6 +6,9 @@
     "deploy": "wrangler deploy",
     "deploy:proxy": "node scripts/deploy-proxy.mjs",
     "api:tunnel": "node scripts/refresh-api-origin.mjs",
+    "api:online": "pm2 start ecosystem.config.cjs && pm2 save",
+    "api:offline": "pm2 delete ripoma-api ripoma-tunnel",
+    "api:status": "pm2 list",
     "dev": "wrangler dev",
     "dev:proxy": "wrangler dev -c wrangler.proxy.jsonc",
     "containers:list": "wrangler containers list"
@@ -14,6 +17,7 @@
     "@cloudflare/containers": "^0.0.30"
   },
   "devDependencies": {
+    "pm2": "^7.0.3",
     "wrangler": "^4.112.0"
   }
 }
