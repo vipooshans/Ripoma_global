@@ -69,9 +69,22 @@ function withCors(response, origin, env) {
 }
 
 function getApiOrigin(env) {
-  return String(env.API_ORIGIN || '')
+  const raw = String(env.API_ORIGIN || '')
     .trim()
     .replace(/\/+$/, '');
+  if (!raw) return '';
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    // Reject bare host fragments without a real origin (e.g. "vipoo")
+    if (!url.hostname || !url.hostname.includes('.')) {
+      // Allow localhost for local tunnels
+      if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') return '';
+    }
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -186,7 +199,8 @@ export default {
           success: false,
           error: 'api_origin_missing',
           message:
-            'API_ORIGIN is not set. Deploy Express to Render/Railway/Fly, then: npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc'
+            'API_ORIGIN is missing or invalid. Set a full URL, e.g. https://YOUR-SERVICE.onrender.com (include https://, no /api path).',
+          hint: 'npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc'
         }),
         {
           status: 500,
