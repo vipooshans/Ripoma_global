@@ -46,7 +46,7 @@ const getFrontendUrl = () => {
   return raw ? String(raw).replace(/\/+$/, '') : raw;
 };
 
-const getGoogleClientId = () => process.env.GOOGLE_CLIENT_ID || '';
+const getGoogleClientId = () => String(process.env.GOOGLE_CLIENT_ID || '').trim();
 
 module.exports = {
   requireProductionEnv,

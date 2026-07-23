@@ -362,6 +362,19 @@ exports.login = async (req, res) => {
   }
 };
 
+/** Decode JWT payload without verifying (diagnostics only). */
+const peekIdTokenPayload = (token) => {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length < 2) return null;
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+};
+
 exports.loginWithGoogle = async (req, res) => {
   try {
     const { credential } = req.body;
@@ -372,7 +385,8 @@ exports.loginWithGoogle = async (req, res) => {
     const clientId = getGoogleClientId();
     if (!clientId) {
       return res.status(503).json({
-        message: 'Google Sign-In is not configured on the server.'
+        message: 'Google Sign-In is not configured on the server.',
+        code: 'GOOGLE_NOT_CONFIGURED'
       });
     }
 
@@ -385,13 +399,41 @@ exports.loginWithGoogle = async (req, res) => {
       });
       payload = ticket.getPayload();
     } catch (verifyErr) {
-      console.error('Google token verify failed:', verifyErr.message);
-      return res.status(401).json({ message: 'Invalid Google credential.' });
+      const peeked = peekIdTokenPayload(credential);
+      const tokenAud = peeked?.aud ?? null;
+      const tokenIss = peeked?.iss ?? null;
+      console.error('Google token verify failed:', verifyErr.message, {
+        expectedAudience: clientId,
+        tokenAud,
+        tokenIss,
+        tokenExp: peeked?.exp ?? null
+      });
+      const body = {
+        message: 'Invalid Google credential.',
+        code: 'GOOGLE_TOKEN_INVALID'
+      };
+      if (!isProd) {
+        body.detail = verifyErr.message;
+        body.expectedAudience = clientId;
+        body.tokenAud = tokenAud;
+        body.tokenIss = tokenIss;
+      }
+      return res.status(401).json(body);
+    }
+
+    const iss = payload?.iss;
+    if (iss !== 'accounts.google.com' && iss !== 'https://accounts.google.com') {
+      console.error('Google token unexpected issuer:', iss);
+      return res.status(401).json({
+        message: 'Invalid Google credential.',
+        code: 'GOOGLE_TOKEN_INVALID'
+      });
     }
 
     if (!payload?.email || !payload.email_verified) {
       return res.status(401).json({
-        message: 'Google account email is missing or not verified.'
+        message: 'Google account email is missing or not verified.',
+        code: 'GOOGLE_EMAIL_UNVERIFIED'
       });
     }
 
