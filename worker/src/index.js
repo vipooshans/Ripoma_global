@@ -128,16 +128,19 @@ function getApiOrigin() {
 }
 
 /**
- * Reverse-proxy the incoming request to an external Express host (Render, etc.).
+ * Reverse-proxy to external Express (Render / Railway / Fly).
+ * Reads API_ORIGIN only from Worker env — never hardcodes upstream hosts.
  */
 async function proxyToOrigin(request, apiOrigin) {
-  const incoming = new URL(request.url);
-  const target = new URL(incoming.pathname + incoming.search, apiOrigin);
+  const target = new URL(request.url);
+  const upstream = `${apiOrigin}${target.pathname}${target.search}`;
+
+  console.log('Proxying:', upstream);
 
   const headers = new Headers(request.headers);
   headers.delete('host');
-  headers.set('X-Forwarded-Host', incoming.host);
-  headers.set('X-Forwarded-Proto', incoming.protocol.replace(':', ''));
+  headers.set('X-Forwarded-Host', target.host);
+  headers.set('X-Forwarded-Proto', target.protocol.replace(':', ''));
 
   const init = {
     method: request.method,
@@ -151,7 +154,23 @@ async function proxyToOrigin(request, apiOrigin) {
     init.duplex = 'half';
   }
 
-  return fetch(target.toString(), init);
+  try {
+    return await fetch(upstream, init);
+  } catch (error) {
+    console.error('[proxy] fetch failed:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'api_origin_unreachable',
+        upstream,
+        reason: String(error?.message || error)
+      }),
+      {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+  }
 }
 
 export class RipomaApi extends Container {
@@ -215,24 +234,30 @@ export default {
 
       if (apiOrigin) {
         upstream = await proxyToOrigin(request, apiOrigin);
-      } else {
-        const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
-        upstream = await container.fetch(request);
+        // proxyToOrigin may return a JSON error Response on fetch failure
+        return withCors(upstream, origin);
       }
 
+      const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
+      upstream = await container.fetch(request);
       return withCors(upstream, origin);
     } catch (error) {
       console.error('[RipomaApi] proxy failed:', error);
+      const upstream = apiOrigin
+        ? `${apiOrigin}${url.pathname}${url.search}`
+        : null;
       return new Response(
         JSON.stringify({
-          error: 'backend_unavailable',
+          success: false,
+          error: 'api_origin_unreachable',
+          upstream,
+          reason: String(error?.message || error),
           message: apiOrigin
-            ? `Could not reach API_ORIGIN (${apiOrigin}). Check the Render/Fly URL and that Express is running.`
-            : 'Rippoma API container is starting or unavailable. Wait a minute and retry, or set API_ORIGIN to an external Express host. Requires Workers Paid + Containers when not using API_ORIGIN.',
-          detail: String(error?.message || error)
+            ? `Could not reach API_ORIGIN (${apiOrigin}). Check the Render/Railway/Fly URL and that Express is running.`
+            : 'Rippoma API container is starting or unavailable. Wait a minute and retry, or set API_ORIGIN to an external Express host. Requires Workers Paid + Containers when not using API_ORIGIN.'
         }),
         {
-          status: 503,
+          status: apiOrigin ? 502 : 503,
           headers: {
             'Content-Type': 'application/json',
             ...corsHeaders(origin)

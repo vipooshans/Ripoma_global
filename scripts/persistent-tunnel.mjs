@@ -1,9 +1,13 @@
 /**
- * Keep a Cloudflare quick tunnel pointed at local Express :5000 and
- * sync Worker secret API_ORIGIN whenever the trycloudflare URL changes.
+ * LOCAL DEV ONLY — starts a temporary Cloudflare quick tunnel to Express :5000.
  *
- * Run under PM2 (see ecosystem.config.cjs). Survives closing Cursor;
- * still requires this PC to be on. For true always-on, deploy server/ to Render.
+ * Does NOT write API_ORIGIN to the Worker by default (production should use
+ * Render / Railway / Fly). Set SYNC_API_ORIGIN=1 to push the tunnel URL to the
+ * Worker for emergency local testing.
+ *
+ * Prefer permanent hosting:
+ *   npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc
+ *   # paste https://YOUR-SERVICE.onrender.com
  */
 import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
@@ -14,6 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const stateFile = path.join(root, '.api-origin-state.json');
 const cloudflared = path.join(root, 'bin', 'cloudflared.exe');
+const syncToWorker = process.env.SYNC_API_ORIGIN === '1';
 
 function readState() {
   try {
@@ -41,13 +46,24 @@ function run(args, input) {
 }
 
 async function syncApiOrigin(tunnelUrl) {
+  writeState({ apiOrigin: tunnelUrl, updatedAt: new Date().toISOString(), localOnly: !syncToWorker });
+
+  if (!syncToWorker) {
+    console.log(
+      `[tunnel] Local tunnel ready: ${tunnelUrl}\n` +
+        `[tunnel] Not syncing to Worker (set SYNC_API_ORIGIN=1 to override).\n` +
+        `[tunnel] Production: set API_ORIGIN to your Render/Railway URL instead.`
+    );
+    return;
+  }
+
   const prev = readState().apiOrigin;
-  if (prev === tunnelUrl) {
+  if (prev === tunnelUrl && readState().synced) {
     console.log(`[tunnel] API_ORIGIN already ${tunnelUrl}`);
     return;
   }
 
-  console.log(`[tunnel] Updating API_ORIGIN -> ${tunnelUrl}`);
+  console.log(`[tunnel] Updating Worker API_ORIGIN -> ${tunnelUrl}`);
   const put = spawnSync(
     'npx',
     ['wrangler', 'secret', 'put', 'API_ORIGIN', '-c', 'wrangler.proxy.jsonc'],
@@ -76,10 +92,14 @@ async function syncApiOrigin(tunnelUrl) {
     '-c',
     'wrangler.proxy.jsonc',
     '--message',
-    'Sync API_ORIGIN persistent tunnel'
+    'Sync local-dev API_ORIGIN tunnel'
   ]);
 
-  writeState({ apiOrigin: tunnelUrl, updatedAt: new Date().toISOString() });
+  writeState({
+    apiOrigin: tunnelUrl,
+    updatedAt: new Date().toISOString(),
+    synced: true
+  });
   console.log('[tunnel] Worker API_ORIGIN synced');
 }
 

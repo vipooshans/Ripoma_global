@@ -1,8 +1,12 @@
 /**
- * Refresh API_ORIGIN to a live Cloudflare quick tunnel pointing at local Express :5000.
+ * LOCAL DEV ONLY — temporary quick tunnel to Express :5000.
  *
- * Requires: local `npm run dev` in server/, wrangler logged in.
- * Usage: node scripts/refresh-api-origin.mjs
+ * Production should use a permanent host:
+ *   npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc
+ *   # https://YOUR-SERVICE.onrender.com  (or Railway/Fly)
+ *
+ * This script still pushes a temporary tunnel URL for emergency local testing.
+ * Prefer Render/Railway for anything that must stay up when this PC is offline.
  */
 import { spawn, spawnSync } from 'child_process';
 import path from 'path';

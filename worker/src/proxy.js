@@ -1,6 +1,9 @@
 /**
  * Proxy-only Worker: reverse-proxies to Express on Render / Fly / Railway.
- * Set secret API_ORIGIN (no trailing slash), e.g. https://ripoma-api.onrender.com
+ *
+ * Set secret (no trailing slash):
+ *   npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc
+ *   # e.g. https://ripoma-api.onrender.com
  *
  * Deploy: npm run deploy:proxy
  */
@@ -65,16 +68,26 @@ function withCors(response, origin, env) {
   });
 }
 
-async function proxyToOrigin(request, apiOrigin) {
-  const incoming = new URL(request.url);
-  const target = new URL(incoming.pathname + incoming.search, apiOrigin);
+function getApiOrigin(env) {
+  return String(env.API_ORIGIN || '')
+    .trim()
+    .replace(/\/+$/, '');
+}
+
+/**
+ * Proxy to permanent Express host (Render / Railway / Fly).
+ * Reads API_ORIGIN only from Worker env — never hardcodes upstream hosts.
+ */
+async function proxyToOrigin(request, env, apiOrigin) {
+  const target = new URL(request.url);
+  const upstream = `${apiOrigin}${target.pathname}${target.search}`;
+
+  console.log('Proxying:', upstream);
 
   const headers = new Headers(request.headers);
   headers.delete('host');
-  headers.set('X-Forwarded-Host', incoming.host);
-  headers.set('X-Forwarded-Proto', incoming.protocol.replace(':', ''));
-  // localtunnel interstitial bypass (harmless for Render/Fly)
-  headers.set('Bypass-Tunnel-Reminder', 'true');
+  headers.set('X-Forwarded-Host', target.host);
+  headers.set('X-Forwarded-Proto', target.protocol.replace(':', ''));
 
   const init = {
     method: request.method,
@@ -87,43 +100,50 @@ async function proxyToOrigin(request, apiOrigin) {
     init.duplex = 'half';
   }
 
-  const upstream = await fetch(target.toString(), init);
+  try {
+    const response = await fetch(upstream, init);
 
-  // Cloudflare origin/tunnel failures (502/503/520/521/522/523/524/525/530)
-  if (upstream.status >= 502) {
-    const detail = await upstream.text().catch(() => '');
-    console.error('[proxy] upstream error', {
-      target: target.toString(),
-      status: upstream.status,
-      detail: detail.slice(0, 500)
-    });
+    // Gateway / origin DNS failures from Cloudflare edge in front of upstream
+    if (response.status === 530 || response.status === 502 || response.status === 503) {
+      const detail = await response.text().catch(() => '');
+      console.error('[proxy] upstream gateway error', {
+        upstream,
+        status: response.status,
+        detail: detail.slice(0, 300)
+      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'api_origin_unreachable',
+          upstream,
+          reason: `Upstream returned HTTP ${response.status}`,
+          status: response.status,
+          message:
+            'API_ORIGIN host is unreachable. Set API_ORIGIN to a permanent Render/Railway/Fly URL and ensure that service is running.'
+        }),
+        {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
-    const isTunnelDead =
-      upstream.status === 530 ||
-      /Origin DNS error|Tunnel Unavailable|Error 1016|Error 1033/i.test(detail);
-
+    return response;
+  } catch (error) {
+    console.error('[proxy] fetch failed:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: isTunnelDead ? 'api_origin_unreachable' : 'upstream_error',
-        status: upstream.status,
-        target: target.toString(),
-        message: isTunnelDead
-          ? 'API_ORIGIN tunnel/host is down. Start Express (and cloudflared), or set API_ORIGIN to a permanent Render/Fly URL.'
-          : 'Upstream API returned an error gateway status.',
-        detail: detail.includes('<!DOCTYPE')
-          ? detail.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)
-          : detail.slice(0, 2000)
+        error: 'api_origin_unreachable',
+        upstream,
+        reason: String(error?.message || error)
       }),
       {
-        // Prefer 503 for clients; keep original CF code in body.status
-        status: 503,
+        status: 502,
         headers: { 'Content-Type': 'application/json' }
       }
     );
   }
-
-  return upstream;
 }
 
 export default {
@@ -138,7 +158,7 @@ export default {
       });
     }
 
-    const apiOrigin = String(env.API_ORIGIN || '').replace(/\/+$/, '');
+    const apiOrigin = getApiOrigin(env);
 
     if (url.pathname === '/' && request.method === 'GET') {
       return new Response(
@@ -166,11 +186,10 @@ export default {
           success: false,
           error: 'api_origin_missing',
           message:
-            'Express is not running inside this Worker. Set secret API_ORIGIN to your Node host (Render/Fly/Railway), e.g. https://YOUR-SERVICE.onrender.com',
-          hint: 'npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc'
+            'API_ORIGIN is not set. Deploy Express to Render/Railway/Fly, then: npx wrangler secret put API_ORIGIN -c wrangler.proxy.jsonc'
         }),
         {
-          status: 503,
+          status: 500,
           headers: {
             'Content-Type': 'application/json',
             ...corsHeaders(origin, env)
@@ -179,27 +198,7 @@ export default {
       );
     }
 
-    try {
-      const upstream = await proxyToOrigin(request, apiOrigin);
-      return withCors(upstream, origin, env);
-    } catch (error) {
-      console.error('[proxy] failed:', error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'backend_unavailable',
-          message: `Could not reach API_ORIGIN (${apiOrigin}).`,
-          detail: String(error?.message || error),
-          stack: String(error?.stack || '')
-        }),
-        {
-          status: 503,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders(origin, env)
-          }
-        }
-      );
-    }
+    const upstream = await proxyToOrigin(request, env, apiOrigin);
+    return withCors(upstream, origin, env);
   }
 };
