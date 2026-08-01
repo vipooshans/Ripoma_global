@@ -147,6 +147,9 @@ function App() {
       />
 
       <Routes>
+        {/* Root URL opens the customer storefront homepage */}
+        <Route path="/" element={<Navigate to="/customer" replace />} />
+
         {/* ── Staff Public Routes ── */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -184,7 +187,6 @@ function App() {
 
         {/* Protected Dashboard Layout Routes */}
         <Route path="/" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           
           {/* Admin User Management */}
