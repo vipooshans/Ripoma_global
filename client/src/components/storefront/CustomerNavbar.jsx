@@ -53,12 +53,12 @@ const CustomerNavbar = ({
 
   return (
     <header className={navClass}>
-      <nav className="flex items-center justify-between px-4 lg:px-8 py-4 max-w-7xl mx-auto gap-4" aria-label="Main navigation">
+      <nav className="flex items-center justify-between px-3 sm:px-4 lg:px-8 py-3 sm:py-4 max-w-7xl mx-auto gap-2 sm:gap-4" aria-label="Main navigation">
         <Link to="/customer" className="flex items-center shrink-0">
           <img
             src={isTransparent ? '/logo-white.svg' : '/logo.svg'}
             alt="RIPOMA GLOBAL TRADING (PVT) LTD"
-            className="h-11 w-auto"
+            className="h-9 sm:h-11 w-auto"
           />
         </Link>
 
@@ -81,12 +81,12 @@ const CustomerNavbar = ({
           ))}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <CustomerNotificationBell iconBtnClass={iconBtnClass} />
 
           <Link
             to="/customer/wishlist"
-            className={iconBtnClass}
+            className={`${iconBtnClass} hidden sm:flex`}
             aria-label={`Wishlist, ${wishlistCount} items`}
           >
             <Heart size={20} className={wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : ''} />
@@ -167,7 +167,7 @@ const CustomerNavbar = ({
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <Link
                 to="/customer/login"
                 className={`text-sm font-medium px-3 py-2 rounded-xl transition-all duration-200 ${
@@ -199,34 +199,63 @@ const CustomerNavbar = ({
       </nav>
 
       {mobileMenuOpen && (
-        <div className={`md:hidden px-4 pb-4 space-y-2 border-b ${isTransparent ? 'bg-slate-900/95 border-white/10' : 'bg-white border-slate-200'}`}>
+        <div className={`md:hidden px-3 pb-4 pt-1 border-b animate-auth-fade-up ${isTransparent ? 'bg-slate-900/95 border-white/10 backdrop-blur-md' : 'bg-white border-slate-200 shadow-lg'}`}>
           {showSearch && (
-            <div className="py-2 md:hidden">
+            <div className="py-2">
               <SearchBar compact />
             </div>
           )}
-          {NAV_LINKS.map((l) => (
+          <div className="space-y-1">
+            {NAV_LINKS.map((l) => (
+              <Link
+                key={l.label}
+                to={l.href}
+                onClick={() => handleNavClick(l.href)}
+                className={`block text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors ${
+                  isTransparent
+                    ? 'text-slate-300 hover:text-white hover:bg-white/10'
+                    : 'text-slate-600 hover:text-teal-700 hover:bg-teal-50'
+                }`}
+              >
+                {l.label}
+              </Link>
+            ))}
             <Link
-              key={l.label}
-              to={l.href}
-              onClick={() => handleNavClick(l.href)}
-              className={`block text-sm font-medium py-2 transition-colors ${
-                isTransparent ? 'text-slate-300 hover:text-teal-400' : 'text-slate-600 hover:text-teal-600'
+              to="/customer/wishlist"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center gap-2.5 text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors ${
+                isTransparent
+                  ? 'text-slate-300 hover:text-white hover:bg-white/10'
+                  : 'text-slate-600 hover:text-teal-700 hover:bg-teal-50'
               }`}
             >
-              {l.label}
+              <Heart size={15} className={wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : ''} />
+              Wishlist{wishlistCount > 0 ? ` (${wishlistCount})` : ''}
             </Link>
-          ))}
-          <Link
-            to="/customer/wishlist"
-            onClick={() => setMobileMenuOpen(false)}
-            className={`flex items-center gap-2 text-sm font-medium py-2 transition-colors ${
-              isTransparent ? 'text-slate-300 hover:text-teal-400' : 'text-slate-600 hover:text-teal-600'
-            }`}
-          >
-            <Heart size={14} />
-            Wishlist{wishlistCount > 0 ? ` (${wishlistCount})` : ''}
-          </Link>
+          </div>
+
+          {!isAuthenticated && (
+            <div className={`flex items-center gap-2.5 mt-3 pt-3 border-t ${isTransparent ? 'border-white/10' : 'border-slate-100'}`}>
+              <Link
+                to="/customer/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex-1 text-center text-sm font-bold px-4 py-2.5 rounded-xl border transition-colors ${
+                  isTransparent
+                    ? 'text-white border-white/20 hover:bg-white/10'
+                    : 'text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/customer/register"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex-1 text-center text-sm font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 px-4 py-2.5 rounded-xl transition-colors shadow-lg shadow-teal-500/25"
+              >
+                Register
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </header>
