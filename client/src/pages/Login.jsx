@@ -71,7 +71,7 @@ const Login = () => {
   };
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-slate-950 px-4 py-10 overflow-hidden">
+    <div className="relative flex items-center justify-center min-h-screen bg-slate-950 px-3 sm:px-4 py-6 sm:py-10 overflow-hidden">
       {/* Ambient background */}
       <div className="absolute inset-0 auth-grid-overlay" />
       <div className="absolute -top-40 -left-40 w-[34rem] h-[34rem] bg-teal-500/20 rounded-full blur-[120px] animate-auth-blob" />
@@ -84,7 +84,7 @@ const Login = () => {
           <div className="rounded-3xl bg-white overflow-hidden flex flex-col md:flex-row min-h-[560px]">
 
             {/* ── Left Brand Panel ── */}
-            <div className="md:w-[45%] relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 text-white p-8 lg:p-10 flex flex-col justify-between">
+            <div className="md:w-[45%] relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 text-white p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
               <div className="absolute inset-0 auth-grid-overlay opacity-60" />
               <div className="absolute -top-24 -left-24 w-72 h-72 bg-teal-500/20 rounded-full blur-3xl animate-auth-blob" />
               <div className="absolute -bottom-20 -right-16 w-64 h-64 bg-emerald-400/15 rounded-full blur-3xl animate-auth-blob-slow" />
@@ -99,12 +99,12 @@ const Login = () => {
               </div>
 
               {/* Center content */}
-              <div className="my-10 md:my-0 relative z-10">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-400/30 text-teal-300 text-[11px] font-bold uppercase tracking-widest mb-5">
+              <div className="my-6 md:my-0 relative z-10">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-400/30 text-teal-300 text-[11px] font-bold uppercase tracking-widest mb-4 sm:mb-5">
                   <Sparkles size={12} />
                   Staff Portal
                 </div>
-                <h2 className="text-3xl lg:text-[2.1rem] font-extrabold leading-tight">
+                <h2 className="text-2xl sm:text-3xl lg:text-[2.1rem] font-extrabold leading-tight">
                   Import & Export, <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-emerald-300">
                     under control.
@@ -114,7 +114,7 @@ const Login = () => {
                   Sign in to manage operations, coordinate global logistics, and administer access — all in one secure hub.
                 </p>
 
-                <div className="mt-8 space-y-3">
+                <div className="hidden md:block mt-8 space-y-3">
                   {highlights.map((item, i) => {
                     const Icon = item.icon;
                     return (
@@ -147,7 +147,7 @@ const Login = () => {
             </div>
 
             {/* ── Right Login Form ── */}
-            <div className="md:w-[55%] p-8 lg:p-12 flex flex-col justify-center bg-white">
+            <div className="md:w-[55%] p-6 sm:p-8 lg:p-12 flex flex-col justify-center bg-white">
               <div className="w-full max-w-md mx-auto">
                 <div className="mb-8">
                   <h3 className="text-2xl font-extrabold text-slate-900">Welcome back</h3>

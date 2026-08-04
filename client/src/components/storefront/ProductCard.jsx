@@ -104,7 +104,7 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
       className="group relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer"
       onClick={() => navigate(`/customer/products/${product.id}`)}
     >
-      <div className="relative bg-gradient-to-br from-slate-50 to-teal-50/30 h-52 flex items-center justify-center overflow-hidden">
+      <div className="relative bg-gradient-to-br from-slate-50 to-teal-50/30 h-40 sm:h-52 flex items-center justify-center overflow-hidden">
         {product.images?.[0] ? (
           <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
         ) : (
@@ -127,14 +127,14 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
           className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm backdrop-blur-sm ${
             wishlisted
               ? 'bg-rose-500 text-white opacity-100'
-              : 'bg-white/80 text-slate-400 hover:text-rose-500 hover:bg-white opacity-0 group-hover:opacity-100'
+              : 'bg-white/80 text-slate-400 hover:text-rose-500 hover:bg-white opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
           }`}
           aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
           <Heart size={14} className={wishlisted ? 'fill-white' : ''} />
         </button>
       </div>
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         {product.category && (
           <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider">{product.category.name}</span>
         )}
@@ -151,18 +151,18 @@ const ProductCard = ({ product, onAddToCart, view = 'grid' }) => {
           </div>
         )}
         {product.description && (
-          <p className="text-xs text-slate-500 mt-1 line-clamp-2">{product.description}</p>
+          <p className="hidden sm:block text-xs text-slate-500 mt-1 line-clamp-2">{product.description}</p>
         )}
-        <p className="text-xs text-slate-400 mt-1 font-mono">SKU: {product.sku}</p>
-        <div className="flex items-center justify-between mt-3">
-          <div>
-            <p className="text-lg font-extrabold text-slate-900">{formatPrice(product.sellingPrice, product.currency)}</p>
+        <p className="hidden sm:block text-xs text-slate-400 mt-1 font-mono">SKU: {product.sku}</p>
+        <div className="flex items-center justify-between gap-2 mt-2.5 sm:mt-3">
+          <div className="min-w-0">
+            <p className="text-base sm:text-lg font-extrabold text-slate-900 truncate">{formatPrice(product.sellingPrice, product.currency)}</p>
             <p className="text-[10px] text-slate-400 font-medium">per {product.unit}</p>
           </div>
           <button
             onClick={handleAdd}
             disabled={!inStock}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl transition-all duration-200 ${
+            className={`flex items-center gap-1.5 text-xs font-bold px-2.5 sm:px-3 py-2 rounded-xl transition-all duration-200 shrink-0 ${
               inStock
                 ? added ? 'bg-emerald-500 text-white scale-95' : 'bg-teal-600 hover:bg-teal-700 text-white hover:scale-105 shadow-sm shadow-teal-500/20'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed'
