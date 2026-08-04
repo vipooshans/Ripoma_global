@@ -7,12 +7,12 @@ const CustomerFooter = () => (
     <div className="max-w-6xl mx-auto">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
         <div className="lg:col-span-1">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-500 text-slate-950 font-extrabold text-base">R</div>
-            <div>
-              <p className="text-sm font-extrabold tracking-wider text-white leading-none">RIPOMA</p>
-              <span className="text-[9px] text-teal-400 font-bold tracking-widest uppercase">GLOBAL</span>
-            </div>
+          <div className="mb-4">
+            <img
+              src="/logo-white.svg"
+              alt="RIPOMA GLOBAL TRADING (PVT) LTD"
+              className="h-12 w-auto -ml-1"
+            />
           </div>
           <p className="text-xs leading-relaxed">
             Global import & export marketplace for businesses and buyers worldwide.

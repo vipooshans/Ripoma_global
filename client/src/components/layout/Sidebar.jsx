@@ -111,14 +111,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       >
         {/* Header */}
         <div className="flex items-center justify-between h-16 px-6 bg-slate-950/40 border-b border-slate-850">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-500 text-slate-950 font-bold text-lg">
-              R
-            </div>
-            <div>
-              <span className="font-extrabold text-white uppercase tracking-wider text-sm">RIPOMA</span>
-              <span className="text-teal-400 font-medium text-xs block -mt-1 font-sans">GLOBAL</span>
-            </div>
+          <div className="flex items-center">
+            <img
+              src="/logo-white.svg"
+              alt="RIPOMA GLOBAL TRADING (PVT) LTD"
+              className="h-10 w-auto"
+            />
           </div>
           <button
             onClick={toggleSidebar}

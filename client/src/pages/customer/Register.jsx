@@ -231,14 +231,12 @@ const CustomerRegister = () => {
               <div className="absolute -bottom-20 -left-16 w-64 h-64 bg-emerald-400/15 rounded-full blur-3xl animate-auth-blob-slow" />
 
               {/* Logo */}
-              <div className="flex items-center gap-3 relative z-10">
-                <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-teal-400 to-emerald-500 text-slate-950 font-extrabold text-xl shadow-lg shadow-teal-500/40">
-                  R
-                </div>
-                <div>
-                  <p className="text-lg font-extrabold tracking-wider leading-none">RIPOMA</p>
-                  <span className="text-[10px] text-teal-300 font-bold tracking-[0.3em] uppercase">Global</span>
-                </div>
+              <div className="relative z-10">
+                <img
+                  src="/logo-white.svg"
+                  alt="RIPOMA GLOBAL TRADING (PVT) LTD"
+                  className="h-16 w-auto -ml-2"
+                />
               </div>
 
               {/* Center content */}

@@ -54,14 +54,12 @@ const CustomerNavbar = ({
   return (
     <header className={navClass}>
       <nav className="flex items-center justify-between px-4 lg:px-8 py-4 max-w-7xl mx-auto gap-4" aria-label="Main navigation">
-        <Link to="/customer" className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-teal-500 text-slate-950 font-extrabold text-lg shadow-lg shadow-teal-500/30">
-            R
-          </div>
-          <div>
-            <p className={`text-sm font-extrabold tracking-wider leading-none ${isTransparent ? 'text-white' : 'text-slate-800'}`}>RIPOMA</p>
-            <span className="text-[9px] text-teal-400 font-bold tracking-widest uppercase">GLOBAL</span>
-          </div>
+        <Link to="/customer" className="flex items-center shrink-0">
+          <img
+            src={isTransparent ? '/logo-white.svg' : '/logo.svg'}
+            alt="RIPOMA GLOBAL TRADING (PVT) LTD"
+            className="h-11 w-auto"
+          />
         </Link>
 
         {showSearch && (
