@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 210" role="img" aria-label="RIPOMA GLOBAL TRADING (PVT) LTD">
+  <defs>
+    <clipPath id="globeClip">
+      <circle cx="362" cy="92" r="46" />
+    </clipPath>
+  </defs>
+
+  <!-- Wordmark -->
+  <text x="308" y="128" text-anchor="end" font-family="'Arial Black', Arial, 'Helvetica Neue', sans-serif" font-weight="900" font-size="104" fill="#0a0a0a" letter-spacing="2">RIP</text>
+  <text x="418" y="128" text-anchor="start" font-family="'Arial Black', Arial, 'Helvetica Neue', sans-serif" font-weight="900" font-size="104" fill="#0a0a0a" letter-spacing="2">MA</text>
+
+  <!-- Globe as the "O" -->
+  <g>
+    <circle cx="362" cy="92" r="46" fill="none" stroke="#3EA829" stroke-width="10" />
+    <g clip-path="url(#globeClip)" fill="#3EA829">
+      <!-- main landmass -->
+      <path d="M 350 60 C 372 52 392 62 393 76 C 405 79 407 93 398 101 C 403 117 388 131 374 129 C 366 139 350 137 346 124 C 333 118 331 101 342 95 C 336 81 340 67 350 60 Z" />
+      <!-- north-west landmass -->
+      <path d="M 333 63 C 341 56 351 60 347 69 C 343 76 331 72 333 63 Z" />
+      <!-- south-west landmass -->
+      <path d="M 328 108 C 337 105 342 114 336 121 C 329 128 320 118 328 108 Z" />
+    </g>
+  </g>
+
+  <!-- Subtitle -->
+  <text x="330" y="180" text-anchor="middle" font-family="Arial, 'Helvetica Neue', sans-serif" font-weight="700" font-size="27" fill="#0a0a0a" letter-spacing="5.5">GLOBAL TRADING(PVT)LTD</text>
+</svg>
