@@ -65,7 +65,7 @@ const CustomerFooter = () => (
                 support@ripomaglobal.com
               </a>
             </li>
-            <li>+1 (555) 019-2834</li>
+            <li>+94 74 252 2230</li>
             <li>Mon–Fri, 9am–6pm EST</li>
           </ul>
         </div>
