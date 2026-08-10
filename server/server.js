@@ -245,6 +245,23 @@ const socketIO = require('./socket');
 const server = http.createServer(app);
 socketIO.init(server);
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('');
+    console.error(`✖ Port ${PORT} is already in use — the API is most likely already running via pm2.`);
+    console.error('');
+    console.error('  You do NOT need "npm run dev" while pm2 is online. Instead:');
+    console.error('    • Apply server code changes:  npx pm2 restart ripoma-api');
+    console.error('    • Watch server logs:          npx pm2 logs ripoma-api');
+    console.error('');
+    console.error('  To really use "npm run dev", first stop pm2 (also stops the live tunnel):');
+    console.error('    cd E:\\project\\Rippoma ; npm run api:offline');
+    console.error('');
+    process.exit(1);
+  }
+  throw err;
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(
