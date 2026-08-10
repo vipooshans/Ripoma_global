@@ -42,6 +42,7 @@ const CustomerFooter = () => (
               { label: 'Register', href: '/customer/register' },
               { label: 'Sign In', href: '/customer/login' },
               { label: 'Account', href: '/customer/profile' },
+              { label: 'About Us', href: '/customer/about' },
               { label: 'Help & Support', href: '/customer/help' }
             ].map((l) => (
               <li key={l.label}>

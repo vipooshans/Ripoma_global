@@ -10,7 +10,7 @@ import CustomerNotificationBell from './CustomerNotificationBell';
 const NAV_LINKS = [
   { label: 'Products', href: '/customer/products' },
   { label: 'Categories', href: '/customer/categories' },
-  { label: 'About', href: '/customer#about' },
+  { label: 'About', href: '/customer/about' },
   { label: 'Help', href: '/customer/help' },
   { label: 'Contact', href: '/customer#contact' }
 ];

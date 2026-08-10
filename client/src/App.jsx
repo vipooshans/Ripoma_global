@@ -25,6 +25,7 @@ import CustomerCategoryDetail from './pages/customer/CategoryDetail';
 import CustomerCart from './pages/customer/Cart';
 import CustomerWishlist from './pages/customer/Wishlist';
 import CustomerHelp from './pages/customer/Help';
+import CustomerAbout from './pages/customer/About';
 import CustomerLegal from './pages/customer/Legal';
 import CustomerCheckout from './pages/customer/Checkout';
 import CustomerOrders from './pages/customer/Orders';
@@ -165,6 +166,7 @@ function App() {
           <Route path="/customer/cart" element={<CustomerCart />} />
           <Route path="/customer/wishlist" element={<CustomerWishlist />} />
           <Route path="/customer/help" element={<CustomerHelp />} />
+          <Route path="/customer/about" element={<CustomerAbout />} />
           <Route path="/customer/privacy" element={<CustomerLegal />} />
           <Route path="/customer/terms" element={<CustomerLegal />} />
           <Route path="/customer/checkout" element={<CustomerCheckout />} />
