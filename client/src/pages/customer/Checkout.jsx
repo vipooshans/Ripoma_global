@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   Home, ChevronRight, ShoppingBag, Package, ArrowLeft, ArrowRight,
-  MapPin, CreditCard, Truck, Building2, Loader2, Check
+  MapPin, Building2, Loader2, Check
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
@@ -25,22 +25,10 @@ const STEPS = [
 
 const PAYMENT_OPTIONS = [
   {
-    id: 'cod',
-    title: 'Cash on Delivery',
-    desc: 'Pay when your order arrives',
-    icon: Truck
-  },
-  {
     id: 'bank_transfer',
     title: 'Bank Transfer',
     desc: 'Transfer funds using your order number as reference',
     icon: Building2
-  },
-  {
-    id: 'card_mock',
-    title: 'Card (Demo)',
-    desc: 'Simulated card payment — no real charge',
-    icon: CreditCard
   }
 ];
 
@@ -122,7 +110,7 @@ const CustomerCheckout = () => {
   });
   const [saveAddress, setSaveAddress] = useState(true);
   const [customerNote, setCustomerNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   const [estimate, setEstimate] = useState(emptyEstimate);
   const [estimating, setEstimating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -504,9 +492,8 @@ const CustomerCheckout = () => {
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-3">
               <h2 className="font-extrabold text-slate-800 text-sm">Payment method</h2>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Your account is protected with encrypted login. We never collect or store full card
-                numbers. Card (Demo) simulates payment without a charge. Prefer offline settlement?
-                Choose COD or bank transfer.
+                We accept payment by bank transfer. After placing your order, transfer the total to
+                the account below and send the payment receipt to our WhatsApp number.
               </p>
               {PAYMENT_OPTIONS.map((opt) => {
                 const Icon = opt.icon;
@@ -545,11 +532,6 @@ const CustomerCheckout = () => {
                     details will open in WhatsApp automatically after you place the order.
                   </p>
                 </div>
-              )}
-              {paymentMethod === 'card_mock' && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                  Demo only — no real card charge will be processed.
-                </p>
               )}
             </div>
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 flex justify-between items-center">
