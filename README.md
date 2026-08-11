@@ -116,19 +116,22 @@ CUSTOMER_JWT_REFRESH_SECRET=your_customer_refresh_secret
 # Production: verification is ON by default.
 CUSTOMER_REQUIRE_EMAIL_VERIFICATION=false
 
-# File storage: local (default) or s3
-STORAGE_PROVIDER=local
+# File storage for documents & report exports: local (default), r2, or s3
+STORAGE_PROVIDER=r2
 
-# Optional — AWS S3 (when STORAGE_PROVIDER=s3)
+# Cloudflare R2 documents bucket (when STORAGE_PROVIDER=r2; private, presigned URLs)
+R2_DOCUMENTS_BUCKET=ripoma-documents
+
+# Optional — AWS S3 (legacy, when STORAGE_PROVIDER=s3)
 AWS_REGION=ap-southeast-1
 AWS_S3_BUCKET=ripoma-documents
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 
 # Product image storage: local (default) or r2
-PRODUCT_IMAGE_STORAGE_PROVIDER=local
+PRODUCT_IMAGE_STORAGE_PROVIDER=r2
 
-# Cloudflare R2 product images (when PRODUCT_IMAGE_STORAGE_PROVIDER=r2)
+# Cloudflare R2 credentials (shared by documents + product images)
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
