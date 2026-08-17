@@ -53,7 +53,7 @@ const FeatureHighlights = () => {
           <span className="text-xs font-bold text-teal-600 uppercase tracking-widest">Why RIPOMA GLOBAL</span>
           <h2 id="why-us-heading" className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">Built for Serious Buyers</h2>
           <p className="text-slate-500 text-sm mt-2 max-w-lg mx-auto">
-            A professional B2B marketplace designed for importers, distributors, and enterprise buyers.
+            A professional B2C marketplace designed for customers who value quality products and reliable delivery.
           </p>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
@@ -183,7 +183,7 @@ const CustomerHome = () => {
                 { icon: Package, label: 'Products', value: formatStat(stats.productCount) },
                 { icon: Globe, label: 'Categories', value: formatStat(stats.categoryCount) },
                 { icon: Truck, label: 'Fast Shipping', value: '48hr' },
-                { icon: Award, label: 'Trusted Platform', value: 'B2B' }
+                { icon: Award, label: 'Trusted Platform', value: 'B2C' }
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="flex flex-col items-center gap-1">
                   <Icon size={18} className="text-teal-400 mb-1" />
