@@ -18,6 +18,12 @@ const {
   getDescendantCategoryIds,
   getStorefrontCategoryDetail
 } = require('../utils/categoryHelpers');
+const catalogD1 = require('../repositories/storefrontCatalogD1');
+
+// Mongo -> D1 migration: catalog reads come from Cloudflare D1 when
+// DATA_BACKEND=d1 (server/.env). Writes and account data remain on Mongo
+// until their slices are migrated.
+const USE_D1_CATALOG = String(process.env.DATA_BACKEND || '').toLowerCase() === 'd1';
 
 const ACTIVE_QUERY = { status: 'active', deleted: false };
 
@@ -254,6 +260,12 @@ const enrichProductsWithStock = async (products) => {
 exports.getFeaturedProducts = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 8;
+
+    if (USE_D1_CATALOG) {
+      const products = await catalogD1.getFeatured(limit);
+      return res.status(200).json({ products });
+    }
+
     const baseQuery = { status: 'active', deleted: false };
 
     let products = await Product.find({ ...baseQuery, isFeatured: true })
@@ -286,6 +298,11 @@ exports.getFeaturedProducts = async (req, res) => {
 // Returns hierarchical categories with rolled-up product counts
 exports.getCategories = async (req, res) => {
   try {
+    if (USE_D1_CATALOG) {
+      const categories = await catalogD1.getCategoryTree();
+      return res.status(200).json({ categories });
+    }
+
     const categories = await buildStorefrontCategoryTree();
     return res.status(200).json({ categories });
   } catch (error) {
@@ -298,7 +315,9 @@ exports.getCategories = async (req, res) => {
 exports.getCategoryDetail = async (req, res) => {
   try {
     const { id } = req.params;
-    const category = await getStorefrontCategoryDetail(id);
+    const category = USE_D1_CATALOG
+      ? await catalogD1.getCategoryDetail(id)
+      : await getStorefrontCategoryDetail(id);
 
     if (!category) {
       return res.status(404).json({ message: 'Category not found.' });
@@ -314,6 +333,11 @@ exports.getCategoryDetail = async (req, res) => {
 // ─── GET /api/storefront/products/facets ──────────────────────────────────────
 exports.getProductFacets = async (req, res) => {
   try {
+    if (USE_D1_CATALOG) {
+      const facets = await catalogD1.getFacets(req.query);
+      return res.status(200).json(facets);
+    }
+
     const query = await buildProductListQuery(req.query);
 
     const brands = await Product.distinct('brand', {
@@ -350,6 +374,11 @@ exports.getProductFacets = async (req, res) => {
 // Public product listing with search, filter, pagination
 exports.getProducts = async (req, res) => {
   try {
+    if (USE_D1_CATALOG) {
+      const result = await catalogD1.listProducts(req.query);
+      return res.status(200).json(result);
+    }
+
     const { sort, page, limit, availability } = req.query;
 
     const query = await buildProductListQuery(req.query);
@@ -424,6 +453,18 @@ exports.getProducts = async (req, res) => {
 exports.getProductDetail = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (USE_D1_CATALOG) {
+      const detail = await catalogD1.getProductDetail(id);
+      if (!detail) {
+        return res.status(404).json({ message: 'Product not found.' });
+      }
+      return res.status(200).json({
+        product: detail.product,
+        related: detail.related,
+        reviewSummary: detail.product.reviewSummary
+      });
+    }
 
     const product = await Product.findOne({ _id: id, status: 'active', deleted: false })
       .populate('category', 'name description');
@@ -621,6 +662,11 @@ exports.getSearchSuggestions = async (req, res) => {
       return res.status(200).json({ suggestions: [], categories: [] });
     }
 
+    if (USE_D1_CATALOG) {
+      const result = await catalogD1.getSearchSuggestions(trimmed);
+      return res.status(200).json(result);
+    }
+
     const rx = { $regex: escapeRegex(trimmed), $options: 'i' };
     const prefixRx = new RegExp(`^${escapeRegex(trimmed)}`, 'i');
 
@@ -679,6 +725,11 @@ exports.getSearchSuggestions = async (req, res) => {
 // ─── GET /api/storefront/stats ────────────────────────────────────────────────
 exports.getStats = async (req, res) => {
   try {
+    if (USE_D1_CATALOG) {
+      const stats = await catalogD1.getStats();
+      return res.status(200).json({ stats });
+    }
+
     const productCount = await Product.countDocuments({ status: 'active', deleted: false });
     const categories = await Category.find().select('_id');
     let categoryCount = 0;
