@@ -12,6 +12,8 @@ import { Container, getContainer } from '@cloudflare/containers';
 import { env } from 'cloudflare:workers';
 
 const ALLOWED_ORIGINS = new Set([
+  'https://ripomaglobal.org',
+  'https://www.ripomaglobal.org',
   'https://ripoma-global.pages.dev',
   'http://localhost:5173',
   'http://localhost:5174'
@@ -241,6 +243,11 @@ export default {
 
       const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
       upstream = await container.fetch(request);
+      // WebSocket upgrades (socket.io): the 101 response carries a webSocket
+      // handle that is lost if the Response is reconstructed — pass it through.
+      if (upstream.status === 101) {
+        return upstream;
+      }
       return withCors(upstream, origin);
     } catch (error) {
       console.error('[RipomaApi] proxy failed:', error);
