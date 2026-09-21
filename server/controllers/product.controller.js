@@ -419,22 +419,10 @@ exports.deleteProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found.' });
     }
 
-    if (product.status === 'active') {
-      return res.status(400).json({
-        message: 'Cannot delete an active product. Set status to inactive or discontinued first.'
-      });
-    }
-
-    // Check if there is active stock left in warehouses
-    const stockItems = await InventoryItem.find({ product: id });
-    const totalStock = stockItems.reduce((sum, item) => sum + (item.quantityOnHand || 0), 0);
-
-    if (totalStock > 0) {
-      return res.status(400).json({
-        message: 'Cannot delete product. Active inventory exists in one or more warehouses.'
-      });
-    }
-
+    // Admin delete is a soft-delete: hide from catalogs, discontinue, and
+    // drop warehouse stock so leftover inventory cannot block removal.
+    await InventoryItem.deleteMany({ product: id });
+    product.status = 'discontinued';
     product.deleted = true;
     await product.save();
     await cleanupProductImages(product.images || []);
