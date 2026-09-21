@@ -10,6 +10,7 @@
 
 import { Container, getContainer } from '@cloudflare/containers';
 import { env } from 'cloudflare:workers';
+import { categoriesResponseFromD1 } from './storefrontCategories.js';
 
 const ALLOWED_ORIGINS = new Set([
   'https://ripomaglobal.org',
@@ -239,6 +240,18 @@ export default {
         upstream = await proxyToOrigin(request, apiOrigin);
         if (upstream.status === 101) {
           return upstream;
+        }
+        if (
+          upstream.status >= 500 &&
+          request.method === 'GET' &&
+          url.pathname === '/api/storefront/categories'
+        ) {
+          try {
+            const fallback = await categoriesResponseFromD1(workerEnv);
+            if (fallback) return withCors(fallback, origin);
+          } catch (fallbackErr) {
+            console.error('[RipomaApi] D1 categories fallback failed:', fallbackErr);
+          }
         }
         return withCors(upstream, origin);
       }
