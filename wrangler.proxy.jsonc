@@ -12,9 +12,17 @@
   "compatibility_date": "2026-07-21",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "api.ripomaglobal.org",
+      "zone_name": "ripomaglobal.org",
+      "custom_domain": true
+    }
+  ],
   "vars": {
     "NODE_ENV": "production",
-    "FRONTEND_URL": "https://ripoma-global.pages.dev",
+    "FRONTEND_URL": "https://ripomaglobal.org",
+    "CORS_ORIGINS": "https://ripomaglobal.org,https://www.ripomaglobal.org,https://ripoma-global.pages.dev",
     "CORS_PAGES_HOST": "ripoma-global.pages.dev",
     "GOOGLE_CLIENT_ID": "140622339758-03aobin1o3qfct6fdn3bpfe5hr2gujsv.apps.googleusercontent.com"
   },

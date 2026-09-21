@@ -237,7 +237,9 @@ export default {
 
       if (apiOrigin) {
         upstream = await proxyToOrigin(request, apiOrigin);
-        // proxyToOrigin may return a JSON error Response on fetch failure
+        if (upstream.status === 101) {
+          return upstream;
+        }
         return withCors(upstream, origin);
       }
 
