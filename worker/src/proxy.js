@@ -10,6 +10,11 @@
 
 const LOCAL_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
 const DEFAULT_PAGES = 'https://ripoma-global.pages.dev';
+const STATIC_ORIGINS = [
+  'https://ripomaglobal.org',
+  'https://www.ripomaglobal.org',
+  DEFAULT_PAGES
+];
 const PAGES_PREVIEW = /^https:\/\/([a-z0-9-]+\.)?ripoma-global\.pages\.dev$/i;
 
 function normalizeOrigin(value) {
@@ -24,7 +29,7 @@ function normalizeOrigin(value) {
 }
 
 function allowedOriginSet(env) {
-  const set = new Set([DEFAULT_PAGES, ...LOCAL_ORIGINS]);
+  const set = new Set([...STATIC_ORIGINS, ...LOCAL_ORIGINS]);
   const frontend = normalizeOrigin(env.FRONTEND_URL);
   if (frontend) set.add(frontend);
   String(env.CORS_ORIGINS || '')
@@ -213,6 +218,11 @@ export default {
     }
 
     const upstream = await proxyToOrigin(request, env, apiOrigin);
+    // WebSocket upgrades (socket.io): reconstructing the Response in withCors
+    // drops the webSocket handle and the browser reports a failed wss:// probe.
+    if (upstream.status === 101) {
+      return upstream;
+    }
     return withCors(upstream, origin, env);
   }
 };
