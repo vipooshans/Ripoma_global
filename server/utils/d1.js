@@ -1,54 +1,49 @@
 /**
- * Cloudflare D1 client for the Express server.
+ * Cloudflare D1 client for Express.
  *
- * Express runs in a Container / external host, not inside a Worker, so it cannot
- * use the native `env.DB` binding. This client talks to D1 through Cloudflare's
- * REST API instead.
- *
- * Required env vars:
- *   CLOUDFLARE_ACCOUNT_ID  (falls back to R2_ACCOUNT_ID)
- *   CLOUDFLARE_API_TOKEN   (token with D1:Edit permission)
- *   D1_DATABASE_ID         (UUID printed by `wrangler d1 create ripoma-db`)
- *
- * Usage:
- *   const d1 = require('../utils/d1');
- *   const rows = await d1.all('SELECT * FROM products WHERE status = ?', ['active']);
- *   const row  = await d1.first('SELECT * FROM products WHERE id = ?', [id]);
- *   await d1.run('UPDATE products SET stock = ? WHERE id = ?', [qty, id]);
- *   await d1.batch([{ sql: '...', params: [...] }, { sql: '...', params: [...] }]);
+ * Prefers the Worker /internal/d1 gateway (D1_QUERY_URL + D1_INTERNAL_SECRET)
+ * so Express can use the Worker's native D1 binding. Falls back to the
+ * Cloudflare REST API when CLOUDFLARE_API_TOKEN is set instead.
  */
 
 const API_BASE = 'https://api.cloudflare.com/client/v4';
 
-const getConfig = () => {
+const getWorkerConfig = () => {
+  const url = String(process.env.D1_QUERY_URL || '').replace(/\/+$/, '');
+  const secret = process.env.D1_INTERNAL_SECRET;
+  if (url && secret) return { url, secret };
+  return null;
+};
+
+const getRestConfig = () => {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || process.env.R2_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   const databaseId = process.env.D1_DATABASE_ID;
-
-  const missing = Object.entries({
-    'CLOUDFLARE_ACCOUNT_ID (or R2_ACCOUNT_ID)': accountId,
-    CLOUDFLARE_API_TOKEN: apiToken,
-    D1_DATABASE_ID: databaseId
-  })
-    .filter(([, value]) => !value)
-    .map(([name]) => name);
-
-  if (missing.length > 0) {
-    throw new Error(`[D1] Missing configuration: ${missing.join(', ')}`);
+  if (accountId && apiToken && databaseId) {
+    return { accountId, apiToken, databaseId };
   }
-
-  return { accountId, apiToken, databaseId };
+  return null;
 };
 
-/**
- * Execute one or more SQL statements against D1.
- * Accepts a single { sql, params } or an array of them (executed as a batch).
- * Returns the array of raw D1 result objects ({ results, success, meta }).
- */
-const query = async (statements) => {
-  const { accountId, apiToken, databaseId } = getConfig();
-  const list = Array.isArray(statements) ? statements : [statements];
+const queryViaWorker = async (list) => {
+  const { url, secret } = getWorkerConfig();
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-D1-Secret': secret
+    },
+    body: JSON.stringify({ batch: list })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(`[D1] Worker query failed: ${data.error || res.statusText}`);
+  }
+  return data.result || [];
+};
 
+const queryViaRest = async (list) => {
+  const { accountId, apiToken, databaseId } = getRestConfig();
   const results = [];
   for (const { sql, params = [] } of list) {
     const res = await fetch(
@@ -62,7 +57,6 @@ const query = async (statements) => {
         body: JSON.stringify({ sql, params })
       }
     );
-
     const data = await res.json();
     if (!res.ok || !data.success) {
       const message = data.errors?.map((e) => e.message).join('; ') || res.statusText;
@@ -71,6 +65,15 @@ const query = async (statements) => {
     results.push(...data.result);
   }
   return results;
+};
+
+const query = async (statements) => {
+  const list = Array.isArray(statements) ? statements : [statements];
+  if (getWorkerConfig()) return queryViaWorker(list);
+  if (getRestConfig()) return queryViaRest(list);
+  throw new Error(
+    '[D1] Missing configuration. Set D1_QUERY_URL + D1_INTERNAL_SECRET (Worker gateway) or CLOUDFLARE_API_TOKEN + D1_DATABASE_ID.'
+  );
 };
 
 const all = async (sql, params = []) => {
@@ -90,4 +93,9 @@ const run = async (sql, params = []) => {
 
 const batch = (statements) => query(statements);
 
-module.exports = { query, all, first, run, batch };
+const ping = async () => {
+  const row = await first('SELECT 1 AS ok');
+  return Boolean(row && row.ok === 1);
+};
+
+module.exports = { query, all, first, run, batch, ping };
