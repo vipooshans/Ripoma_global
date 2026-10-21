@@ -713,7 +713,8 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   ip_address TEXT,
   user_agent TEXT,
   metadata TEXT,                  -- JSON
-  created_at TEXT
+  created_at TEXT,
+  updated_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_activity_logs_module ON activity_logs(module, action);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_actor ON activity_logs(actor_id);

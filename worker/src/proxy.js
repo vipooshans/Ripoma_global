@@ -176,6 +176,60 @@ export default {
       });
     }
 
+    // Express (API_ORIGIN) queries D1 through this Worker binding so it does
+    // not need a Cloudflare API token. Not for browsers — shared secret only.
+    if (url.pathname === '/internal/d1' && request.method === 'POST') {
+      const secret = env.D1_INTERNAL_SECRET || '';
+      const provided = request.headers.get('X-D1-Secret') || '';
+      if (!secret || provided !== secret) {
+        return new Response(JSON.stringify({ success: false, error: 'unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const db = env.ripoma_db;
+      if (!db) {
+        return new Response(JSON.stringify({ success: false, error: 'd1_unbound' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const body = await request.json();
+        const statements = Array.isArray(body.batch)
+          ? body.batch
+          : [{ sql: body.sql, params: body.params || [] }];
+
+        const results = [];
+        for (const stmt of statements) {
+          const sql = String(stmt.sql || '').trim();
+          if (!sql) throw new Error('empty sql');
+          const params = Array.isArray(stmt.params) ? stmt.params : [];
+          let q = db.prepare(sql);
+          if (params.length) q = q.bind(...params);
+          const outcome = await q.all();
+          results.push({
+            results: outcome.results || [],
+            success: outcome.success !== false,
+            meta: outcome.meta || {}
+          });
+        }
+
+        return new Response(JSON.stringify({ success: true, result: results }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('[D1 gateway]', error);
+        return new Response(
+          JSON.stringify({ success: false, error: String(error?.message || error) }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const apiOrigin = getApiOrigin(env);
 
     if (url.pathname === '/' && request.method === 'GET') {

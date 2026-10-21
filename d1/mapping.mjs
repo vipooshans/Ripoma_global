@@ -322,7 +322,7 @@ export const MAPPINGS = [
     table: 'activity_logs',
     fields: [
       'actorName', 'actorRole', 'action', 'module', 'entityType', 'entityRef',
-      'entityId', 'description', 'ipAddress', 'userAgent', 'createdAt'
+      'entityId', 'description', 'ipAddress', 'userAgent', 'createdAt', 'updatedAt'
     ],
     refs: ['actor'],
     json: ['metadata']

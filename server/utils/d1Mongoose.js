@@ -108,8 +108,24 @@ const BOOL_FIELDS = new Set([
   'isActive', 'followUpDone', 'stockDeductedOnConfirm'
 ]);
 
+const TABLES_WITHOUT_UPDATED_AT = new Set([
+  'activity_logs',
+  'counters',
+  'roles',
+  'stock_movements',
+  'document_activities',
+  'notifications',
+  'customer_notifications',
+  'notification_digest_queues'
+]);
+
+const TABLES_WITHOUT_CREATED_AT = new Set([
+  'counters'
+]);
+
 const toSnake = (key) => {
   if (key === '_id' || key === 'id') return 'id';
+  if (key === 'google' || key === 'googleId') return 'google_id';
   if (REF_TABLE[key]) return `${key.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`)}_id`.replace(/^_/, '');
   return key.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
 };
@@ -118,7 +134,7 @@ const toCamel = (key) => {
   if (key === 'id') return '_id';
   if (key.endsWith('_id')) {
     const base = key.slice(0, -3).replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-    return base;
+    if (REF_TABLE[base]) return base;
   }
   return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 };
@@ -155,6 +171,9 @@ const rowToDoc = (row, table) => {
     }
   }
   if (row.id && !doc._id) doc._id = row.id;
+  if (table === 'customer_accounts') {
+    delete doc.google;
+  }
   return doc;
 };
 
@@ -470,19 +489,43 @@ function createD1Model(name) {
     const now = new Date().toISOString();
     const isNew = !doc._id;
     if (isNew) doc._id = crypto.randomBytes(12).toString('hex');
-    doc.updatedAt = now;
-    if (!doc.createdAt) doc.createdAt = now;
+
+    const hasUpdatedAt = !TABLES_WITHOUT_UPDATED_AT.has(table);
+    const hasCreatedAt = !TABLES_WITHOUT_CREATED_AT.has(table);
+
+    if (hasUpdatedAt) {
+      doc.updatedAt = now;
+    } else {
+      delete doc.updatedAt;
+    }
+    if (hasCreatedAt && !doc.createdAt) {
+      doc.createdAt = now;
+    } else if (!hasCreatedAt) {
+      delete doc.createdAt;
+    }
+
+    if (table === 'customer_accounts') {
+      if (doc.google !== undefined && doc.googleId === undefined) {
+        doc.googleId = doc.google;
+      }
+      delete doc.google;
+    }
 
     if ((name === 'User' || name === 'CustomerAccount') && doc.password && !String(doc.password).startsWith('$2')) {
       doc.password = await bcrypt.hash(doc.password, 12);
     }
 
-    const skip = new Set(['toObject', 'save', 'comparePassword', 'id']);
+    const skip = new Set(['toObject', 'save', 'comparePassword', 'id', '__v']);
     const cols = [];
     const vals = [];
+    const seenCols = new Set();
     for (const [key, value] of Object.entries(doc)) {
       if (skip.has(key) || typeof value === 'function') continue;
       const col = toSnake(key === '_id' ? 'id' : key);
+      if (!hasUpdatedAt && col === 'updated_at') continue;
+      if (!hasCreatedAt && col === 'created_at') continue;
+      if (seenCols.has(col)) continue;
+      seenCols.add(col);
       cols.push(col);
       if (value == null) vals.push(null);
       else if (BOOL_FIELDS.has(key)) vals.push(value ? 1 : 0);
@@ -521,6 +564,12 @@ function createD1Model(name) {
     const setVals = [];
     const payload = update.$set || (update.$inc || update.$unset ? {} : update);
     if (update.$set) Object.assign(payload, update.$set);
+    if (table === 'customer_accounts') {
+      if (payload.google !== undefined && payload.googleId === undefined) {
+        payload.googleId = payload.google;
+      }
+      delete payload.google;
+    }
     for (const [key, value] of Object.entries(payload)) {
       if (key.startsWith('$')) continue;
       sets.push(`${toSnake(key)} = ?`);
@@ -539,8 +588,10 @@ function createD1Model(name) {
         sets.push(`${toSnake(key)} = NULL`);
       }
     }
-    sets.push('updated_at = ?');
-    setVals.push(new Date().toISOString());
+    if (!TABLES_WITHOUT_UPDATED_AT.has(table)) {
+      sets.push('updated_at = ?');
+      setVals.push(new Date().toISOString());
+    }
     if (!sets.length) return { modifiedCount: 0 };
     const meta = await d1.run(
       `UPDATE ${table} SET ${sets.join(', ')} WHERE ${where}`,
@@ -548,6 +599,8 @@ function createD1Model(name) {
     );
     return { modifiedCount: meta.changes || 0, acknowledged: true };
   };
+
+  model.updateMany = model.updateOne;
 
   model.findByIdAndUpdate = async (id, update, options = {}) => {
     await model.updateOne({ _id: String(id) }, update);
@@ -628,6 +681,7 @@ function createD1Model(name) {
   D1Document.distinct = model.distinct;
   D1Document.create = model.create;
   D1Document.updateOne = model.updateOne;
+  D1Document.updateMany = model.updateMany;
   D1Document.findByIdAndUpdate = model.findByIdAndUpdate;
   D1Document.findOneAndDelete = model.findOneAndDelete;
   D1Document.findByIdAndDelete = model.findByIdAndDelete;

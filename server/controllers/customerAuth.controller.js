@@ -25,6 +25,7 @@ const { normalizePrefs } = require('../utils/customerNotifyService');
 const MAX_FAILED_LOGINS = 5;
 const LOCK_MS = 15 * 60 * 1000;
 const REFRESH_DAYS = 7;
+const isProd = process.env.NODE_ENV === 'production';
 
 const toSafeCustomer = (customer) => ({
   id: customer._id,
@@ -324,8 +325,8 @@ exports.login = async (req, res) => {
       });
     }
 
-    if (customer.lockUntil && customer.lockUntil > new Date()) {
-      const mins = Math.ceil((customer.lockUntil - Date.now()) / 60000);
+    if (customer.lockUntil && new Date(customer.lockUntil) > new Date()) {
+      const mins = Math.max(1, Math.ceil((new Date(customer.lockUntil).getTime() - Date.now()) / 60000));
       return res.status(423).json({
         message: `Account temporarily locked due to failed sign-in attempts. Try again in about ${mins} minute(s).`
       });
@@ -372,7 +373,11 @@ exports.login = async (req, res) => {
       customer: toSafeCustomer(customer)
     });
   } catch (error) {
-    console.error('Customer Login Error:', error);
+    console.error('Customer Login Error:', {
+      endpoint: '/api/customer-auth/login',
+      category: error.name || 'AuthenticationError',
+      message: error.message
+    });
     return res.status(500).json({ message: 'Internal server error during login.' });
   }
 };
@@ -521,7 +526,11 @@ exports.loginWithGoogle = async (req, res) => {
       customer: toSafeCustomer(customer)
     });
   } catch (error) {
-    console.error('Customer Google Login Error:', error);
+    console.error('Customer Google Login Error:', {
+      endpoint: '/api/customer-auth/google',
+      category: error.name || 'GoogleAuthError',
+      message: error.message
+    });
     return res.status(500).json({ message: 'Internal server error during Google sign-in.' });
   }
 };

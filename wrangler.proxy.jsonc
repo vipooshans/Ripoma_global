@@ -33,5 +33,14 @@
       "persist": true,
       "invocation_logs": true
     }
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "ripoma_db",
+      "database_name": "ripoma-db",
+      "database_id": "5ea18c20-f058-4c9d-81e2-e2952097b8fe",
+      "migrations_dir": "d1/migrations",
+      "remote": true
+    }
+  ]
 }

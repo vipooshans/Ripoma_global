@@ -29,7 +29,7 @@
 		"FRONTEND_URL": "https://ripomaglobal.org",
 		"CORS_ORIGINS": "https://ripomaglobal.org,https://www.ripomaglobal.org,https://ripoma-global.pages.dev",
 		"CORS_PAGES_HOST": "ripoma-global.pages.dev",
-		"GOOGLE_CLIENT_ID": "140622339758-udsg7ndbovun7s6neghn6mvjp508tk9d.apps.googleusercontent.com"
+		"GOOGLE_CLIENT_ID": "140622339758-03aobin1o3qfct6fdn3bpfe5hr2gujsv.apps.googleusercontent.com"
 		// Optional plaintext: "API_ORIGIN": "https://YOUR-SERVICE.onrender.com"
 	},
 	"containers": [
@@ -87,6 +87,7 @@
 			"binding": "ripoma_db",
 			"database_name": "ripoma-db",
 			"database_id": "5ea18c20-f058-4c9d-81e2-e2952097b8fe",
+			"migrations_dir": "d1/migrations",
 			"remote": true
 		}
 	]

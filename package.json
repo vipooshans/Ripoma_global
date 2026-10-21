@@ -16,7 +16,8 @@
     "d1:schema:local": "wrangler d1 execute ripoma-db --local --file=d1/schema.sql",
     "d1:schema:remote": "wrangler d1 execute ripoma-db --remote --file=d1/schema.sql",
     "d1:export": "node scripts/export-mongo-to-d1.mjs",
-    "d1:verify": "node scripts/verify-d1-schema.mjs"
+    "d1:verify": "node scripts/verify-d1-schema.mjs",
+    "test": "npm --prefix server test"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.0.30"
