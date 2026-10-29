@@ -612,6 +612,40 @@ function createD1Model(name) {
     return model.findById(id);
   };
 
+  model.findOneAndUpdate = async (filter, update, options = {}) => {
+    let doc = await model.findOne(filter);
+    if (!doc) {
+      if (options.upsert) {
+        const initial = {};
+        if (filter && typeof filter === 'object') {
+          for (const [k, v] of Object.entries(filter)) {
+            if (!k.startsWith('$') && (typeof v !== 'object' || v === null)) {
+              initial[k] = v;
+            }
+          }
+        }
+        if (update.$set) Object.assign(initial, update.$set);
+        if (update.$inc) {
+          for (const [k, v] of Object.entries(update.$inc)) {
+            initial[k] = (Number(initial[k]) || 0) + Number(v);
+          }
+        }
+        if (!update.$set && !update.$inc && !update.$unset) {
+          for (const [k, v] of Object.entries(update)) {
+            if (!k.startsWith('$')) initial[k] = v;
+          }
+        }
+        return model.create(initial);
+      }
+      return null;
+    }
+
+    const previousDoc = options.new === false ? { ...doc } : null;
+    await model.updateOne({ _id: String(doc._id) }, update);
+    if (options.new === false) return previousDoc;
+    return model.findById(doc._id);
+  };
+
   model.findOneAndDelete = async (filter) => {
     const doc = await model.findOne(filter);
     if (!doc) return null;
@@ -727,6 +761,7 @@ function createD1Model(name) {
   D1Document.updateOne = model.updateOne;
   D1Document.updateMany = model.updateMany;
   D1Document.findByIdAndUpdate = model.findByIdAndUpdate;
+  D1Document.findOneAndUpdate = model.findOneAndUpdate;
   D1Document.findOneAndDelete = model.findOneAndDelete;
   D1Document.findByIdAndDelete = model.findByIdAndDelete;
   D1Document.deleteMany = model.deleteMany;

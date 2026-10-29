@@ -658,4 +658,36 @@ describe('Rippoma Authentication & D1 Schema Test Suite', () => {
     const evilRes = await workerModule.fetch(evilReq, {});
     assert.strictEqual(evilRes.headers.get('Access-Control-Allow-Origin'), null);
   });
+
+  // ── 15. Counter findOneAndUpdate and Storefront Order Number generation ─────
+  it('15. Counter findOneAndUpdate upserts, increments, and generates valid order numbers', async () => {
+    const Counter = require('../models/Counter');
+    const generateExportNumber = require('../utils/soNumberGenerator');
+
+    const year = new Date().getFullYear();
+    const testKey = `test_order_${year}`;
+
+    // 1. Upsert when not existing
+    const first = await Counter.findOneAndUpdate(
+      { name: testKey },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    assert.ok(first);
+    assert.strictEqual(first.name, testKey);
+    assert.strictEqual(first.seq, 1);
+
+    // 2. Increment existing
+    const second = await Counter.findOneAndUpdate(
+      { name: testKey },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    assert.ok(second);
+    assert.strictEqual(second.seq, 2);
+
+    // 3. Test storefrontOrder generator
+    const orderNum = await generateExportNumber('storefrontOrder');
+    assert.match(orderNum, new RegExp(`^WEB-${year}-\\d{5}$`));
+  });
 });
