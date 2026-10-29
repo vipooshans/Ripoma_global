@@ -489,8 +489,12 @@ exports.getDashboardStats = async (req, res) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const revenueData = months.map((month, index) => {
       const monthNum = index + 1;
-      const currentYearRevenue = revenueStats.find(s => s._id.year === currentYear && s._id.month === monthNum)?.revenue || 0;
-      const lastYearRevenue = revenueStats.find(s => s._id.year === lastYear && s._id.month === monthNum)?.revenue || 0;
+      const currentYearRevenue = Array.isArray(revenueStats)
+        ? revenueStats.find(s => s?._id?.year === currentYear && s?._id?.month === monthNum)?.revenue || 0
+        : 0;
+      const lastYearRevenue = Array.isArray(revenueStats)
+        ? revenueStats.find(s => s?._id?.year === lastYear && s?._id?.month === monthNum)?.revenue || 0
+        : 0;
       return {
         name: month,
         currentYear: Math.round(currentYearRevenue * 100) / 100,

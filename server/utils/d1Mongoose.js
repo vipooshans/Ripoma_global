@@ -361,6 +361,10 @@ class Query {
     return this;
   }
 
+  session(s) {
+    return this;
+  }
+
   then(resolve, reject) {
     return this.exec().then(resolve, reject);
   }
@@ -637,19 +641,39 @@ function createD1Model(name) {
 
     const idExpr = group._id;
     const select = [];
+    let isDateGroup = false;
+
     if (idExpr == null) {
       select.push('NULL AS _id');
     } else if (typeof idExpr === 'string' && idExpr.startsWith('$')) {
       select.push(`${toSnake(idExpr.slice(1))} AS _id`);
+    } else if (typeof idExpr === 'object' && idExpr !== null) {
+      const dateFieldRaw =
+        (idExpr.year && idExpr.year.$year) ||
+        (idExpr.month && idExpr.month.$month) ||
+        (idExpr.day && idExpr.day.$dayOfMonth) ||
+        '';
+      if (dateFieldRaw && typeof dateFieldRaw === 'string' && dateFieldRaw.startsWith('$')) {
+        isDateGroup = true;
+        const dateCol = toSnake(dateFieldRaw.slice(1));
+        select.push(`CAST(strftime('%Y', ${dateCol}) AS INTEGER) AS _id_year`);
+        select.push(`CAST(strftime('%m', ${dateCol}) AS INTEGER) AS _id_month`);
+      } else {
+        select.push('NULL AS _id');
+      }
     } else {
       select.push('NULL AS _id');
     }
 
     for (const [alias, expr] of Object.entries(group)) {
       if (alias === '_id') continue;
-      if (expr.$sum === 1) select.push(`COUNT(*) AS ${alias}`);
-      else if (typeof expr.$sum === 'string' && expr.$sum.startsWith('$')) {
+      if (expr.$sum === 1) {
+        select.push(`COUNT(*) AS ${alias}`);
+      } else if (typeof expr.$sum === 'string' && expr.$sum.startsWith('$')) {
         select.push(`SUM(${toSnake(expr.$sum.slice(1))}) AS ${alias}`);
+      } else if (expr.$sum && typeof expr.$sum === 'object' && Array.isArray(expr.$sum.$subtract)) {
+        const [a, b] = expr.$sum.$subtract.map((s) => toSnake(String(s).replace(/^\$/, '')));
+        select.push(`SUM(COALESCE(${a}, 0) - COALESCE(${b}, 0)) AS ${alias}`);
       } else if (typeof expr.$avg === 'string' && expr.$avg.startsWith('$')) {
         select.push(`AVG(${toSnake(expr.$avg.slice(1))}) AS ${alias}`);
       } else if (typeof expr.$min === 'string' && expr.$min.startsWith('$')) {
@@ -659,13 +683,33 @@ function createD1Model(name) {
       }
     }
 
-    const groupBy = idExpr && typeof idExpr === 'string' && idExpr.startsWith('$')
-      ? ` GROUP BY ${toSnake(idExpr.slice(1))}`
-      : '';
-    return d1.all(
+    let groupBy = '';
+    if (isDateGroup) {
+      groupBy = ' GROUP BY _id_year, _id_month';
+    } else if (idExpr && typeof idExpr === 'string' && idExpr.startsWith('$')) {
+      groupBy = ` GROUP BY ${toSnake(idExpr.slice(1))}`;
+    }
+
+    const rows = await d1.all(
       `SELECT ${select.join(', ')} FROM ${table} WHERE ${where}${groupBy}`,
       params
     );
+
+    return rows.map((r) => {
+      if (isDateGroup) {
+        return {
+          ...r,
+          _id: {
+            year: Number(r._id_year) || 0,
+            month: Number(r._id_month) || 0
+          }
+        };
+      }
+      return {
+        ...r,
+        _id: r._id !== undefined ? r._id : null
+      };
+    });
   };
 
   function D1Document(data = {}) {
@@ -706,6 +750,13 @@ if (USE_D1) {
     if (!cache[name]) cache[name] = createD1Model(name);
     return cache[name];
   };
+
+  mongoose.startSession = async () => ({
+    startTransaction() {},
+    commitTransaction: async () => {},
+    abortTransaction: async () => {},
+    endSession() {}
+  });
 
   mongoose.connect = async () => {
     await d1.ping();
