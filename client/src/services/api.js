@@ -72,11 +72,32 @@ api.interceptors.request.use((config) => {
 const isAuthRefreshRequest = (url) =>
   url?.includes('/auth/refresh') || url?.includes('/customer-auth/refresh');
 
-// Response interceptor — auto-refresh expired access tokens
+// Response interceptor — auto-retry on 429 & auto-refresh expired access tokens
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    if (!originalRequest) return Promise.reject(error);
+
+    // 1. Transparent retry for 429 Too Many Requests (rate limiting)
+    if (error.response?.status === 429) {
+      originalRequest._rateLimitRetryCount = (originalRequest._rateLimitRetryCount || 0) + 1;
+      const maxRetries = 2;
+      if (originalRequest._rateLimitRetryCount <= maxRetries) {
+        const retryAfterHeader = error.response.headers?.['retry-after'];
+        let delayMs = 1500 * originalRequest._rateLimitRetryCount;
+        if (retryAfterHeader) {
+          const parsed = parseInt(retryAfterHeader, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            delayMs = Math.min(10000, parsed * 1000);
+          }
+        }
+        delayMs += Math.floor(Math.random() * 500);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return api(originalRequest);
+      }
+    }
+
     const errorCode = error.response?.data?.code;
 
     if (

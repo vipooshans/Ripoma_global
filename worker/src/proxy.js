@@ -8,6 +8,8 @@
  * Deploy: npm run deploy:proxy
  */
 
+import { categoriesResponseFromD1 } from './storefrontCategories.js';
+
 const LOCAL_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
 const DEFAULT_PAGES = 'https://ripoma-global.pages.dev';
 const STATIC_ORIGINS = [
@@ -106,6 +108,16 @@ async function proxyToOrigin(request, env, apiOrigin) {
   headers.delete('host');
   headers.set('X-Forwarded-Host', target.host);
   headers.set('X-Forwarded-Proto', target.protocol.replace(':', ''));
+
+  // Forward client IP so upstream rate limiters/logging know the true client
+  const clientIp =
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-forwarded-for') ||
+    '';
+  if (clientIp) {
+    headers.set('CF-Connecting-IP', clientIp);
+    headers.set('X-Forwarded-For', clientIp);
+  }
 
   const init = {
     method: request.method,
@@ -271,12 +283,91 @@ export default {
       );
     }
 
+    const isPublicStorefrontGet =
+      request.method === 'GET' &&
+      (url.pathname === '/api/storefront/categories' ||
+        url.pathname === '/api/storefront/featured' ||
+        url.pathname === '/api/storefront/promos' ||
+        url.pathname === '/api/storefront/stats' ||
+        url.pathname === '/api/storefront/faqs' ||
+        url.pathname === '/api/storefront/products/facets');
+
+    const cache =
+      typeof caches !== 'undefined' && caches.default ? caches.default : null;
+    const cacheKey = cache && isPublicStorefrontGet ? new Request(url.toString(), { method: 'GET' }) : null;
+
+    if (cache && cacheKey) {
+      try {
+        const cached = await cache.match(cacheKey);
+        if (cached) {
+          return withCors(cached, origin, env);
+        }
+      } catch (cacheErr) {
+        console.warn('[proxy] cache match error:', cacheErr);
+      }
+    }
+
     const upstream = await proxyToOrigin(request, env, apiOrigin);
     // WebSocket upgrades (socket.io): reconstructing the Response in withCors
     // drops the webSocket handle and the browser reports a failed wss:// probe.
     if (upstream.status === 101) {
       return upstream;
     }
+
+    // D1 fallback for categories if upstream returns 5xx or 429
+    if (
+      (upstream.status >= 500 || upstream.status === 429) &&
+      request.method === 'GET' &&
+      url.pathname === '/api/storefront/categories'
+    ) {
+      try {
+        const fallback = await categoriesResponseFromD1(env);
+        if (fallback) {
+          return withCors(fallback, origin, env);
+        }
+      } catch (fallbackErr) {
+        console.error('[proxy] D1 categories fallback failed:', fallbackErr);
+      }
+    }
+
+    // Structured JSON response for 429 rate limit
+    if (upstream.status === 429) {
+      const retryAfter = upstream.headers.get('Retry-After') || '3';
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'too_many_requests',
+          message: 'Server is receiving high traffic. Please retry in a few seconds.',
+          retryAfter: parseInt(retryAfter, 10) || 3
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(retryAfter),
+            ...corsHeaders(origin, env)
+          }
+        }
+      );
+    }
+
+    // Cache successful public storefront responses at Cloudflare edge
+    if (cache && cacheKey && upstream.status === 200) {
+      try {
+        const toCache = upstream.clone();
+        const ch = new Headers(toCache.headers);
+        ch.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+        const cachedRes = new Response(toCache.body, {
+          status: toCache.status,
+          statusText: toCache.statusText,
+          headers: ch
+        });
+        cache.put(cacheKey, cachedRes).catch(() => {});
+      } catch (cachePutErr) {
+        console.warn('[proxy] cache put error:', cachePutErr);
+      }
+    }
+
     return withCors(upstream, origin, env);
   }
 };

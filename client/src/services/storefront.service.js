@@ -1,19 +1,61 @@
 import api from './api';
 
+// In-memory cache & inflight request deduplication to prevent burst 429 errors
+const cache = new Map();
+const inflight = new Map();
+
+async function cachedFetch(key, ttlMs, fetcher) {
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (cached && now - cached.timestamp < ttlMs) {
+    return cached.data;
+  }
+  if (inflight.has(key)) {
+    return inflight.get(key);
+  }
+  const promise = (async () => {
+    try {
+      const data = await fetcher();
+      cache.set(key, { data, timestamp: Date.now() });
+      return data;
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+  inflight.set(key, promise);
+  return promise;
+}
+
+export function clearStorefrontCache(prefix = '') {
+  if (!prefix) {
+    cache.clear();
+  } else {
+    for (const key of cache.keys()) {
+      if (key.startsWith(prefix)) cache.delete(key);
+    }
+  }
+}
+
 const storefrontService = {
   getFeaturedProducts: async (limit = 8) => {
-    const res = await api.get('/storefront/featured', { params: { limit } });
-    return res.data;
+    return cachedFetch(`featured:${limit}`, 120_000, async () => {
+      const res = await api.get('/storefront/featured', { params: { limit } });
+      return res.data;
+    });
   },
 
   getCategories: async () => {
-    const res = await api.get('/storefront/categories');
-    return res.data;
+    return cachedFetch('categories', 300_000, async () => {
+      const res = await api.get('/storefront/categories');
+      return res.data;
+    });
   },
 
   getCategoryDetail: async (id) => {
-    const res = await api.get(`/storefront/categories/${id}`);
-    return res.data;
+    return cachedFetch(`cat:${id}`, 300_000, async () => {
+      const res = await api.get(`/storefront/categories/${id}`);
+      return res.data;
+    });
   },
 
   getProducts: async (params = {}) => {
@@ -22,13 +64,18 @@ const storefrontService = {
   },
 
   getProductFacets: async (params = {}) => {
-    const res = await api.get('/storefront/products/facets', { params });
-    return res.data;
+    const cacheKey = `facets:${JSON.stringify(params || {})}`;
+    return cachedFetch(cacheKey, 120_000, async () => {
+      const res = await api.get('/storefront/products/facets', { params });
+      return res.data;
+    });
   },
 
   getProductDetail: async (id) => {
-    const res = await api.get(`/storefront/products/${id}`);
-    return res.data;
+    return cachedFetch(`product:${id}`, 60_000, async () => {
+      const res = await api.get(`/storefront/products/${id}`);
+      return res.data;
+    });
   },
 
   getProductReviews: async (id) => {
@@ -38,22 +85,24 @@ const storefrontService = {
 
   createProductReview: async (id, payload) => {
     const res = await api.post(`/storefront/products/${id}/reviews`, payload);
+    clearStorefrontCache(`product:${id}`);
     return res.data;
   },
 
   updateMyProductReview: async (id, payload) => {
     const res = await api.put(`/storefront/products/${id}/reviews/mine`, payload);
+    clearStorefrontCache(`product:${id}`);
     return res.data;
   },
 
   deleteMyProductReview: async (id) => {
     const res = await api.delete(`/storefront/products/${id}/reviews/mine`);
+    clearStorefrontCache(`product:${id}`);
     return res.data;
   },
 
   getSearchSuggestions: async (q) => {
     const res = await api.get('/storefront/search-suggestions', { params: { q } });
-    // { suggestions: ProductHit[], categories?: CategoryHit[] }
     return {
       suggestions: res.data?.suggestions || [],
       categories: res.data?.categories || []
@@ -61,13 +110,17 @@ const storefrontService = {
   },
 
   getStats: async () => {
-    const res = await api.get('/storefront/stats');
-    return res.data;
+    return cachedFetch('stats', 300_000, async () => {
+      const res = await api.get('/storefront/stats');
+      return res.data;
+    });
   },
 
   getPromos: async () => {
-    const res = await api.get('/storefront/promos');
-    return res.data;
+    return cachedFetch('promos', 300_000, async () => {
+      const res = await api.get('/storefront/promos');
+      return res.data;
+    });
   },
 
   estimateCart: async (payload) => {
@@ -82,6 +135,7 @@ const storefrontService = {
 
   placeOrder: async (payload) => {
     const res = await api.post('/storefront/orders', payload);
+    clearStorefrontCache('stats');
     return res.data;
   },
 
@@ -135,8 +189,11 @@ const storefrontService = {
   },
 
   getFaqs: async (params = {}) => {
-    const res = await api.get('/storefront/faqs', { params });
-    return res.data;
+    const cacheKey = `faqs:${JSON.stringify(params || {})}`;
+    return cachedFetch(cacheKey, 300_000, async () => {
+      const res = await api.get('/storefront/faqs', { params });
+      return res.data;
+    });
   },
 
   createSupportTicket: async (payload) => {
