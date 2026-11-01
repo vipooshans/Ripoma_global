@@ -176,6 +176,23 @@ async function proxyToOrigin(request, env, apiOrigin) {
   }
 }
 
+/**
+ * Retained for Cloudflare Durable Object migration compatibility on ripomaglobal1.
+ */
+export class RipomaApi {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    return new Response(JSON.stringify({ ok: true, service: 'RipomaApi' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';

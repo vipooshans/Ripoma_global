@@ -26,6 +26,22 @@
     "CORS_PAGES_HOST": "ripoma-global.pages.dev",
     "GOOGLE_CLIENT_ID": "140622339758-03aobin1o3qfct6fdn3bpfe5hr2gujsv.apps.googleusercontent.com"
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RIPOMA_API",
+        "class_name": "RipomaApi"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "RipomaApi"
+      ]
+    }
+  ],
   "observability": {
     "enabled": false,
     "logs": {
