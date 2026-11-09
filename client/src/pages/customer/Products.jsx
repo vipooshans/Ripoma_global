@@ -56,12 +56,19 @@ const CustomerProducts = () => {
   }), [search, category]);
 
   useEffect(() => {
+    let isCancelled = false;
     storefrontService.getProductFacets(facetParams)
-      .then(setFacets)
+      .then((f) => {
+        if (!isCancelled) setFacets(f);
+      })
       .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
   }, [facetParams]);
 
   useEffect(() => {
+    let isCancelled = false;
     const fetchProducts = async () => {
       setLoading(true);
       try {
@@ -77,16 +84,25 @@ const CustomerProducts = () => {
           availability: availability || undefined
         };
         const data = await storefrontService.getProducts(params);
-        setProducts(data.products || []);
-        setPagination(data.pagination || { total: 0, page: 1, totalPages: 1 });
+        if (!isCancelled) {
+          setProducts(data.products || []);
+          setPagination(data.pagination || { total: 0, page: 1, totalPages: 1 });
+        }
       } catch (err) {
-        console.error(err);
-        toast.error('Failed to load products. Please try again.');
+        if (!isCancelled) {
+          console.error(err);
+          toast.error('Failed to load products. Please try again.');
+        }
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
     fetchProducts();
+    return () => {
+      isCancelled = true;
+    };
   }, [search, category, sort, page, brand, minPrice, maxPrice, availability]);
 
   const updateParam = (key, value) => {

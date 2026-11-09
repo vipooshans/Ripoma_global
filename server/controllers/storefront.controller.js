@@ -259,6 +259,7 @@ const enrichProductsWithStock = async (products) => {
 // Returns active products marked isFeatured; falls back to newest if none featured
 exports.getFeaturedProducts = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=60');
     const limit = parseInt(req.query.limit) || 8;
 
     if (USE_D1_CATALOG) {
@@ -298,6 +299,7 @@ exports.getFeaturedProducts = async (req, res) => {
 // Returns hierarchical categories with rolled-up product counts
 exports.getCategories = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
     if (USE_D1_CATALOG) {
       const categories = await catalogD1.getCategoryTree();
       return res.status(200).json({ categories });
@@ -314,6 +316,7 @@ exports.getCategories = async (req, res) => {
 // ─── GET /api/storefront/categories/:id ─────────────────────────────────────────
 exports.getCategoryDetail = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
     const { id } = req.params;
     const category = USE_D1_CATALOG
       ? await catalogD1.getCategoryDetail(id)
@@ -333,6 +336,7 @@ exports.getCategoryDetail = async (req, res) => {
 // ─── GET /api/storefront/products/facets ──────────────────────────────────────
 exports.getProductFacets = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=15, s-maxage=60');
     if (USE_D1_CATALOG) {
       const facets = await catalogD1.getFacets(req.query);
       return res.status(200).json(facets);
@@ -374,6 +378,7 @@ exports.getProductFacets = async (req, res) => {
 // Public product listing with search, filter, pagination
 exports.getProducts = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=15, s-maxage=60');
     if (USE_D1_CATALOG) {
       const result = await catalogD1.listProducts(req.query);
       return res.status(200).json(result);
@@ -452,6 +457,7 @@ exports.getProducts = async (req, res) => {
 // ─── GET /api/storefront/products/:id ─────────────────────────────────────────
 exports.getProductDetail = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=15, s-maxage=60');
     const { id } = req.params;
 
     if (USE_D1_CATALOG) {
@@ -725,28 +731,22 @@ exports.getSearchSuggestions = async (req, res) => {
 // ─── GET /api/storefront/stats ────────────────────────────────────────────────
 exports.getStats = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
+
     if (USE_D1_CATALOG) {
       const stats = await catalogD1.getStats();
       return res.status(200).json({ stats });
     }
 
-    const productCount = await Product.countDocuments({ status: 'active', deleted: false });
-    const categories = await Category.find().select('_id');
-    let categoryCount = 0;
-
-    for (const cat of categories) {
-      const count = await Product.countDocuments({
-        category: cat._id,
-        status: 'active',
-        deleted: false
-      });
-      if (count > 0) categoryCount += 1;
-    }
+    const [productCount, activeCategoryIds] = await Promise.all([
+      Product.countDocuments({ status: 'active', deleted: false }),
+      Product.distinct('category', { status: 'active', deleted: false })
+    ]);
 
     return res.status(200).json({
       stats: {
         productCount,
-        categoryCount
+        categoryCount: activeCategoryIds.filter(Boolean).length
       }
     });
   } catch (error) {
@@ -758,6 +758,7 @@ exports.getStats = async (req, res) => {
 // ─── GET /api/storefront/promos ───────────────────────────────────────────────
 exports.getPromos = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
     const promos = getStorefrontPromos();
     return res.status(200).json({ promos });
   } catch (error) {

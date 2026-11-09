@@ -12,26 +12,33 @@ const {
 
 const orderLimiter = createCustomerRateLimiter({
   windowMs: 60 * 60 * 1000,
-  max: 12,
+  max: 20,
   keyPrefix: 'sf-order',
   message: 'Too many checkout attempts. Please try again later.'
 });
 
 const supportLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000,
-  max: 20,
+  max: 30,
   keyPrefix: 'sf-support',
   message: 'Too many support requests. Please try again later.'
 });
 
+const storefrontBrowseLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 120,
+  keyPrefix: 'sf-browse',
+  message: 'Browsing too quickly. Please slow down and try again.'
+});
+
 // All routes are PUBLIC unless noted
 
-router.get('/featured', storefrontController.getFeaturedProducts);
-router.get('/categories', storefrontController.getCategories);
-router.get('/categories/:id', storefrontController.getCategoryDetail);
-router.get('/stats', storefrontController.getStats);
-router.get('/promos', storefrontController.getPromos);
-router.get('/faqs', storefrontSupportController.getFaqs);
+router.get('/featured', storefrontBrowseLimiter, storefrontController.getFeaturedProducts);
+router.get('/categories', storefrontBrowseLimiter, storefrontController.getCategories);
+router.get('/categories/:id', storefrontBrowseLimiter, storefrontController.getCategoryDetail);
+router.get('/stats', storefrontBrowseLimiter, storefrontController.getStats);
+router.get('/promos', storefrontBrowseLimiter, storefrontController.getPromos);
+router.get('/faqs', storefrontBrowseLimiter, storefrontSupportController.getFaqs);
 
 router.post('/support', supportLimiter, optionalCustomerAuth, storefrontSupportController.createTicket);
 router.get('/support/mine', customerAuthMiddleware, storefrontSupportController.listMyTickets);
@@ -51,13 +58,13 @@ router.get('/notifications/unread-count', customerAuthMiddleware, customerNotifi
 router.patch('/notifications/:id/read', customerAuthMiddleware, customerNotificationController.markRead);
 router.post('/notifications/read-all', customerAuthMiddleware, customerNotificationController.markAllRead);
 
-router.get('/products/facets', storefrontController.getProductFacets);
-router.get('/products', storefrontController.getProducts);
+router.get('/products/facets', storefrontBrowseLimiter, storefrontController.getProductFacets);
+router.get('/products', storefrontBrowseLimiter, storefrontController.getProducts);
 router.get('/products/:id/reviews', optionalCustomerAuth, storefrontController.getProductReviews);
 router.post('/products/:id/reviews', customerAuthMiddleware, storefrontController.createProductReview);
 router.put('/products/:id/reviews/mine', customerAuthMiddleware, storefrontController.updateMyProductReview);
 router.delete('/products/:id/reviews/mine', customerAuthMiddleware, storefrontController.deleteMyProductReview);
-router.get('/products/:id', storefrontController.getProductDetail);
-router.get('/search-suggestions', storefrontController.getSearchSuggestions);
+router.get('/products/:id', storefrontBrowseLimiter, storefrontController.getProductDetail);
+router.get('/search-suggestions', storefrontBrowseLimiter, storefrontController.getSearchSuggestions);
 
 module.exports = router;

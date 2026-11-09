@@ -26,6 +26,22 @@
     "CORS_PAGES_HOST": "ripoma-global.pages.dev",
     "GOOGLE_CLIENT_ID": "140622339758-03aobin1o3qfct6fdn3bpfe5hr2gujsv.apps.googleusercontent.com"
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RIPOMA_API",
+        "class_name": "RipomaApi"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "RipomaApi"
+      ]
+    }
+  ],
   "observability": {
     "enabled": false,
     "logs": {
@@ -33,5 +49,14 @@
       "persist": true,
       "invocation_logs": true
     }
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "ripoma_db",
+      "database_name": "ripoma-db",
+      "database_id": "5ea18c20-f058-4c9d-81e2-e2952097b8fe",
+      "migrations_dir": "d1/migrations",
+      "remote": true
+    }
+  ]
 }

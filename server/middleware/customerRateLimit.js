@@ -12,6 +12,17 @@ const prune = (key, windowMs) => {
   if (!entry.hits.length) buckets.delete(key);
 };
 
+const getClientIp = (req) => {
+  const cfIp = req?.headers?.['cf-connecting-ip'];
+  if (cfIp) return String(cfIp).trim();
+  const fwd = req?.headers?.['x-forwarded-for'];
+  if (fwd) {
+    const list = String(fwd).split(',');
+    return list[0].trim();
+  }
+  return req?.ip || req?.connection?.remoteAddress || 'unknown';
+};
+
 const createRateLimiter = ({
   windowMs = 15 * 60 * 1000,
   max = 20,
@@ -19,7 +30,7 @@ const createRateLimiter = ({
   message = 'Too many requests. Please try again later.'
 } = {}) => {
   return (req, res, next) => {
-    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const ip = getClientIp(req);
     const key = `${keyPrefix}:${ip}`;
     const now = Date.now();
     prune(key, windowMs);
@@ -49,7 +60,7 @@ const createCustomerRateLimiter = ({
   message = 'Too many requests. Please try again later.'
 } = {}) => {
   return (req, res, next) => {
-    const id = req.customerUser?._id || req.ip || 'anon';
+    const id = req.customerUser?._id || getClientIp(req);
     const key = `${keyPrefix}:${id}`;
     const now = Date.now();
     prune(key, windowMs);
@@ -61,6 +72,8 @@ const createCustomerRateLimiter = ({
     }
 
     if (entry.hits.length >= max) {
+      const retryAfter = Math.ceil((entry.hits[0] + windowMs - now) / 1000);
+      res.setHeader('Retry-After', String(Math.max(1, retryAfter)));
       return res.status(429).json({ message });
     }
 
@@ -69,4 +82,4 @@ const createCustomerRateLimiter = ({
   };
 };
 
-module.exports = { createRateLimiter, createCustomerRateLimiter };
+module.exports = { createRateLimiter, createCustomerRateLimiter, getClientIp };

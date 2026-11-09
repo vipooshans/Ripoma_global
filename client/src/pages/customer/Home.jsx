@@ -86,6 +86,7 @@ const CustomerHome = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -97,20 +98,25 @@ const CustomerHome = () => {
           storefrontService.getStats(),
           storefrontService.getPromos()
         ]);
+        if (!isMounted) return;
         setFeatured(featuredData.products || []);
         setCategories(catData.categories || []);
         setNewArrivals(newData.products || []);
         setStats(statsData.stats || { productCount: 0, categoryCount: 0 });
         setPromos(promosData.promos || { marquee: [], cards: [] });
       } catch (err) {
+        if (!isMounted) return;
         console.error('Storefront data error:', err);
         setError('Unable to load storefront data. Please try again later.');
         toast.error('Failed to load products. Please refresh the page.');
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchData();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleLogout = async () => {

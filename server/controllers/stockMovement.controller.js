@@ -68,8 +68,48 @@ exports.getStockMovementById = async (req, res) => {
 
 // POST /api/stock-movements
 exports.createStockMovement = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  let session = null;
+  try {
+    if (typeof mongoose.startSession === 'function') {
+      session = await mongoose.startSession();
+      if (session && typeof session.startTransaction === 'function') {
+        session.startTransaction();
+      }
+    }
+  } catch (_) {
+    session = null;
+  }
+
+  const safeAbort = async () => {
+    if (session) {
+      try {
+        if (typeof session.abortTransaction === 'function') await session.abortTransaction();
+      } catch (_) {}
+      try {
+        if (typeof session.endSession === 'function') session.endSession();
+      } catch (_) {}
+    }
+  };
+
+  const safeCommit = async () => {
+    if (session) {
+      try {
+        if (typeof session.commitTransaction === 'function') await session.commitTransaction();
+      } catch (_) {}
+      try {
+        if (typeof session.endSession === 'function') session.endSession();
+      } catch (_) {}
+    }
+  };
+
+  const attachSession = (query) => {
+    if (session && query && typeof query.session === 'function') {
+      return query.session(session);
+    }
+    return query;
+  };
+
+  const saveOpts = session ? { session } : undefined;
 
   try {
     const {
@@ -85,75 +125,65 @@ exports.createStockMovement = async (req, res) => {
     } = req.body;
 
     if (!productId || !warehouseId || !type || quantity === undefined || quantity === null || quantity === '') {
-      await session.abortTransaction();
-      session.endSession();
+      await safeAbort();
       return res.status(400).json({ message: 'Product, warehouse, movement type, and quantity are required.' });
     }
 
     const qtyNum = Number(quantity);
     if (!Number.isInteger(qtyNum)) {
-      await session.abortTransaction();
-      session.endSession();
+      await safeAbort();
       return res.status(400).json({ message: 'Quantity must be a whole number.' });
     }
 
     if (type === 'adjustment') {
       if (qtyNum === 0) {
-        await session.abortTransaction();
-        session.endSession();
+        await safeAbort();
         return res.status(400).json({ message: 'Adjustment quantity must be a non-zero integer.' });
       }
     } else if (qtyNum <= 0) {
-      await session.abortTransaction();
-      session.endSession();
+      await safeAbort();
       return res.status(400).json({ message: 'Quantity must be a positive integer.' });
     }
 
     const qtyVal = Math.abs(qtyNum);
 
     // Verify product exists
-    const productRecord = await Product.findOne({ _id: productId, deleted: false }).session(session);
+    const productRecord = await attachSession(Product.findOne({ _id: productId, deleted: false }));
     if (!productRecord) {
-      await session.abortTransaction();
-      session.endSession();
+      await safeAbort();
       return res.status(404).json({ message: 'Product not found.' });
     }
 
     // Verify source warehouse exists
-    const srcWarehouse = await Warehouse.findById(warehouseId).session(session);
+    const srcWarehouse = await attachSession(Warehouse.findById(warehouseId));
     if (!srcWarehouse) {
-      await session.abortTransaction();
-      session.endSession();
+      await safeAbort();
       return res.status(404).json({ message: 'Source warehouse not found.' });
     }
 
     // Handle Transfer Movement (two StockMovement records + rollback support)
     if (type === 'transfer') {
       if (!transferToId) {
-        await session.abortTransaction();
-        session.endSession();
+        await safeAbort();
         return res.status(400).json({ message: 'Destination warehouse is required for transfers.' });
       }
 
       if (warehouseId === transferToId) {
-        await session.abortTransaction();
-        session.endSession();
+        await safeAbort();
         return res.status(400).json({ message: 'Source and destination warehouses must be different.' });
       }
 
       // Verify destination warehouse exists
-      const destWarehouse = await Warehouse.findById(transferToId).session(session);
+      const destWarehouse = await attachSession(Warehouse.findById(transferToId));
       if (!destWarehouse) {
-        await session.abortTransaction();
-        session.endSession();
+        await safeAbort();
         return res.status(404).json({ message: 'Destination warehouse not found.' });
       }
 
       // 1. Deduct from Source Warehouse
-      let srcItem = await InventoryItem.findOne({ product: productId, warehouse: warehouseId }).session(session);
+      let srcItem = await attachSession(InventoryItem.findOne({ product: productId, warehouse: warehouseId }));
       if (!srcItem || srcItem.quantityOnHand < qtyVal) {
-        await session.abortTransaction();
-        session.endSession();
+        await safeAbort();
         return res.status(400).json({
           message: `Insufficient stock in source warehouse. Available: ${srcItem ? srcItem.quantityOnHand : 0}`
         });
@@ -161,7 +191,7 @@ exports.createStockMovement = async (req, res) => {
 
       const srcBefore = srcItem.quantityOnHand;
       srcItem.quantityOnHand -= qtyVal;
-      await srcItem.save({ session });
+      await srcItem.save(saveOpts);
 
       const sourceMovement = new StockMovement({
         product: productId,
@@ -174,10 +204,10 @@ exports.createStockMovement = async (req, res) => {
         note: note || `Transfer to warehouse: ${destWarehouse.name}`,
         performedBy: req.user?._id
       });
-      await sourceMovement.save({ session });
+      await sourceMovement.save(saveOpts);
 
       // 2. Add to Destination Warehouse
-      let destItem = await InventoryItem.findOne({ product: productId, warehouse: transferToId }).session(session);
+      let destItem = await attachSession(InventoryItem.findOne({ product: productId, warehouse: transferToId }));
       if (!destItem) {
         destItem = new InventoryItem({
           product: productId,
@@ -193,7 +223,7 @@ exports.createStockMovement = async (req, res) => {
       destItem.quantityOnHand += qtyVal;
       if (batchNumber) destItem.batchNumber = batchNumber;
       if (expiryDate) destItem.expiryDate = expiryDate;
-      await destItem.save({ session });
+      await destItem.save(saveOpts);
 
       const destMovement = new StockMovement({
         product: productId,
@@ -206,10 +236,9 @@ exports.createStockMovement = async (req, res) => {
         note: note || `Transfer from warehouse: ${srcWarehouse.name}`,
         performedBy: req.user?._id
       });
-      await destMovement.save({ session });
+      await destMovement.save(saveOpts);
 
-      await session.commitTransaction();
-      session.endSession();
+      await safeCommit();
 
       return res.status(201).json({
         message: 'Stock transfer completed successfully.',
@@ -218,7 +247,7 @@ exports.createStockMovement = async (req, res) => {
     }
 
     // Handle standard adjustments: receive, issue, adjustment, return
-    let item = await InventoryItem.findOne({ product: productId, warehouse: warehouseId }).session(session);
+    let item = await attachSession(InventoryItem.findOne({ product: productId, warehouse: warehouseId }));
     if (!item) {
       item = new InventoryItem({
         product: productId,
@@ -246,16 +275,14 @@ exports.createStockMovement = async (req, res) => {
         netQtyChange = qtyNum;
         break;
       default:
-        await session.abortTransaction();
-        session.endSession();
+        await safeAbort();
         return res.status(400).json({ message: 'Invalid movement type.' });
     }
 
     item.quantityOnHand += netQtyChange;
 
     if (item.quantityOnHand < 0) {
-      await session.abortTransaction();
-      session.endSession();
+      await safeAbort();
       return res.status(400).json({
         message: `Insufficient inventory for operation. Current stock: ${qtyBefore}, attempted change: ${netQtyChange}`
       });
@@ -264,7 +291,7 @@ exports.createStockMovement = async (req, res) => {
     if (batchNumber) item.batchNumber = batchNumber;
     if (expiryDate) item.expiryDate = expiryDate;
 
-    await item.save({ session });
+    await item.save(saveOpts);
 
     const movement = new StockMovement({
       product: productId,
@@ -278,19 +305,17 @@ exports.createStockMovement = async (req, res) => {
       performedBy: req.user?._id
     });
 
-    await movement.save({ session });
+    await movement.save(saveOpts);
 
-    await session.commitTransaction();
-    session.endSession();
+    await safeCommit();
 
     return res.status(201).json({
       message: 'Stock movement registered successfully.',
       movement
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
+    await safeAbort();
     console.error('Create Stock Movement Error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: error.message || 'Internal server error' });
   }
 };

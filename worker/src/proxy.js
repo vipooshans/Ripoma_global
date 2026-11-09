@@ -8,6 +8,8 @@
  * Deploy: npm run deploy:proxy
  */
 
+import { categoriesResponseFromD1 } from './storefrontCategories.js';
+
 const LOCAL_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
 const DEFAULT_PAGES = 'https://ripoma-global.pages.dev';
 const STATIC_ORIGINS = [
@@ -107,6 +109,16 @@ async function proxyToOrigin(request, env, apiOrigin) {
   headers.set('X-Forwarded-Host', target.host);
   headers.set('X-Forwarded-Proto', target.protocol.replace(':', ''));
 
+  // Forward client IP so upstream rate limiters/logging know the true client
+  const clientIp =
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-forwarded-for') ||
+    '';
+  if (clientIp) {
+    headers.set('CF-Connecting-IP', clientIp);
+    headers.set('X-Forwarded-For', clientIp);
+  }
+
   const init = {
     method: request.method,
     headers,
@@ -164,8 +176,25 @@ async function proxyToOrigin(request, env, apiOrigin) {
   }
 }
 
+/**
+ * Retained for Cloudflare Durable Object migration compatibility on ripomaglobal1.
+ */
+export class RipomaApi {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    return new Response(JSON.stringify({ ok: true, service: 'RipomaApi' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
     const url = new URL(request.url);
 
@@ -174,6 +203,60 @@ export default {
         status: 204,
         headers: corsHeaders(origin, env)
       });
+    }
+
+    // Express (API_ORIGIN) queries D1 through this Worker binding so it does
+    // not need a Cloudflare API token. Not for browsers — shared secret only.
+    if (url.pathname === '/internal/d1' && request.method === 'POST') {
+      const secret = env.D1_INTERNAL_SECRET || '';
+      const provided = request.headers.get('X-D1-Secret') || '';
+      if (!secret || provided !== secret) {
+        return new Response(JSON.stringify({ success: false, error: 'unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const db = env.ripoma_db;
+      if (!db) {
+        return new Response(JSON.stringify({ success: false, error: 'd1_unbound' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const body = await request.json();
+        const statements = Array.isArray(body.batch)
+          ? body.batch
+          : [{ sql: body.sql, params: body.params || [] }];
+
+        const results = [];
+        for (const stmt of statements) {
+          const sql = String(stmt.sql || '').trim();
+          if (!sql) throw new Error('empty sql');
+          const params = Array.isArray(stmt.params) ? stmt.params : [];
+          let q = db.prepare(sql);
+          if (params.length) q = q.bind(...params);
+          const outcome = await q.all();
+          results.push({
+            results: outcome.results || [],
+            success: outcome.success !== false,
+            meta: outcome.meta || {}
+          });
+        }
+
+        return new Response(JSON.stringify({ success: true, result: results }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('[D1 gateway]', error);
+        return new Response(
+          JSON.stringify({ success: false, error: String(error?.message || error) }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     const apiOrigin = getApiOrigin(env);
@@ -217,12 +300,103 @@ export default {
       );
     }
 
+    const isPublicStorefrontGet =
+      request.method === 'GET' &&
+      (url.pathname === '/api/storefront/categories' ||
+        url.pathname === '/api/storefront/featured' ||
+        url.pathname === '/api/storefront/promos' ||
+        url.pathname === '/api/storefront/stats' ||
+        url.pathname === '/api/storefront/faqs' ||
+        url.pathname === '/api/storefront/products' ||
+        url.pathname === '/api/storefront/products/facets');
+
+    const cache =
+      typeof caches !== 'undefined' && caches.default ? caches.default : null;
+    const cacheKey = cache && isPublicStorefrontGet ? new Request(url.toString(), { method: 'GET' }) : null;
+
+    if (cache && cacheKey) {
+      try {
+        const cached = await cache.match(cacheKey);
+        if (cached) {
+          return withCors(cached, origin, env);
+        }
+      } catch (cacheErr) {
+        console.warn('[proxy] cache match error:', cacheErr);
+      }
+    }
+
     const upstream = await proxyToOrigin(request, env, apiOrigin);
     // WebSocket upgrades (socket.io): reconstructing the Response in withCors
     // drops the webSocket handle and the browser reports a failed wss:// probe.
     if (upstream.status === 101) {
       return upstream;
     }
+
+    // D1 fallback for categories if upstream returns 5xx or 429
+    if (
+      (upstream.status >= 500 || upstream.status === 429) &&
+      request.method === 'GET' &&
+      url.pathname === '/api/storefront/categories'
+    ) {
+      try {
+        const fallback = await categoriesResponseFromD1(env);
+        if (fallback) {
+          return withCors(fallback, origin, env);
+        }
+      } catch (fallbackErr) {
+        console.error('[proxy] D1 categories fallback failed:', fallbackErr);
+      }
+    }
+
+    // Structured JSON response for 429 rate limit
+    if (upstream.status === 429) {
+      const retryAfter = upstream.headers.get('Retry-After') || '3';
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'too_many_requests',
+          message: 'Server is receiving high traffic. Please retry in a few seconds.',
+          retryAfter: parseInt(retryAfter, 10) || 3
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(retryAfter),
+            ...corsHeaders(origin, env)
+          }
+        }
+      );
+    }
+
+    // Cache successful public storefront responses at Cloudflare edge
+    if (cache && cacheKey && upstream.status === 200) {
+      try {
+        const toCache = upstream.clone();
+        const ch = new Headers(toCache.headers);
+        const isLongLived =
+          url.pathname === '/api/storefront/categories' ||
+          url.pathname === '/api/storefront/stats' ||
+          url.pathname === '/api/storefront/promos' ||
+          url.pathname === '/api/storefront/faqs';
+        const sMaxAge = isLongLived ? 300 : 60;
+        ch.set('Cache-Control', `public, max-age=15, s-maxage=${sMaxAge}`);
+        const cachedRes = new Response(toCache.body, {
+          status: toCache.status,
+          statusText: toCache.statusText,
+          headers: ch
+        });
+        const putPromise = cache.put(cacheKey, cachedRes).catch((err) => {
+          console.warn('[proxy] cache put error:', err);
+        });
+        if (ctx && typeof ctx.waitUntil === 'function') {
+          ctx.waitUntil(putPromise);
+        }
+      } catch (cachePutErr) {
+        console.warn('[proxy] cache preparation error:', cachePutErr);
+      }
+    }
+
     return withCors(upstream, origin, env);
   }
 };
