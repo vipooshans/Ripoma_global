@@ -210,7 +210,7 @@ export class RipomaApi extends Container {
 }
 
 export default {
-  async fetch(request, workerEnv) {
+  async fetch(request, workerEnv, ctx) {
     const origin = request.headers.get('Origin') || '';
     const url = new URL(request.url);
 
@@ -305,6 +305,7 @@ export default {
         url.pathname === '/api/storefront/promos' ||
         url.pathname === '/api/storefront/stats' ||
         url.pathname === '/api/storefront/faqs' ||
+        url.pathname === '/api/storefront/products' ||
         url.pathname === '/api/storefront/products/facets');
 
     const cache =
@@ -369,13 +370,24 @@ export default {
           try {
             const toCache = upstream.clone();
             const ch = new Headers(toCache.headers);
-            ch.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+            const isLongLived =
+              url.pathname === '/api/storefront/categories' ||
+              url.pathname === '/api/storefront/stats' ||
+              url.pathname === '/api/storefront/promos' ||
+              url.pathname === '/api/storefront/faqs';
+            const sMaxAge = isLongLived ? 300 : 60;
+            ch.set('Cache-Control', `public, max-age=15, s-maxage=${sMaxAge}`);
             const cachedRes = new Response(toCache.body, {
               status: toCache.status,
               statusText: toCache.statusText,
               headers: ch
             });
-            cache.put(cacheKey, cachedRes).catch(() => {});
+            const putPromise = cache.put(cacheKey, cachedRes).catch((err) => {
+              console.warn('[RipomaApi] cache put error:', err);
+            });
+            if (ctx && typeof ctx.waitUntil === 'function') {
+              ctx.waitUntil(putPromise);
+            }
           } catch (cachePutErr) {
             console.warn('[RipomaApi] cache put error:', cachePutErr);
           }
@@ -429,13 +441,24 @@ export default {
         try {
           const toCache = upstream.clone();
           const ch = new Headers(toCache.headers);
-          ch.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+          const isLongLived =
+            url.pathname === '/api/storefront/categories' ||
+            url.pathname === '/api/storefront/stats' ||
+            url.pathname === '/api/storefront/promos' ||
+            url.pathname === '/api/storefront/faqs';
+          const sMaxAge = isLongLived ? 300 : 60;
+          ch.set('Cache-Control', `public, max-age=15, s-maxage=${sMaxAge}`);
           const cachedRes = new Response(toCache.body, {
             status: toCache.status,
             statusText: toCache.statusText,
             headers: ch
           });
-          cache.put(cacheKey, cachedRes).catch(() => {});
+          const putPromise = cache.put(cacheKey, cachedRes).catch((err) => {
+            console.warn('[RipomaApi] cache put error:', err);
+          });
+          if (ctx && typeof ctx.waitUntil === 'function') {
+            ctx.waitUntil(putPromise);
+          }
         } catch {}
       }
 

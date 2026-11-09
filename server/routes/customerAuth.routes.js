@@ -25,6 +25,13 @@ const authForgotLimiter = createRateLimiter({
   message: 'Too many password reset requests. Please try again later.'
 });
 
+const authRefreshLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  keyPrefix: 'cust-refresh',
+  message: 'Too many session refresh attempts. Please wait and try again.'
+});
+
 router.get('/legal', customerAuthController.getLegal);
 
 router.post('/register', authRegisterLimiter, customerAuthController.register);
@@ -32,7 +39,7 @@ router.get('/verify-email/:token', customerAuthController.verifyEmail);
 router.post('/login', authLoginLimiter, customerAuthController.login);
 router.post('/google', authLoginLimiter, customerAuthController.loginWithGoogle);
 router.post('/logout', customerAuthController.logout);
-router.post('/refresh', customerAuthController.refresh);
+router.post('/refresh', authRefreshLimiter, customerAuthController.refresh);
 router.post('/forgot-password', authForgotLimiter, customerAuthController.forgotPassword);
 router.post('/reset-password', authForgotLimiter, customerAuthController.resetPassword);
 router.post('/resend-verification', authForgotLimiter, customerAuthController.resendVerification);

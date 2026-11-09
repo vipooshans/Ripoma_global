@@ -59,8 +59,11 @@ const storefrontService = {
   },
 
   getProducts: async (params = {}) => {
-    const res = await api.get('/storefront/products', { params });
-    return res.data;
+    const cacheKey = `products:${JSON.stringify(params || {})}`;
+    return cachedFetch(cacheKey, 20_000, async () => {
+      const res = await api.get('/storefront/products', { params });
+      return res.data;
+    });
   },
 
   getProductFacets: async (params = {}) => {
@@ -102,11 +105,15 @@ const storefrontService = {
   },
 
   getSearchSuggestions: async (q) => {
-    const res = await api.get('/storefront/search-suggestions', { params: { q } });
-    return {
-      suggestions: res.data?.suggestions || [],
-      categories: res.data?.categories || []
-    };
+    const cleanQ = String(q || '').trim().toLowerCase();
+    const cacheKey = `suggestions:${cleanQ}`;
+    return cachedFetch(cacheKey, 60_000, async () => {
+      const res = await api.get('/storefront/search-suggestions', { params: { q } });
+      return {
+        suggestions: res.data?.suggestions || [],
+        categories: res.data?.categories || []
+      };
+    });
   },
 
   getStats: async () => {

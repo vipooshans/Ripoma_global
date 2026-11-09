@@ -4,11 +4,13 @@ import { setCustomerAuthHeader } from '../services/api';
 
 export const CustomerAuthContext = createContext(null);
 
-const PUBLIC_CUSTOMER_PATHS = [
-  '/customer/login',
-  '/customer/register',
-  '/customer/forgot-password'
+const PROTECTED_CUSTOMER_PATHS = [
+  '/customer/profile',
+  '/customer/orders'
 ];
+
+const isProtectedCustomerPath = (pathname = '') =>
+  PROTECTED_CUSTOMER_PATHS.some((p) => pathname.startsWith(p));
 
 export const CustomerAuthProvider = ({ children }) => {
   const [customerUser, setCustomerUser] = useState(null);
@@ -26,7 +28,8 @@ export const CustomerAuthProvider = ({ children }) => {
 
     try {
       const refreshData = await customerAuthService.refresh();
-      if (!refreshData.accessToken) {
+      if (!refreshData || !refreshData.accessToken) {
+        setCustomerUser(null);
         return;
       }
       const data = await customerAuthService.getCurrentCustomer();
@@ -34,6 +37,7 @@ export const CustomerAuthProvider = ({ children }) => {
         setCustomerUser(data.customer);
       }
     } catch {
+      setCustomerUser(null);
       setCustomerAuthHeader(null);
     } finally {
       setLoading(false);
@@ -48,13 +52,8 @@ export const CustomerAuthProvider = ({ children }) => {
       setCustomerAuthHeader(null);
       setError('Your session has expired. Please log in again.');
 
-      const path = window.location.pathname;
-      const isPublic =
-        PUBLIC_CUSTOMER_PATHS.some((p) => path.startsWith(p)) ||
-        path.startsWith('/customer/reset-password') ||
-        path.startsWith('/customer/verify-email');
-
-      if (path.startsWith('/customer') && !isPublic) {
+      const path = typeof window !== 'undefined' ? window.location.pathname : '';
+      if (isProtectedCustomerPath(path)) {
         window.location.href = '/customer/login';
       }
     };
@@ -79,7 +78,8 @@ export const CustomerAuthProvider = ({ children }) => {
         setCustomerUser(null);
         setCustomerAuthHeader(null);
         setError('Signed out due to inactivity.');
-        if (window.location.pathname.startsWith('/customer')) {
+        const path = typeof window !== 'undefined' ? window.location.pathname : '';
+        if (isProtectedCustomerPath(path)) {
           window.location.href = '/customer/login';
         }
       }, IDLE_MS);
@@ -99,14 +99,14 @@ export const CustomerAuthProvider = ({ children }) => {
     try {
       setError(null);
       const data = await customerAuthService.login(email, password);
-      setCustomerUser(data.customer);
-      return data.customer;
+      if (data.customer) {
+        setCustomerUser(data.customer);
+      }
+      return data;
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setError(msg);
-      const loginError = new Error(msg);
-      loginError.code = err.response?.data?.code;
-      throw loginError;
+      throw err;
     }
   };
 
@@ -114,36 +114,35 @@ export const CustomerAuthProvider = ({ children }) => {
     try {
       setError(null);
       const data = await customerAuthService.loginWithGoogle(credential);
-      setCustomerUser(data.customer);
-      return data.customer;
+      if (data.customer) {
+        setCustomerUser(data.customer);
+      }
+      return data;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Google sign-in failed. Please try again.';
+      const msg = err.response?.data?.message || 'Google login failed. Please try again.';
       setError(msg);
-      throw new Error(msg);
+      throw err;
     }
   };
 
   const logout = async () => {
     try {
       await customerAuthService.logout();
-    } catch (err) {
-      console.error('Customer logout error:', err);
     } finally {
       setCustomerUser(null);
-      setError(null);
       setCustomerAuthHeader(null);
     }
   };
 
   const value = {
     customerUser,
+    isAuthenticated: Boolean(customerUser),
     loading,
     error,
-    isAuthenticated: !!customerUser,
     login,
     loginWithGoogle,
     logout,
-    setCustomerUser
+    refreshCustomer: checkSession
   };
 
   return (
