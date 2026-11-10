@@ -1,6 +1,10 @@
 import React, { createContext, useState, useEffect } from 'react';
 import authService from '../services/auth.service';
-import { setAuthHeader } from '../services/api';
+import {
+  setAuthHeader,
+  hasStaffSessionHint,
+  setStaffSessionHint
+} from '../services/api';
 
 export const AuthContext = createContext(null);
 
@@ -19,14 +23,26 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
+    // Do not call refresh if no staff session hint exists
+    if (!hasStaffSessionHint()) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      await authService.refresh();
+      const refreshData = await authService.refresh();
+      if (!refreshData?.accessToken) {
+        setStaffSessionHint(false);
+        return;
+      }
       const data = await authService.getCurrentUser();
       if (data?.user) {
         setUser(data.user);
+        setStaffSessionHint(true);
       }
     } catch {
       setAuthHeader(null);
+      setStaffSessionHint(false);
     } finally {
       setLoading(false);
     }
@@ -37,6 +53,7 @@ export const AuthProvider = ({ children }) => {
 
     const handleAuthExpired = () => {
       setUser(null);
+      setStaffSessionHint(false);
       setError('Your session has expired. Please log in again.');
     };
 
@@ -51,6 +68,7 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       const data = await authService.login(email, password);
       setUser(data.user);
+      setStaffSessionHint(true);
       return data.user;
     } catch (err) {
       const errMsg = err.response?.data?.message || 'Login failed. Please check credentials.';
@@ -68,36 +86,18 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setError(null);
       setAuthHeader(null);
+      setStaffSessionHint(false);
     }
-  };
-
-  const hasPermission = (permission) => {
-    if (!user) return false;
-    if (user.role === 'admin') return true;
-    return user.permissions && user.permissions.includes(permission);
-  };
-
-  const hasRole = (roles) => {
-    if (!user) return false;
-    const roleList = Array.isArray(roles) ? roles : [roles];
-    return roleList.includes(user.role);
   };
 
   const value = {
     user,
     loading,
     error,
-    isAuthenticated: !!user,
     login,
     logout,
-    hasPermission,
-    hasRole,
     setUser
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

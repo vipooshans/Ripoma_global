@@ -83,7 +83,7 @@ function corsHeaders(origin) {
   const headers = {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers':
-      'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cookie',
+      'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cookie, X-Request-ID',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin'
@@ -112,11 +112,14 @@ function buildContainerEnvVars() {
   return vars;
 }
 
-function withCors(response, origin) {
+function withCors(response, origin, requestId = '') {
   const headers = new Headers(response.headers);
   const cors = corsHeaders(origin);
   for (const [key, value] of Object.entries(cors)) {
     headers.set(key, value);
+  }
+  if (requestId) {
+    headers.set('X-Request-ID', requestId);
   }
   return new Response(response.body, {
     status: response.status,
@@ -135,16 +138,17 @@ function getApiOrigin() {
  * Reverse-proxy to external Express (Render / Railway / Fly).
  * Reads API_ORIGIN only from Worker env — never hardcodes upstream hosts.
  */
-async function proxyToOrigin(request, apiOrigin) {
+async function proxyToOrigin(request, apiOrigin, requestId = '') {
   const target = new URL(request.url);
   const upstream = `${apiOrigin}${target.pathname}${target.search}`;
-
-  console.log('Proxying:', upstream);
 
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.set('X-Forwarded-Host', target.host);
   headers.set('X-Forwarded-Proto', target.protocol.replace(':', ''));
+  if (requestId) {
+    headers.set('X-Request-ID', requestId);
+  }
 
   // Forward client IP so upstream rate limiters/logging know the true client
   const clientIp =
@@ -164,7 +168,6 @@ async function proxyToOrigin(request, apiOrigin) {
 
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     init.body = request.body;
-    // Required for streaming request bodies in Workers
     init.duplex = 'half';
   }
 
@@ -176,12 +179,13 @@ async function proxyToOrigin(request, apiOrigin) {
       JSON.stringify({
         success: false,
         error: 'api_origin_unreachable',
+        source: 'gateway',
         upstream,
         reason: String(error?.message || error)
       }),
       {
         status: 502,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId }
       }
     );
   }
@@ -189,11 +193,9 @@ async function proxyToOrigin(request, apiOrigin) {
 
 export class RipomaApi extends Container {
   defaultPort = 8080;
-  // Keep warm longer so Mongo + cron survive short idle gaps
   sleepAfter = '30m';
   enableInternet = true;
   envVars = buildContainerEnvVars();
-  // Express exposes GET /health after boot
   pingEndpoint = '/health';
 
   onStart() {
@@ -213,6 +215,8 @@ export default {
   async fetch(request, workerEnv, ctx) {
     const origin = request.headers.get('Origin') || '';
     const url = new URL(request.url);
+    const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
+    const startTime = Date.now();
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -229,7 +233,7 @@ export default {
       if (!secret || provided !== secret) {
         return new Response(JSON.stringify({ success: false, error: 'unauthorized' }), {
           status: 401,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId }
         });
       }
 
@@ -237,7 +241,7 @@ export default {
       if (!db) {
         return new Response(JSON.stringify({ success: false, error: 'd1_unbound' }), {
           status: 500,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId }
         });
       }
 
@@ -264,16 +268,18 @@ export default {
 
         return new Response(JSON.stringify({ success: true, result: results }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId }
         });
       } catch (error) {
         console.error('[D1 gateway]', error);
         return new Response(
           JSON.stringify({ success: false, error: String(error?.message || error) }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId } }
         );
       }
     }
+
+    const apiOrigin = getApiOrigin();
 
     // Friendly root — this is an API gateway, not a website
     if (url.pathname === '/' && request.method === 'GET') {
@@ -281,7 +287,7 @@ export default {
         JSON.stringify({
           ok: true,
           service: 'ripoma-api-gateway',
-          mode: getApiOrigin() ? 'api_origin' : 'container',
+          mode: apiOrigin ? 'api_origin' : 'container',
           health: '/health',
           api: '/api'
         }),
@@ -289,24 +295,48 @@ export default {
           status: 200,
           headers: {
             'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
             ...corsHeaders(origin)
           }
         }
       );
     }
 
-    const apiOrigin = getApiOrigin();
+    // Direct gateway health check (avoids consuming upstream rate limits for pings)
+    if (url.pathname === '/health' && request.method === 'GET') {
+      return new Response(
+        JSON.stringify({
+          status: 'healthy',
+          service: 'ripoma-api-gateway',
+          mode: apiOrigin ? 'api_origin' : 'container',
+          timestamp: new Date().toISOString()
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
+            ...corsHeaders(origin)
+          }
+        }
+      );
+    }
 
-    // Cloudflare Edge Cache for public storefront data
+    // Only cache genuinely public, non-personalized GET requests (never cache authenticated users or cookies)
+    const hasAuth = request.headers.has('Authorization');
+    const hasCookie = request.headers.has('Cookie');
     const isPublicStorefrontGet =
       request.method === 'GET' &&
+      !hasAuth &&
+      !hasCookie &&
       (url.pathname === '/api/storefront/categories' ||
         url.pathname === '/api/storefront/featured' ||
         url.pathname === '/api/storefront/promos' ||
         url.pathname === '/api/storefront/stats' ||
         url.pathname === '/api/storefront/faqs' ||
         url.pathname === '/api/storefront/products' ||
-        url.pathname === '/api/storefront/products/facets');
+        url.pathname === '/api/storefront/products/facets' ||
+        url.pathname === '/api/storefront/search-suggestions');
 
     const cache =
       typeof caches !== 'undefined' && caches.default ? caches.default : null;
@@ -316,7 +346,19 @@ export default {
       try {
         const cached = await cache.match(cacheKey);
         if (cached) {
-          return withCors(cached, origin);
+          const durationMs = Date.now() - startTime;
+          console.log(
+            JSON.stringify({
+              requestId,
+              method: request.method,
+              pathname: url.pathname,
+              status: cached.status,
+              durationMs,
+              cached: true,
+              source: 'worker_edge_cache'
+            })
+          );
+          return withCors(cached, origin, requestId);
         }
       } catch (cacheErr) {
         console.warn('[RipomaApi] cache match error:', cacheErr);
@@ -325,85 +367,22 @@ export default {
 
     try {
       let upstream;
+      let sourceTag = 'upstream_origin';
 
       if (apiOrigin) {
-        upstream = await proxyToOrigin(request, apiOrigin);
-        if (upstream.status === 101) {
-          return upstream;
-        }
-        if (
-          (upstream.status >= 500 || upstream.status === 429) &&
-          request.method === 'GET' &&
-          url.pathname === '/api/storefront/categories'
-        ) {
-          try {
-            const fallback = await categoriesResponseFromD1(workerEnv);
-            if (fallback) return withCors(fallback, origin);
-          } catch (fallbackErr) {
-            console.error('[RipomaApi] D1 categories fallback failed:', fallbackErr);
-          }
-        }
-
-        // Structured JSON response for 429 rate limit
-        if (upstream.status === 429) {
-          const retryAfter = upstream.headers.get('Retry-After') || '3';
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'too_many_requests',
-              message: 'Server is receiving high traffic. Please retry in a few seconds.',
-              retryAfter: parseInt(retryAfter, 10) || 3
-            }),
-            {
-              status: 429,
-              headers: {
-                'Content-Type': 'application/json',
-                'Retry-After': String(retryAfter),
-                ...corsHeaders(origin)
-              }
-            }
-          );
-        }
-
-        // Cache successful public storefront responses at Cloudflare edge
-        if (cache && cacheKey && upstream.status === 200) {
-          try {
-            const toCache = upstream.clone();
-            const ch = new Headers(toCache.headers);
-            const isLongLived =
-              url.pathname === '/api/storefront/categories' ||
-              url.pathname === '/api/storefront/stats' ||
-              url.pathname === '/api/storefront/promos' ||
-              url.pathname === '/api/storefront/faqs';
-            const sMaxAge = isLongLived ? 300 : 60;
-            ch.set('Cache-Control', `public, max-age=15, s-maxage=${sMaxAge}`);
-            const cachedRes = new Response(toCache.body, {
-              status: toCache.status,
-              statusText: toCache.statusText,
-              headers: ch
-            });
-            const putPromise = cache.put(cacheKey, cachedRes).catch((err) => {
-              console.warn('[RipomaApi] cache put error:', err);
-            });
-            if (ctx && typeof ctx.waitUntil === 'function') {
-              ctx.waitUntil(putPromise);
-            }
-          } catch (cachePutErr) {
-            console.warn('[RipomaApi] cache put error:', cachePutErr);
-          }
-        }
-
-        return withCors(upstream, origin);
+        upstream = await proxyToOrigin(request, apiOrigin, requestId);
+      } else {
+        sourceTag = 'container';
+        const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
+        upstream = await container.fetch(request);
       }
 
-      const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
-      upstream = await container.fetch(request);
-      // WebSocket upgrades (socket.io): the 101 response carries a webSocket
-      // handle that is lost if the Response is reconstructed — pass it through.
+      // WebSocket upgrades
       if (upstream.status === 101) {
         return upstream;
       }
 
+      // D1 fallback for categories if upstream returns 5xx or 429
       if (
         (upstream.status >= 500 || upstream.status === 429) &&
         request.method === 'GET' &&
@@ -411,19 +390,56 @@ export default {
       ) {
         try {
           const fallback = await categoriesResponseFromD1(workerEnv);
-          if (fallback) return withCors(fallback, origin);
+          if (fallback) {
+            console.log(
+              JSON.stringify({
+                requestId,
+                method: 'GET',
+                pathname: url.pathname,
+                status: 200,
+                durationMs: Date.now() - startTime,
+                source: 'd1_fallback'
+              })
+            );
+            return withCors(fallback, origin, requestId);
+          }
         } catch (fallbackErr) {
           console.error('[RipomaApi] D1 categories fallback failed:', fallbackErr);
         }
       }
 
+      // Structured JSON response for 429 rate limit
       if (upstream.status === 429) {
         const retryAfter = upstream.headers.get('Retry-After') || '3';
+        let upstreamBody = null;
+        try {
+          const cloned = upstream.clone();
+          upstreamBody = await cloned.json();
+        } catch {}
+
+        const source = upstream.headers.get('X-RateLimit-Source') || sourceTag;
+        const message =
+          upstreamBody?.message ||
+          'Server is receiving high traffic. Please retry in a few seconds.';
+
+        console.warn(
+          JSON.stringify({
+            requestId,
+            method: request.method,
+            pathname: url.pathname,
+            status: 429,
+            durationMs: Date.now() - startTime,
+            source,
+            retryAfter
+          })
+        );
+
         return new Response(
           JSON.stringify({
             success: false,
             error: 'too_many_requests',
-            message: 'Server is receiving high traffic. Please retry in a few seconds.',
+            source,
+            message,
             retryAfter: parseInt(retryAfter, 10) || 3
           }),
           {
@@ -431,16 +447,25 @@ export default {
             headers: {
               'Content-Type': 'application/json',
               'Retry-After': String(retryAfter),
+              'X-Rippoma-429-Source': source,
+              'X-Request-ID': requestId,
               ...corsHeaders(origin)
             }
           }
         );
       }
 
-      if (cache && cacheKey && upstream.status === 200) {
+      // Cache successful public storefront responses at Cloudflare edge
+      if (
+        cache &&
+        cacheKey &&
+        upstream.status === 200 &&
+        !upstream.headers.has('Set-Cookie')
+      ) {
         try {
           const toCache = upstream.clone();
           const ch = new Headers(toCache.headers);
+          ch.delete('Set-Cookie');
           const isLongLived =
             url.pathname === '/api/storefront/categories' ||
             url.pathname === '/api/storefront/stats' ||
@@ -459,10 +484,24 @@ export default {
           if (ctx && typeof ctx.waitUntil === 'function') {
             ctx.waitUntil(putPromise);
           }
-        } catch {}
+        } catch (cachePutErr) {
+          console.warn('[RipomaApi] cache put error:', cachePutErr);
+        }
       }
 
-      return withCors(upstream, origin);
+      const durationMs = Date.now() - startTime;
+      console.log(
+        JSON.stringify({
+          requestId,
+          method: request.method,
+          pathname: url.pathname,
+          status: upstream.status,
+          durationMs,
+          source: sourceTag
+        })
+      );
+
+      return withCors(upstream, origin, requestId);
     } catch (error) {
       console.error('[RipomaApi] proxy failed:', error);
       const upstream = apiOrigin
@@ -472,6 +511,7 @@ export default {
         JSON.stringify({
           success: false,
           error: 'api_origin_unreachable',
+          source: 'gateway',
           upstream,
           reason: String(error?.message || error),
           message: apiOrigin
@@ -482,6 +522,7 @@ export default {
           status: apiOrigin ? 502 : 503,
           headers: {
             'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
             ...corsHeaders(origin)
           }
         }

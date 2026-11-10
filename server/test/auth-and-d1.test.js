@@ -690,4 +690,61 @@ describe('Rippoma Authentication & D1 Schema Test Suite', () => {
     const orderNum = await generateExportNumber('storefrontOrder');
     assert.match(orderNum, new RegExp(`^WEB-${year}-\\d{5}$`));
   });
+
+  // ── 16. Rate limiter behavior and 429 response structure ────────────────────
+  it('16. Rate limiter enforces limits, returns Retry-After, and identifies source as express', () => {
+    const { createRateLimiter } = require('../middleware/customerRateLimit');
+    const limiter = createRateLimiter({
+      windowMs: 60 * 1000,
+      max: 2,
+      keyPrefix: 'test-limit',
+      message: 'Rate limit exceeded'
+    });
+
+    const mockReq = { headers: { 'cf-connecting-ip': '203.0.113.195' } };
+    let statusSet = null;
+    let jsonSent = null;
+    let headersSet = {};
+    const mockRes = {
+      setHeader(k, v) { headersSet[k] = v; },
+      status(code) { statusSet = code; return this; },
+      json(data) { jsonSent = data; return this; }
+    };
+    let nextCount = 0;
+    const next = () => { nextCount++; };
+
+    // Request 1: allowed
+    limiter(mockReq, mockRes, next);
+    assert.strictEqual(nextCount, 1);
+
+    // Request 2: allowed
+    limiter(mockReq, mockRes, next);
+    assert.strictEqual(nextCount, 2);
+
+    // Request 3: blocked with 429
+    limiter(mockReq, mockRes, next);
+    assert.strictEqual(nextCount, 2);
+    assert.strictEqual(statusSet, 429);
+    assert.strictEqual(headersSet['X-RateLimit-Source'], 'express');
+    assert.ok(headersSet['Retry-After']);
+    assert.strictEqual(jsonSent.error, 'too_many_requests');
+    assert.strictEqual(jsonSent.source, 'express');
+  });
+
+  // ── 17. Worker gateway /health probe and request-id propagation ────────────
+  it('17. Worker gateway /health returns 200 without proxying and assigns X-Request-ID', async () => {
+    const workerModule = (await import('../../worker/src/proxy.js')).default;
+    const healthReq = new Request('https://worker.local/health', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const healthRes = await workerModule.fetch(healthReq, {
+      API_ORIGIN: 'https://mock-upstream.example.com'
+    });
+    assert.strictEqual(healthRes.status, 200);
+    assert.ok(healthRes.headers.get('X-Request-ID'));
+    const body = await healthRes.json();
+    assert.strictEqual(body.status, 'healthy');
+    assert.strictEqual(body.service, 'ripoma-api-gateway');
+  });
 });

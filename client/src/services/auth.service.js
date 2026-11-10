@@ -1,10 +1,15 @@
-import api, { setAuthHeader } from './api';
+import api, {
+  setAuthHeader,
+  setStaffSessionHint,
+  refreshStaffTokenSingleFlight
+} from './api';
 
 const authService = {
   login: async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     if (response.data.accessToken) {
       setAuthHeader(response.data.accessToken);
+      setStaffSessionHint(true);
     }
     return response.data;
   },
@@ -14,15 +19,13 @@ const authService = {
       await api.post('/auth/logout');
     } finally {
       setAuthHeader(null);
+      setStaffSessionHint(false);
     }
   },
 
   refresh: async () => {
-    const response = await api.post('/auth/refresh');
-    if (response.data.accessToken) {
-      setAuthHeader(response.data.accessToken);
-    }
-    return response.data;
+    const token = await refreshStaffTokenSingleFlight();
+    return { accessToken: token };
   },
 
   getCurrentUser: async () => {

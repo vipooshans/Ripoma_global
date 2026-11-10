@@ -51,7 +51,7 @@ function corsHeaders(origin, env) {
   const headers = {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers':
-      'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cookie',
+      'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cookie, X-Request-ID',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin'
@@ -62,11 +62,14 @@ function corsHeaders(origin, env) {
   return headers;
 }
 
-function withCors(response, origin, env) {
+function withCors(response, origin, env, requestId = '') {
   const headers = new Headers(response.headers);
   const cors = corsHeaders(origin, env);
   for (const [key, value] of Object.entries(cors)) {
     headers.set(key, value);
+  }
+  if (requestId) {
+    headers.set('X-Request-ID', requestId);
   }
   return new Response(response.body, {
     status: response.status,
@@ -83,9 +86,7 @@ function getApiOrigin(env) {
   try {
     const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
-    // Reject bare host fragments without a real origin (e.g. "vipoo")
     if (!url.hostname || !url.hostname.includes('.')) {
-      // Allow localhost for local tunnels
       if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') return '';
     }
     return `${url.protocol}//${url.host}`;
@@ -98,16 +99,17 @@ function getApiOrigin(env) {
  * Proxy to permanent Express host (Render / Railway / Fly).
  * Reads API_ORIGIN only from Worker env — never hardcodes upstream hosts.
  */
-async function proxyToOrigin(request, env, apiOrigin) {
+async function proxyToOrigin(request, env, apiOrigin, requestId = '') {
   const target = new URL(request.url);
   const upstream = `${apiOrigin}${target.pathname}${target.search}`;
-
-  console.log('Proxying:', upstream);
 
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.set('X-Forwarded-Host', target.host);
   headers.set('X-Forwarded-Proto', target.protocol.replace(':', ''));
+  if (requestId) {
+    headers.set('X-Request-ID', requestId);
+  }
 
   // Forward client IP so upstream rate limiters/logging know the true client
   const clientIp =
@@ -145,6 +147,7 @@ async function proxyToOrigin(request, env, apiOrigin) {
         JSON.stringify({
           success: false,
           error: 'api_origin_unreachable',
+          source: 'gateway',
           upstream,
           reason: `Upstream returned HTTP ${response.status}`,
           status: response.status,
@@ -165,6 +168,7 @@ async function proxyToOrigin(request, env, apiOrigin) {
       JSON.stringify({
         success: false,
         error: 'api_origin_unreachable',
+        source: 'gateway',
         upstream,
         reason: String(error?.message || error)
       }),
@@ -197,6 +201,8 @@ export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
     const url = new URL(request.url);
+    const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
+    const startTime = Date.now();
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -213,7 +219,7 @@ export default {
       if (!secret || provided !== secret) {
         return new Response(JSON.stringify({ success: false, error: 'unauthorized' }), {
           status: 401,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId }
         });
       }
 
@@ -221,7 +227,7 @@ export default {
       if (!db) {
         return new Response(JSON.stringify({ success: false, error: 'd1_unbound' }), {
           status: 500,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId }
         });
       }
 
@@ -248,19 +254,20 @@ export default {
 
         return new Response(JSON.stringify({ success: true, result: results }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId }
         });
       } catch (error) {
         console.error('[D1 gateway]', error);
         return new Response(
           JSON.stringify({ success: false, error: String(error?.message || error) }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId } }
         );
       }
     }
 
     const apiOrigin = getApiOrigin(env);
 
+    // Root status probe
     if (url.pathname === '/' && request.method === 'GET') {
       return new Response(
         JSON.stringify({
@@ -275,6 +282,27 @@ export default {
           status: 200,
           headers: {
             'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
+            ...corsHeaders(origin, env)
+          }
+        }
+      );
+    }
+
+    // Direct gateway health check (avoids consuming upstream rate limits for pings)
+    if (url.pathname === '/health' && request.method === 'GET') {
+      return new Response(
+        JSON.stringify({
+          status: 'healthy',
+          service: 'ripoma-api-gateway',
+          mode: 'api_origin',
+          timestamp: new Date().toISOString()
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
             ...corsHeaders(origin, env)
           }
         }
@@ -294,21 +322,28 @@ export default {
           status: 500,
           headers: {
             'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
             ...corsHeaders(origin, env)
           }
         }
       );
     }
 
+    // Only cache genuinely public, non-personalized GET requests (never cache authenticated users or cookies)
+    const hasAuth = request.headers.has('Authorization');
+    const hasCookie = request.headers.has('Cookie');
     const isPublicStorefrontGet =
       request.method === 'GET' &&
+      !hasAuth &&
+      !hasCookie &&
       (url.pathname === '/api/storefront/categories' ||
         url.pathname === '/api/storefront/featured' ||
         url.pathname === '/api/storefront/promos' ||
         url.pathname === '/api/storefront/stats' ||
         url.pathname === '/api/storefront/faqs' ||
         url.pathname === '/api/storefront/products' ||
-        url.pathname === '/api/storefront/products/facets');
+        url.pathname === '/api/storefront/products/facets' ||
+        url.pathname === '/api/storefront/search-suggestions');
 
     const cache =
       typeof caches !== 'undefined' && caches.default ? caches.default : null;
@@ -318,16 +353,28 @@ export default {
       try {
         const cached = await cache.match(cacheKey);
         if (cached) {
-          return withCors(cached, origin, env);
+          const durationMs = Date.now() - startTime;
+          console.log(
+            JSON.stringify({
+              requestId,
+              method: request.method,
+              pathname: url.pathname,
+              status: cached.status,
+              durationMs,
+              cached: true,
+              source: 'worker_edge_cache'
+            })
+          );
+          return withCors(cached, origin, env, requestId);
         }
       } catch (cacheErr) {
         console.warn('[proxy] cache match error:', cacheErr);
       }
     }
 
-    const upstream = await proxyToOrigin(request, env, apiOrigin);
-    // WebSocket upgrades (socket.io): reconstructing the Response in withCors
-    // drops the webSocket handle and the browser reports a failed wss:// probe.
+    const upstream = await proxyToOrigin(request, env, apiOrigin, requestId);
+
+    // WebSocket upgrades: preserve socket handle
     if (upstream.status === 101) {
       return upstream;
     }
@@ -341,7 +388,17 @@ export default {
       try {
         const fallback = await categoriesResponseFromD1(env);
         if (fallback) {
-          return withCors(fallback, origin, env);
+          console.log(
+            JSON.stringify({
+              requestId,
+              method: 'GET',
+              pathname: url.pathname,
+              status: 200,
+              durationMs: Date.now() - startTime,
+              source: 'd1_fallback'
+            })
+          );
+          return withCors(fallback, origin, env, requestId);
         }
       } catch (fallbackErr) {
         console.error('[proxy] D1 categories fallback failed:', fallbackErr);
@@ -351,11 +408,35 @@ export default {
     // Structured JSON response for 429 rate limit
     if (upstream.status === 429) {
       const retryAfter = upstream.headers.get('Retry-After') || '3';
+      let upstreamBody = null;
+      try {
+        const cloned = upstream.clone();
+        upstreamBody = await cloned.json();
+      } catch {}
+
+      const source = upstream.headers.get('X-RateLimit-Source') || 'upstream_origin';
+      const message =
+        upstreamBody?.message ||
+        'Server is receiving high traffic. Please retry in a few seconds.';
+
+      console.warn(
+        JSON.stringify({
+          requestId,
+          method: request.method,
+          pathname: url.pathname,
+          status: 429,
+          durationMs: Date.now() - startTime,
+          source,
+          retryAfter
+        })
+      );
+
       return new Response(
         JSON.stringify({
           success: false,
           error: 'too_many_requests',
-          message: 'Server is receiving high traffic. Please retry in a few seconds.',
+          source,
+          message,
           retryAfter: parseInt(retryAfter, 10) || 3
         }),
         {
@@ -363,6 +444,8 @@ export default {
           headers: {
             'Content-Type': 'application/json',
             'Retry-After': String(retryAfter),
+            'X-Rippoma-429-Source': source,
+            'X-Request-ID': requestId,
             ...corsHeaders(origin, env)
           }
         }
@@ -370,10 +453,16 @@ export default {
     }
 
     // Cache successful public storefront responses at Cloudflare edge
-    if (cache && cacheKey && upstream.status === 200) {
+    if (
+      cache &&
+      cacheKey &&
+      upstream.status === 200 &&
+      !upstream.headers.has('Set-Cookie')
+    ) {
       try {
         const toCache = upstream.clone();
         const ch = new Headers(toCache.headers);
+        ch.delete('Set-Cookie');
         const isLongLived =
           url.pathname === '/api/storefront/categories' ||
           url.pathname === '/api/storefront/stats' ||
@@ -397,6 +486,18 @@ export default {
       }
     }
 
-    return withCors(upstream, origin, env);
+    const durationMs = Date.now() - startTime;
+    console.log(
+      JSON.stringify({
+        requestId,
+        method: request.method,
+        pathname: url.pathname,
+        status: upstream.status,
+        durationMs,
+        source: 'upstream_origin'
+      })
+    );
+
+    return withCors(upstream, origin, env, requestId);
   }
 };
