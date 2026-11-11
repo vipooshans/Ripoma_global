@@ -23,7 +23,7 @@ const catalogD1 = require('../repositories/storefrontCatalogD1');
 // Mongo -> D1 migration: catalog reads come from Cloudflare D1 when
 // DATA_BACKEND=d1 (server/.env). Writes and account data remain on Mongo
 // until their slices are migrated.
-const USE_D1_CATALOG = String(process.env.DATA_BACKEND || '').toLowerCase() === 'd1';
+const USE_D1_CATALOG = String(process.env.DATA_BACKEND || 'd1').toLowerCase() === 'd1';
 
 const ACTIVE_QUERY = { status: 'active', deleted: false };
 
@@ -1031,6 +1031,7 @@ exports.placeOrder = async (req, res) => {
       placedAt: { $gte: oneHourAgo }
     });
     if (recentCount >= 8) {
+      res.setHeader('X-Ripoma-429-Source', 'backend-rate-limit');
       return res.status(429).json({
         message: 'Too many orders placed recently. Please wait before ordering again.'
       });

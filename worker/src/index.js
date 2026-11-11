@@ -1,16 +1,27 @@
 /**
- * Cloudflare Worker gateway for the Rippoma Express API.
+ * Cloudflare Worker API Gateway for Rippoma Global E-commerce Platform.
  *
- * Mode A — Cloudflare Containers (default): Express runs in server/Dockerfile
- * Mode B — External origin: set secret/var API_ORIGIN (e.g. Render/Fly/Railway URL)
- *          and the Worker reverse-proxies all traffic there.
- *
- * Express cannot run as a pure Worker (mongoose, socket.io, node-cron, sharp, pdfmake).
+ * Architecture:
+ *   - Native Cloudflare D1 database (ripoma_db) for catalog, stats, promos, categories.
+ *   - Coordinated Durable Object rate limiting (RipomaApi) across all regions.
+ *   - Edge Caching (caches.default) for public storefront requests.
+ *   - Native D1 execution with container / origin fallback for complex admin operations.
  */
 
 import { Container, getContainer } from '@cloudflare/containers';
 import { env } from 'cloudflare:workers';
-import { categoriesResponseFromD1 } from './storefrontCategories.js';
+import { RipomaApi as BaseRipomaApi, resolveRatePolicy, resolveRateKey } from './durableRateLimiter.js';
+import {
+  getStorefrontCategories,
+  getStorefrontCategoryDetail,
+  getStorefrontFeatured,
+  getStorefrontProducts,
+  getStorefrontProductDetail,
+  getStorefrontFacets,
+  getStorefrontStats,
+  getStorefrontPromos,
+  getStorefrontSearchSuggestions
+} from './storefrontD1.js';
 
 const ALLOWED_ORIGINS = new Set([
   'https://ripomaglobal.org',
@@ -83,7 +94,9 @@ function corsHeaders(origin) {
   const headers = {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers':
-      'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cookie',
+      'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cookie, X-Request-ID',
+    'Access-Control-Expose-Headers':
+      'X-Ripoma-429-Source, Retry-After, X-RateLimit-Source, X-RateLimit-Policy, X-Data-Source, X-Request-ID',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin'
@@ -94,10 +107,35 @@ function corsHeaders(origin) {
   return headers;
 }
 
+function withCors(response, origin, requestId = '') {
+  const headers = new Headers(response.headers);
+  const cors = corsHeaders(origin);
+  for (const [key, value] of Object.entries(cors)) {
+    headers.set(key, value);
+  }
+  if (requestId) headers.set('X-Request-ID', requestId);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
+function jsonResponse(data, status = 200, origin = '', requestId = '', extraHeaders = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...corsHeaders(origin),
+    ...extraHeaders
+  };
+  if (requestId) headers['X-Request-ID'] = requestId;
+  return new Response(JSON.stringify(data), { status, headers });
+}
+
 function buildContainerEnvVars() {
   const vars = {
     PORT: '8080',
     NODE_ENV: env.NODE_ENV || 'production',
+    DATA_BACKEND: 'd1',
     FRONTEND_URL: env.FRONTEND_URL || 'https://ripoma-global.pages.dev',
     CORS_PAGES_HOST: env.CORS_PAGES_HOST || 'ripoma-global.pages.dev'
   };
@@ -112,19 +150,6 @@ function buildContainerEnvVars() {
   return vars;
 }
 
-function withCors(response, origin) {
-  const headers = new Headers(response.headers);
-  const cors = corsHeaders(origin);
-  for (const [key, value] of Object.entries(cors)) {
-    headers.set(key, value);
-  }
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers
-  });
-}
-
 function getApiOrigin() {
   const raw = env.API_ORIGIN;
   if (!raw) return '';
@@ -132,21 +157,38 @@ function getApiOrigin() {
 }
 
 /**
- * Reverse-proxy to external Express (Render / Railway / Fly).
- * Reads API_ORIGIN only from Worker env — never hardcodes upstream hosts.
+ * Coordinated Durable Object rate limiter caller.
  */
-async function proxyToOrigin(request, apiOrigin) {
+async function checkDurableRateLimit(workerEnv, policy, key) {
+  if (!workerEnv?.RIPOMA_API) {
+    return { allowed: true };
+  }
+  try {
+    const shard = 'rl-' + policy;
+    const id = workerEnv.RIPOMA_API.idFromName(shard);
+    const stub = workerEnv.RIPOMA_API.get(id);
+    const res = await stub.fetch('http://internal/rate-limit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy, key })
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('[DO RateLimiter] Call failed, failing open:', err);
+    return { allowed: true };
+  }
+}
+
+async function proxyToOrigin(request, apiOrigin, requestId = '') {
   const target = new URL(request.url);
   const upstream = `${apiOrigin}${target.pathname}${target.search}`;
-
-  console.log('Proxying:', upstream);
 
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.set('X-Forwarded-Host', target.host);
   headers.set('X-Forwarded-Proto', target.protocol.replace(':', ''));
+  if (requestId) headers.set('X-Request-ID', requestId);
 
-  // Forward client IP so upstream rate limiters/logging know the true client
   const clientIp =
     request.headers.get('cf-connecting-ip') ||
     request.headers.get('x-forwarded-for') ||
@@ -164,48 +206,51 @@ async function proxyToOrigin(request, apiOrigin) {
 
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     init.body = request.body;
-    // Required for streaming request bodies in Workers
     init.duplex = 'half';
   }
 
   try {
     return await fetch(upstream, init);
   } catch (error) {
-    console.error('[proxy] fetch failed:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'api_origin_unreachable',
-        upstream,
+        error: 'upstream_fetch_failed',
+        source: 'gateway',
         reason: String(error?.message || error)
       }),
-      {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' }
-      }
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
     );
   }
 }
 
-export class RipomaApi extends Container {
+function normalizeCacheKey(url) {
+  const u = new URL(url.toString());
+  u.searchParams.sort();
+  return new Request(u.toString(), { method: 'GET' });
+}
+
+/**
+ * RipomaApi Durable Object class.
+ * Inherits rate-limiting logic from BaseRipomaApi while maintaining Container compatibility.
+ */
+export class RipomaApi extends BaseRipomaApi {
   defaultPort = 8080;
-  // Keep warm longer so Mongo + cron survive short idle gaps
   sleepAfter = '30m';
   enableInternet = true;
   envVars = buildContainerEnvVars();
-  // Express exposes GET /health after boot
   pingEndpoint = '/health';
 
   onStart() {
-    console.log('[RipomaApi] container started');
+    console.log('[RipomaApi] started');
   }
 
   onStop() {
-    console.log('[RipomaApi] container stopped');
+    console.log('[RipomaApi] stopped');
   }
 
   onError(error) {
-    console.error('[RipomaApi] container error:', error);
+    console.error('[RipomaApi] error:', error);
   }
 }
 
@@ -213,7 +258,10 @@ export default {
   async fetch(request, workerEnv, ctx) {
     const origin = request.headers.get('Origin') || '';
     const url = new URL(request.url);
+    const requestId = request.headers.get('cf-ray') || crypto.randomUUID();
+    const startTime = Date.now();
 
+    // ── 1. Preflight OPTIONS ──────────────────────────────────────────────────
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
@@ -221,24 +269,17 @@ export default {
       });
     }
 
-    // Express (API_ORIGIN) queries D1 through this Worker binding so it does
-    // not need a Cloudflare API token. Not for browsers — shared secret only.
+    // ── 2. D1 Internal Gateway (for Express / Container queries) ─────────────
     if (url.pathname === '/internal/d1' && request.method === 'POST') {
       const secret = workerEnv.D1_INTERNAL_SECRET || env.D1_INTERNAL_SECRET || '';
       const provided = request.headers.get('X-D1-Secret') || '';
       if (!secret || provided !== secret) {
-        return new Response(JSON.stringify({ success: false, error: 'unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return jsonResponse({ success: false, error: 'unauthorized' }, 401, origin, requestId);
       }
 
       const db = workerEnv.ripoma_db;
       if (!db) {
-        return new Response(JSON.stringify({ success: false, error: 'd1_unbound' }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return jsonResponse({ success: false, error: 'd1_unbound' }, 500, origin, requestId);
       }
 
       try {
@@ -261,230 +302,279 @@ export default {
             meta: outcome.meta || {}
           });
         }
-
-        return new Response(JSON.stringify({ success: true, result: results }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return jsonResponse({ success: true, result: results }, 200, origin, requestId);
       } catch (error) {
-        console.error('[D1 gateway]', error);
-        return new Response(
-          JSON.stringify({ success: false, error: String(error?.message || error) }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({ success: false, error: String(error?.message || error) }, 400, origin, requestId);
       }
     }
 
-    // Friendly root — this is an API gateway, not a website
+    // ── 3. Gateway Root & Health Probes ──────────────────────────────────────
     if (url.pathname === '/' && request.method === 'GET') {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           ok: true,
           service: 'ripoma-api-gateway',
-          mode: getApiOrigin() ? 'api_origin' : 'container',
-          health: '/health',
-          api: '/api'
-        }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders(origin)
-          }
-        }
+          architecture: 'cloudflare_native',
+          database: workerEnv.ripoma_db ? 'd1' : 'unbound',
+          durableObjects: Boolean(workerEnv.RIPOMA_API),
+          timestamp: new Date().toISOString()
+        },
+        200,
+        origin,
+        requestId
       );
     }
 
-    const apiOrigin = getApiOrigin();
+    if (url.pathname === '/health' && request.method === 'GET') {
+      return jsonResponse(
+        {
+          status: 'healthy',
+          service: 'ripoma-api-gateway',
+          database: 'd1',
+          timestamp: new Date().toISOString()
+        },
+        200,
+        origin,
+        requestId
+      );
+    }
 
-    // Cloudflare Edge Cache for public storefront data
+    // ── 4. Anonymous Guest Auth Refresh Fast-Path ───────────────────────────
+    if (url.pathname === '/api/customer-auth/refresh' && request.method === 'POST') {
+      const cookieHeader = request.headers.get('Cookie') || '';
+      if (!cookieHeader.includes('customerRefreshToken')) {
+        return jsonResponse({ authenticated: false }, 200, origin, requestId);
+      }
+    }
+    if (url.pathname === '/api/auth/refresh' && request.method === 'POST') {
+      const cookieHeader = request.headers.get('Cookie') || '';
+      if (!cookieHeader.includes('refreshToken')) {
+        return jsonResponse({ message: 'No refresh token' }, 401, origin, requestId);
+      }
+    }
+
+    // ── 5. Cloudflare Edge Cache for Public Storefront GET (Pre-Rate-Limit) ───
+    const hasAuth = request.headers.has('Authorization');
+    const hasCookie = request.headers.has('Cookie');
     const isPublicStorefrontGet =
       request.method === 'GET' &&
+      !hasAuth &&
+      !hasCookie &&
       (url.pathname === '/api/storefront/categories' ||
+        url.pathname.startsWith('/api/storefront/categories/') ||
         url.pathname === '/api/storefront/featured' ||
         url.pathname === '/api/storefront/promos' ||
         url.pathname === '/api/storefront/stats' ||
-        url.pathname === '/api/storefront/faqs' ||
         url.pathname === '/api/storefront/products' ||
-        url.pathname === '/api/storefront/products/facets');
+        url.pathname.startsWith('/api/storefront/products/') ||
+        url.pathname === '/api/storefront/search-suggestions');
 
-    const cache =
-      typeof caches !== 'undefined' && caches.default ? caches.default : null;
-    const cacheKey = cache && isPublicStorefrontGet ? new Request(url.toString(), { method: 'GET' }) : null;
+    const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
+    const cacheKey = cache && isPublicStorefrontGet ? normalizeCacheKey(url) : null;
 
+    // Check Cloudflare Edge Cache — cache hits do NOT consume rate-limit quota
     if (cache && cacheKey) {
       try {
         const cached = await cache.match(cacheKey);
         if (cached) {
-          return withCors(cached, origin);
+          const durationMs = Date.now() - startTime;
+          console.log(
+            JSON.stringify({
+              requestId,
+              method: request.method,
+              pathname: url.pathname,
+              status: cached.status,
+              durationMs,
+              cached: true,
+              source: 'worker_edge_cache'
+            })
+          );
+          return withCors(cached, origin, requestId);
         }
       } catch (cacheErr) {
-        console.warn('[RipomaApi] cache match error:', cacheErr);
+        console.warn('[RipomaApi] edge cache match error:', cacheErr);
       }
     }
 
-    try {
-      let upstream;
+    // ── 6. Coordinated Durable Object Rate Limiting ──────────────────────────
+    const ratePolicy = resolveRatePolicy(url, request.method);
+    if (ratePolicy) {
+      const rateKey = resolveRateKey(request, ratePolicy);
+      const rateCheck = await checkDurableRateLimit(workerEnv, ratePolicy, rateKey);
+      if (!rateCheck.allowed) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'too_many_requests',
+            source: 'durable_object',
+            policy: ratePolicy,
+            message: rateCheck.message || 'Too many requests. Please slow down.',
+            retryAfter: rateCheck.retryAfter || 5
+          },
+          429,
+          origin,
+          requestId,
+          {
+            'Retry-After': String(rateCheck.retryAfter || 5),
+            'X-Ripoma-429-Source': 'durable-object-rate-limit',
+            'X-RateLimit-Source': 'durable_object',
+            'X-RateLimit-Policy': ratePolicy
+          }
+        );
+      }
+    }
 
-      if (apiOrigin) {
-        upstream = await proxyToOrigin(request, apiOrigin);
-        if (upstream.status === 101) {
-          return upstream;
-        }
-        if (
-          (upstream.status >= 500 || upstream.status === 429) &&
-          request.method === 'GET' &&
-          url.pathname === '/api/storefront/categories'
+    // Execute Native D1 Storefront Queries
+    const db = workerEnv.ripoma_db;
+    if (db && request.method === 'GET') {
+      try {
+        let d1Data = null;
+        let isLongLived = false;
+
+        if (url.pathname === '/api/storefront/categories') {
+          d1Data = await getStorefrontCategories(db);
+          isLongLived = true;
+        } else if (url.pathname.startsWith('/api/storefront/categories/')) {
+          const id = url.pathname.replace('/api/storefront/categories/', '').trim();
+          d1Data = await getStorefrontCategoryDetail(db, id);
+          isLongLived = true;
+        } else if (url.pathname === '/api/storefront/featured') {
+          const limit = url.searchParams.get('limit') || 8;
+          d1Data = await getStorefrontFeatured(db, limit);
+        } else if (url.pathname === '/api/storefront/stats') {
+          d1Data = await getStorefrontStats(db);
+          isLongLived = true;
+        } else if (url.pathname === '/api/storefront/promos') {
+          d1Data = getStorefrontPromos();
+          isLongLived = true;
+        } else if (url.pathname === '/api/storefront/products/facets') {
+          d1Data = await getStorefrontFacets(db, Object.fromEntries(url.searchParams));
+        } else if (url.pathname === '/api/storefront/products') {
+          d1Data = await getStorefrontProducts(db, Object.fromEntries(url.searchParams));
+        } else if (
+          url.pathname.startsWith('/api/storefront/products/') &&
+          !url.pathname.includes('/reviews')
         ) {
-          try {
-            const fallback = await categoriesResponseFromD1(workerEnv);
-            if (fallback) return withCors(fallback, origin);
-          } catch (fallbackErr) {
-            console.error('[RipomaApi] D1 categories fallback failed:', fallbackErr);
-          }
+          const id = url.pathname.replace('/api/storefront/products/', '').trim();
+          d1Data = await getStorefrontProductDetail(db, id);
+        } else if (url.pathname === '/api/storefront/search-suggestions') {
+          d1Data = await getStorefrontSearchSuggestions(db, url.searchParams.get('q'));
+          isLongLived = true;
         }
 
-        // Structured JSON response for 429 rate limit
-        if (upstream.status === 429) {
-          const retryAfter = upstream.headers.get('Retry-After') || '3';
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'too_many_requests',
-              message: 'Server is receiving high traffic. Please retry in a few seconds.',
-              retryAfter: parseInt(retryAfter, 10) || 3
-            }),
-            {
-              status: 429,
-              headers: {
-                'Content-Type': 'application/json',
-                'Retry-After': String(retryAfter),
-                ...corsHeaders(origin)
+        if (d1Data) {
+          const sMaxAge = isLongLived ? 300 : 60;
+          const cacheControl = `public, max-age=15, s-maxage=${sMaxAge}`;
+          const response = jsonResponse(d1Data, 200, origin, requestId, {
+            'Cache-Control': cacheControl,
+            'X-Data-Source': 'native_d1'
+          });
+
+          // Store in Cloudflare Edge Cache
+          if (cache && cacheKey) {
+            try {
+              const toCache = response.clone();
+              const putPromise = cache.put(cacheKey, toCache).catch(() => {});
+              if (ctx && typeof ctx.waitUntil === 'function') {
+                ctx.waitUntil(putPromise);
               }
-            }
-          );
-        }
-
-        // Cache successful public storefront responses at Cloudflare edge
-        if (cache && cacheKey && upstream.status === 200) {
-          try {
-            const toCache = upstream.clone();
-            const ch = new Headers(toCache.headers);
-            const isLongLived =
-              url.pathname === '/api/storefront/categories' ||
-              url.pathname === '/api/storefront/stats' ||
-              url.pathname === '/api/storefront/promos' ||
-              url.pathname === '/api/storefront/faqs';
-            const sMaxAge = isLongLived ? 300 : 60;
-            ch.set('Cache-Control', `public, max-age=15, s-maxage=${sMaxAge}`);
-            const cachedRes = new Response(toCache.body, {
-              status: toCache.status,
-              statusText: toCache.statusText,
-              headers: ch
-            });
-            const putPromise = cache.put(cacheKey, cachedRes).catch((err) => {
-              console.warn('[RipomaApi] cache put error:', err);
-            });
-            if (ctx && typeof ctx.waitUntil === 'function') {
-              ctx.waitUntil(putPromise);
-            }
-          } catch (cachePutErr) {
-            console.warn('[RipomaApi] cache put error:', cachePutErr);
+            } catch {}
           }
-        }
 
-        return withCors(upstream, origin);
+          const durationMs = Date.now() - startTime;
+          console.log(
+            JSON.stringify({
+              requestId,
+              method: request.method,
+              pathname: url.pathname,
+              status: 200,
+              durationMs,
+              source: 'native_d1'
+            })
+          );
+          return response;
+        }
+      } catch (d1Err) {
+        console.error('[RipomaApi] native D1 query failed, falling back to backend:', d1Err);
+      }
+    }
+
+    // ── 7. Forwarding for Admin, Order Mutations & Backend Services ──────────
+    const apiOrigin = getApiOrigin();
+    let upstream;
+
+    try {
+      if (apiOrigin) {
+        upstream = await proxyToOrigin(request, apiOrigin, requestId);
+      } else if (workerEnv.RIPOMA_API) {
+        const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
+        upstream = await container.fetch(request);
+      } else {
+        return jsonResponse(
+          { success: false, error: 'backend_unavailable', message: 'No backend origin or container bound.' },
+          503,
+          origin,
+          requestId
+        );
       }
 
-      const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
-      upstream = await container.fetch(request);
-      // WebSocket upgrades (socket.io): the 101 response carries a webSocket
-      // handle that is lost if the Response is reconstructed — pass it through.
       if (upstream.status === 101) {
         return upstream;
       }
 
-      if (
-        (upstream.status >= 500 || upstream.status === 429) &&
-        request.method === 'GET' &&
-        url.pathname === '/api/storefront/categories'
-      ) {
-        try {
-          const fallback = await categoriesResponseFromD1(workerEnv);
-          if (fallback) return withCors(fallback, origin);
-        } catch (fallbackErr) {
-          console.error('[RipomaApi] D1 categories fallback failed:', fallbackErr);
-        }
-      }
-
+      // Tag diagnostic header if upstream backend returned 429
       if (upstream.status === 429) {
-        const retryAfter = upstream.headers.get('Retry-After') || '3';
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'too_many_requests',
-            message: 'Server is receiving high traffic. Please retry in a few seconds.',
-            retryAfter: parseInt(retryAfter, 10) || 3
-          }),
-          {
-            status: 429,
-            headers: {
-              'Content-Type': 'application/json',
-              'Retry-After': String(retryAfter),
-              ...corsHeaders(origin)
-            }
-          }
-        );
+        const headers = new Headers(upstream.headers);
+        if (!headers.has('X-Ripoma-429-Source')) {
+          const p = url.pathname;
+          const isAuth = p.includes('/auth') || p.includes('/customer-auth');
+          headers.set('X-Ripoma-429-Source', isAuth ? 'auth-rate-limit' : 'backend-rate-limit');
+        }
+        return withCors(new Response(upstream.body, { status: 429, headers }), origin, requestId);
       }
 
-      if (cache && cacheKey && upstream.status === 200) {
-        try {
-          const toCache = upstream.clone();
-          const ch = new Headers(toCache.headers);
-          const isLongLived =
-            url.pathname === '/api/storefront/categories' ||
-            url.pathname === '/api/storefront/stats' ||
-            url.pathname === '/api/storefront/promos' ||
-            url.pathname === '/api/storefront/faqs';
-          const sMaxAge = isLongLived ? 300 : 60;
-          ch.set('Cache-Control', `public, max-age=15, s-maxage=${sMaxAge}`);
-          const cachedRes = new Response(toCache.body, {
-            status: toCache.status,
-            statusText: toCache.statusText,
-            headers: ch
-          });
-          const putPromise = cache.put(cacheKey, cachedRes).catch((err) => {
-            console.warn('[RipomaApi] cache put error:', err);
-          });
+      // ── 8. Active Edge Cache Invalidation on Mutations ──────────────────────
+      if (
+        cache &&
+        upstream.status >= 200 &&
+        upstream.status < 300 &&
+        (request.method === 'POST' ||
+          request.method === 'PUT' ||
+          request.method === 'PATCH' ||
+          request.method === 'DELETE')
+      ) {
+        const p = url.pathname;
+        if (
+          p.startsWith('/api/products') ||
+          p.startsWith('/api/categories') ||
+          p.startsWith('/api/coupons') ||
+          p.startsWith('/api/storefront/reviews')
+        ) {
+          const purgeKeys = [
+            new Request(new URL('/api/storefront/categories', url.origin).toString(), { method: 'GET' }),
+            new Request(new URL('/api/storefront/stats', url.origin).toString(), { method: 'GET' }),
+            new Request(new URL('/api/storefront/promos', url.origin).toString(), { method: 'GET' }),
+            new Request(new URL('/api/storefront/featured?limit=8', url.origin).toString(), { method: 'GET' }),
+            new Request(new URL('/api/storefront/products', url.origin).toString(), { method: 'GET' })
+          ];
+          const purgePromise = Promise.all(purgeKeys.map((k) => cache.delete(k))).catch(() => {});
           if (ctx && typeof ctx.waitUntil === 'function') {
-            ctx.waitUntil(putPromise);
-          }
-        } catch {}
-      }
-
-      return withCors(upstream, origin);
-    } catch (error) {
-      console.error('[RipomaApi] proxy failed:', error);
-      const upstream = apiOrigin
-        ? `${apiOrigin}${url.pathname}${url.search}`
-        : null;
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'api_origin_unreachable',
-          upstream,
-          reason: String(error?.message || error),
-          message: apiOrigin
-            ? `Could not reach API_ORIGIN (${apiOrigin}). Check the Render/Railway/Fly URL and that Express is running.`
-            : 'Rippoma API container is starting or unavailable. Wait a minute and retry, or set API_ORIGIN to an external Express host. Requires Workers Paid + Containers when not using API_ORIGIN.'
-        }),
-        {
-          status: apiOrigin ? 502 : 503,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders(origin)
+            ctx.waitUntil(purgePromise);
           }
         }
+      }
+
+      return withCors(upstream, origin, requestId);
+    } catch (error) {
+      return jsonResponse(
+        {
+          success: false,
+          error: 'backend_error',
+          reason: String(error?.message || error)
+        },
+        502,
+        origin,
+        requestId
       );
     }
   }

@@ -690,4 +690,228 @@ describe('Rippoma Authentication & D1 Schema Test Suite', () => {
     const orderNum = await generateExportNumber('storefrontOrder');
     assert.match(orderNum, new RegExp(`^WEB-${year}-\\d{5}$`));
   });
+
+  // ── 16. Rate limiter behavior and 429 response structure ────────────────────
+  it('16. Rate limiter enforces limits, returns Retry-After, and identifies source as express', () => {
+    const { createRateLimiter } = require('../middleware/customerRateLimit');
+    const limiter = createRateLimiter({
+      windowMs: 60 * 1000,
+      max: 2,
+      keyPrefix: 'test-limit',
+      message: 'Rate limit exceeded'
+    });
+
+    const mockReq = { headers: { 'cf-connecting-ip': '203.0.113.195' } };
+    let statusSet = null;
+    let jsonSent = null;
+    let headersSet = {};
+    const mockRes = {
+      setHeader(k, v) { headersSet[k] = v; },
+      status(code) { statusSet = code; return this; },
+      json(data) { jsonSent = data; return this; }
+    };
+    let nextCount = 0;
+    const next = () => { nextCount++; };
+
+    // Request 1: allowed
+    limiter(mockReq, mockRes, next);
+    assert.strictEqual(nextCount, 1);
+
+    // Request 2: allowed
+    limiter(mockReq, mockRes, next);
+    assert.strictEqual(nextCount, 2);
+
+    // Request 3: blocked with 429
+    limiter(mockReq, mockRes, next);
+    assert.strictEqual(nextCount, 2);
+    assert.strictEqual(statusSet, 429);
+    assert.strictEqual(headersSet['X-RateLimit-Source'], 'express');
+    assert.strictEqual(headersSet['X-Ripoma-429-Source'], 'backend-rate-limit');
+    assert.ok(headersSet['Retry-After']);
+    assert.strictEqual(jsonSent.error, 'too_many_requests');
+    assert.strictEqual(jsonSent.source, 'express');
+  });
+
+  // ── 17. Worker gateway /health probe and request-id propagation ────────────
+  it('17. Worker gateway /health returns 200 without proxying and assigns X-Request-ID', async () => {
+    const workerModule = (await import('../../worker/src/proxy.js')).default;
+    const healthReq = new Request('https://worker.local/health', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const healthRes = await workerModule.fetch(healthReq, {
+      API_ORIGIN: 'https://mock-upstream.example.com'
+    });
+    assert.strictEqual(healthRes.status, 200);
+    assert.ok(healthRes.headers.get('X-Request-ID'));
+    const body = await healthRes.json();
+    assert.strictEqual(body.status, 'healthy');
+    assert.strictEqual(body.service, 'ripoma-api-gateway');
+  });
+
+  // ── 18. Durable Object Coordinated Rate Limiter ─────────────────────────────
+  it('18. Durable Object RipomaApi enforces policy limits and calculates retryAfter', async () => {
+    const { RipomaApi, RATE_POLICIES } = await import('../../worker/src/durableRateLimiter.js');
+    const mockState = {
+      storage: {
+        sql: null
+      }
+    };
+    const doInstance = new RipomaApi(mockState, {});
+
+    // Test auth_login (max 20)
+    for (let i = 0; i < 20; i++) {
+      const res = await doInstance.checkLimit('auth_login', '198.51.100.1');
+      assert.strictEqual(res.allowed, true);
+    }
+    const blockedRes = await doInstance.checkLimit('auth_login', '198.51.100.1');
+    assert.strictEqual(blockedRes.allowed, false);
+    assert.ok(blockedRes.retryAfter > 0);
+    assert.strictEqual(blockedRes.policy, 'auth_login');
+
+    // Different IP is not blocked
+    const otherIpRes = await doInstance.checkLimit('auth_login', '198.51.100.2');
+    assert.strictEqual(otherIpRes.allowed, true);
+
+    // Test RPC fetch /internal/rate-limit
+    const rpcReq = new Request('http://internal/rate-limit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy: 'storefront_browse', key: '198.51.100.1' })
+    });
+    const rpcRes = await doInstance.fetch(rpcReq);
+    assert.strictEqual(rpcRes.status, 200);
+    const rpcData = await rpcRes.json();
+    assert.strictEqual(rpcData.allowed, true);
+
+    // Test RPC fetch blocked -> returns 429 with X-Ripoma-429-Source
+    const blockedRpcReq = new Request('http://internal/rate-limit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy: 'auth_login', key: '198.51.100.1' })
+    });
+    const blockedRpcRes = await doInstance.fetch(blockedRpcReq);
+    assert.strictEqual(blockedRpcRes.status, 429);
+    assert.strictEqual(blockedRpcRes.headers.get('X-Ripoma-429-Source'), 'durable-object-rate-limit');
+    assert.strictEqual(blockedRpcRes.headers.get('X-RateLimit-Source'), 'durable_object');
+  });
+
+  // ── 19. Native D1 Storefront Queries via Worker Gateway ─────────────────────
+  it('19. Worker Gateway serves storefront featured, stats, and promos natively from D1', async () => {
+    const workerModule = (await import('../../worker/src/proxy.js')).default;
+    const mockDb = {
+      prepare(sql) {
+        return {
+          bind(...params) {
+            return this;
+          },
+          async first() {
+            if (sql.includes('COUNT(*) AS total FROM products')) return { total: 5 };
+            if (sql.includes('COUNT(DISTINCT category_id)')) return { total: 2 };
+            return null;
+          },
+          async all() {
+            if (sql.includes('is_featured = 1')) {
+              return {
+                results: [
+                  {
+                    id: 'prod-123',
+                    sku: 'SKU-001',
+                    name: 'Native D1 Product',
+                    description: 'Test product',
+                    selling_price: 1500,
+                    total_stock: 10,
+                    is_featured: 1
+                  }
+                ]
+              };
+            }
+            return { results: [] };
+          }
+        };
+      }
+    };
+
+    // 1. Featured products from native D1
+    const featReq = new Request('https://worker.local/api/storefront/featured?limit=4', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const featRes = await workerModule.fetch(featReq, { ripoma_db: mockDb });
+    assert.strictEqual(featRes.status, 200);
+    assert.strictEqual(featRes.headers.get('X-Data-Source'), 'native_d1');
+    const featBody = await featRes.json();
+    assert.strictEqual(featBody.products.length, 1);
+    assert.strictEqual(featBody.products[0].name, 'Native D1 Product');
+
+    // 2. Stats from native D1
+    const statsReq = new Request('https://worker.local/api/storefront/stats', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const statsRes = await workerModule.fetch(statsReq, { ripoma_db: mockDb });
+    assert.strictEqual(statsRes.status, 200);
+    const statsBody = await statsRes.json();
+    assert.strictEqual(statsBody.stats.productCount, 5);
+    assert.strictEqual(statsBody.stats.categoryCount, 2);
+
+    // 3. Promos from native D1
+    const promoReq = new Request('https://worker.local/api/storefront/promos', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const promoRes = await workerModule.fetch(promoReq, { ripoma_db: mockDb });
+    assert.strictEqual(promoRes.status, 200);
+    const promoBody = await promoRes.json();
+    assert.ok(promoBody.promos.marquee.length > 0);
+  });
+
+  // ── 20. Rate-limiting Key Resolution & NAT Collision Prevention ─────────────
+  it('20. resolveRateKey isolates keys by refresh token and customer user ID', async () => {
+    const { resolveRateKey } = await import('../../worker/src/durableRateLimiter.js');
+
+    // Case A: auth_refresh with cookie isolates by token, not IP
+    const refreshReq = new Request('https://worker.local/api/customer-auth/refresh', {
+      method: 'POST',
+      headers: {
+        'cf-connecting-ip': '203.0.113.50',
+        Cookie: 'customerRefreshToken=abc123secrettokenhere'
+      }
+    });
+    const refreshKey = resolveRateKey(refreshReq, 'auth_refresh');
+    assert.strictEqual(refreshKey, 'refresh_token:abc123secrettokenhere');
+
+    // Case B: authenticated API isolates by decoded JWT subject
+    const payload = Buffer.from(JSON.stringify({ id: 'cust_abc_999' })).toString('base64');
+    const authReq = new Request('https://worker.local/api/storefront/orders', {
+      method: 'POST',
+      headers: {
+        'cf-connecting-ip': '203.0.113.50',
+        Authorization: `Bearer header.${payload}.sig`
+      }
+    });
+    const authKey = resolveRateKey(authReq, 'customer_api');
+    assert.strictEqual(authKey, 'user:cust_abc_999');
+
+    // Case C: unauthenticated storefront browse uses policy-prefixed IP
+    const browseReq = new Request('https://worker.local/api/storefront/products', {
+      method: 'GET',
+      headers: { 'cf-connecting-ip': '203.0.113.50' }
+    });
+    const browseKey = resolveRateKey(browseReq, 'storefront_browse');
+    assert.strictEqual(browseKey, 'storefront_browse:203.0.113.50');
+  });
+
+  // ── 21. Anonymous Guest Refresh Fast-Path Bypass ────────────────────────────
+  it('21. Worker Gateway fast-path returns 200 for guest refresh without calling DO or backend', async () => {
+    const workerModule = (await import('../../worker/src/proxy.js')).default;
+    const guestReq = new Request('https://worker.local/api/customer-auth/refresh', {
+      method: 'POST',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const guestRes = await workerModule.fetch(guestReq, {});
+    assert.strictEqual(guestRes.status, 200);
+    const body = await guestRes.json();
+    assert.strictEqual(body.authenticated, false);
+  });
 });

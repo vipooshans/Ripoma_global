@@ -1,6 +1,6 @@
 /**
  * Lightweight in-memory rate limiter (no external dependency).
- * Suitable for single-process Node; reset on restart is acceptable for this app.
+ * Suitable for single-process Node / Container; reset on restart is acceptable for this app.
  */
 const buckets = new Map();
 
@@ -11,6 +11,18 @@ const prune = (key, windowMs) => {
   entry.hits = entry.hits.filter((t) => now - t < windowMs);
   if (!entry.hits.length) buckets.delete(key);
 };
+
+// Periodic cleanup of expired entries
+if (typeof setInterval !== 'undefined') {
+  const cleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of buckets.entries()) {
+      entry.hits = entry.hits.filter((t) => now - t < 3600000);
+      if (!entry.hits.length) buckets.delete(key);
+    }
+  }, 10 * 60 * 1000);
+  if (cleanup.unref) cleanup.unref();
+}
 
 const getClientIp = (req) => {
   const cfIp = req?.headers?.['cf-connecting-ip'];
@@ -43,8 +55,18 @@ const createRateLimiter = ({
 
     if (entry.hits.length >= max) {
       const retryAfter = Math.ceil((entry.hits[0] + windowMs - now) / 1000);
-      res.setHeader('Retry-After', String(Math.max(1, retryAfter)));
-      return res.status(429).json({ message });
+      const delay = Math.max(1, retryAfter);
+      const isAuth = keyPrefix.includes('auth') || req.path?.includes('auth');
+      res.setHeader('Retry-After', String(delay));
+      res.setHeader('X-RateLimit-Source', 'express');
+      res.setHeader('X-Ripoma-429-Source', isAuth ? 'auth-rate-limit' : 'backend-rate-limit');
+      return res.status(429).json({
+        success: false,
+        error: 'too_many_requests',
+        source: 'express',
+        message,
+        retryAfter: delay
+      });
     }
 
     entry.hits.push(now);
@@ -73,8 +95,18 @@ const createCustomerRateLimiter = ({
 
     if (entry.hits.length >= max) {
       const retryAfter = Math.ceil((entry.hits[0] + windowMs - now) / 1000);
-      res.setHeader('Retry-After', String(Math.max(1, retryAfter)));
-      return res.status(429).json({ message });
+      const delay = Math.max(1, retryAfter);
+      const isAuth = keyPrefix.includes('auth') || req.path?.includes('auth');
+      res.setHeader('Retry-After', String(delay));
+      res.setHeader('X-RateLimit-Source', 'express');
+      res.setHeader('X-Ripoma-429-Source', isAuth ? 'auth-rate-limit' : 'backend-rate-limit');
+      return res.status(429).json({
+        success: false,
+        error: 'too_many_requests',
+        source: 'express',
+        message,
+        retryAfter: delay
+      });
     }
 
     entry.hits.push(now);

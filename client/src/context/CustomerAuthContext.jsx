@@ -1,6 +1,10 @@
 import React, { createContext, useState, useEffect } from 'react';
 import customerAuthService from '../services/customerAuth.service';
-import { setCustomerAuthHeader } from '../services/api';
+import {
+  setCustomerAuthHeader,
+  hasCustomerSessionHint,
+  setCustomerSessionHint
+} from '../services/api';
 
 export const CustomerAuthContext = createContext(null);
 
@@ -26,19 +30,29 @@ export const CustomerAuthProvider = ({ children }) => {
       return;
     }
 
+    // Fast-path: anonymous visitors without a session hint never fire refresh requests
+    if (!hasCustomerSessionHint()) {
+      setCustomerUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       const refreshData = await customerAuthService.refresh();
       if (!refreshData || !refreshData.accessToken) {
         setCustomerUser(null);
+        setCustomerSessionHint(false);
         return;
       }
       const data = await customerAuthService.getCurrentCustomer();
       if (data?.customer) {
         setCustomerUser(data.customer);
+        setCustomerSessionHint(true);
       }
     } catch {
       setCustomerUser(null);
       setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
     } finally {
       setLoading(false);
     }
@@ -50,6 +64,7 @@ export const CustomerAuthProvider = ({ children }) => {
     const handleExpired = () => {
       setCustomerUser(null);
       setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
       setError('Your session has expired. Please log in again.');
 
       const path = typeof window !== 'undefined' ? window.location.pathname : '';
@@ -59,24 +74,22 @@ export const CustomerAuthProvider = ({ children }) => {
     };
 
     window.addEventListener('customer-auth-expired', handleExpired);
-    return () => window.removeEventListener('customer-auth-expired', handleExpired);
+    return () => {
+      window.removeEventListener('customer-auth-expired', handleExpired);
+    };
   }, []);
 
-  // Idle timeout: sign out after 30 minutes without activity while authenticated
+  // Idle timer auto logout
   useEffect(() => {
     if (!customerUser) return undefined;
 
-    let timer;
-    const reset = () => {
-      clearTimeout(timer);
-      timer = setTimeout(async () => {
-        try {
-          await customerAuthService.logout();
-        } catch {
-          /* ignore */
-        }
+    let timeoutId;
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
         setCustomerUser(null);
         setCustomerAuthHeader(null);
+        setCustomerSessionHint(false);
         setError('Signed out due to inactivity.');
         const path = typeof window !== 'undefined' ? window.location.pathname : '';
         if (isProtectedCustomerPath(path)) {
@@ -85,13 +98,13 @@ export const CustomerAuthProvider = ({ children }) => {
       }, IDLE_MS);
     };
 
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
-    reset();
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((ev) => window.addEventListener(ev, resetTimer));
+    resetTimer();
 
     return () => {
-      clearTimeout(timer);
-      events.forEach((e) => window.removeEventListener(e, reset));
+      clearTimeout(timeoutId);
+      events.forEach((ev) => window.removeEventListener(ev, resetTimer));
     };
   }, [customerUser]);
 
@@ -101,6 +114,7 @@ export const CustomerAuthProvider = ({ children }) => {
       const data = await customerAuthService.login(email, password);
       if (data.customer) {
         setCustomerUser(data.customer);
+        setCustomerSessionHint(true);
       }
       return data;
     } catch (err) {
@@ -116,6 +130,7 @@ export const CustomerAuthProvider = ({ children }) => {
       const data = await customerAuthService.loginWithGoogle(credential);
       if (data.customer) {
         setCustomerUser(data.customer);
+        setCustomerSessionHint(true);
       }
       return data;
     } catch (err) {
@@ -131,6 +146,7 @@ export const CustomerAuthProvider = ({ children }) => {
     } finally {
       setCustomerUser(null);
       setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
     }
   };
 

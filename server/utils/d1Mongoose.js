@@ -10,7 +10,7 @@ const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const d1 = require('./d1');
 
-const USE_D1 = String(process.env.DATA_BACKEND || '').toLowerCase() === 'd1';
+const USE_D1 = String(process.env.DATA_BACKEND || 'd1').toLowerCase() === 'd1';
 
 const TABLE_BY_MODEL = {
   Counter: 'counters',

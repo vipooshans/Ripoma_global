@@ -1,4 +1,8 @@
-import api, { setCustomerAuthHeader } from './api';
+import api, {
+  setCustomerAuthHeader,
+  setCustomerSessionHint,
+  refreshCustomerTokenSingleFlight
+} from './api';
 
 const customerAuthService = {
   register: async (data) => {
@@ -20,6 +24,7 @@ const customerAuthService = {
     const response = await api.post('/customer-auth/login', { email, password });
     if (response.data.accessToken) {
       setCustomerAuthHeader(response.data.accessToken);
+      setCustomerSessionHint(true);
     }
     return response.data;
   },
@@ -28,6 +33,7 @@ const customerAuthService = {
     const response = await api.post('/customer-auth/google', { credential });
     if (response.data.accessToken) {
       setCustomerAuthHeader(response.data.accessToken);
+      setCustomerSessionHint(true);
     }
     return response.data;
   },
@@ -37,15 +43,13 @@ const customerAuthService = {
       await api.post('/customer-auth/logout');
     } finally {
       setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
     }
   },
 
   refresh: async () => {
-    const response = await api.post('/customer-auth/refresh');
-    if (response.data.accessToken) {
-      setCustomerAuthHeader(response.data.accessToken);
-    }
-    return response.data;
+    const token = await refreshCustomerTokenSingleFlight();
+    return { accessToken: token };
   },
 
   getCurrentCustomer: async () => {
