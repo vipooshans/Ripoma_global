@@ -8,7 +8,7 @@
  *   - Native D1 execution with container / origin fallback for complex admin operations.
  */
 
-import { RipomaApi, resolveRatePolicy } from './durableRateLimiter.js';
+import { RipomaApi, resolveRatePolicy, resolveRateKey } from './durableRateLimiter.js';
 import {
   getStorefrontCategories,
   getStorefrontCategoryDetail,
@@ -65,6 +65,8 @@ function corsHeaders(origin, env) {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers':
       'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cookie, X-Request-ID',
+    'Access-Control-Expose-Headers':
+      'X-Ripoma-429-Source, Retry-After, X-RateLimit-Source, X-RateLimit-Policy, X-Data-Source, X-Request-ID',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin'
@@ -124,7 +126,8 @@ async function checkDurableRateLimit(env, policy, key) {
     return { allowed: true };
   }
   try {
-    const id = env.RIPOMA_API.idFromName('global-rate-limiter');
+    const shard = 'rl-' + policy;
+    const id = env.RIPOMA_API.idFromName(shard);
     const stub = env.RIPOMA_API.get(id);
     const res = await stub.fetch('http://internal/rate-limit', {
       method: 'POST',
@@ -296,49 +299,21 @@ export default {
       );
     }
 
-    // ── 4. Coordinated Durable Object Rate Limiting ──────────────────────────
-    const ratePolicy = resolveRatePolicy(url, request.method);
-    if (ratePolicy) {
-      const clientIp =
-        request.headers.get('cf-connecting-ip') ||
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        'unknown';
-      const authHeader = request.headers.get('Authorization') || '';
-      const rateKey = authHeader ? `user:${authHeader.slice(-16)}` : `ip:${clientIp}`;
-
-      const rateCheck = await checkDurableRateLimit(env, ratePolicy, rateKey);
-      if (!rateCheck.allowed) {
-        return jsonResponse(
-          {
-            success: false,
-            error: 'too_many_requests',
-            source: 'durable_object',
-            policy: ratePolicy,
-            message: rateCheck.message || 'Too many requests. Please slow down.',
-            retryAfter: rateCheck.retryAfter || 5
-          },
-          429,
-          origin,
-          env,
-          requestId,
-          {
-            'Retry-After': String(rateCheck.retryAfter || 5),
-            'X-RateLimit-Source': 'durable_object',
-            'X-RateLimit-Policy': ratePolicy
-          }
-        );
-      }
-    }
-
-    // ── 5. Anonymous Guest Customer Auth Refresh Fast-Path ───────────────────
+    // ── 4. Anonymous Guest Auth Refresh Fast-Path ───────────────────────────
     if (url.pathname === '/api/customer-auth/refresh' && request.method === 'POST') {
       const cookieHeader = request.headers.get('Cookie') || '';
       if (!cookieHeader.includes('customerRefreshToken')) {
         return jsonResponse({ authenticated: false }, 200, origin, env, requestId);
       }
     }
+    if (url.pathname === '/api/auth/refresh' && request.method === 'POST') {
+      const cookieHeader = request.headers.get('Cookie') || '';
+      if (!cookieHeader.includes('refreshToken')) {
+        return jsonResponse({ message: 'No refresh token' }, 401, origin, env, requestId);
+      }
+    }
 
-    // ── 6. Native D1 Storefront Read Path (with Cloudflare Edge Cache) ───────
+    // ── 5. Cloudflare Edge Cache for Public Storefront GET (Pre-Rate-Limit) ───
     const hasAuth = request.headers.has('Authorization');
     const hasCookie = request.headers.has('Cookie');
     const isPublicStorefrontGet =
@@ -357,7 +332,7 @@ export default {
     const cache = typeof caches !== 'undefined' && caches.default ? caches.default : null;
     const cacheKey = cache && isPublicStorefrontGet ? normalizeCacheKey(url) : null;
 
-    // Check Cloudflare Edge Cache
+    // Check Cloudflare Edge Cache — cache hits do NOT consume rate-limit quota
     if (cache && cacheKey) {
       try {
         const cached = await cache.match(cacheKey);
@@ -378,6 +353,35 @@ export default {
         }
       } catch (cacheErr) {
         console.warn('[proxy] edge cache match error:', cacheErr);
+      }
+    }
+
+    // ── 6. Coordinated Durable Object Rate Limiting ──────────────────────────
+    const ratePolicy = resolveRatePolicy(url, request.method);
+    if (ratePolicy) {
+      const rateKey = resolveRateKey(request, ratePolicy);
+      const rateCheck = await checkDurableRateLimit(env, ratePolicy, rateKey);
+      if (!rateCheck.allowed) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'too_many_requests',
+            source: 'durable_object',
+            policy: ratePolicy,
+            message: rateCheck.message || 'Too many requests. Please slow down.',
+            retryAfter: rateCheck.retryAfter || 5
+          },
+          429,
+          origin,
+          env,
+          requestId,
+          {
+            'Retry-After': String(rateCheck.retryAfter || 5),
+            'X-Ripoma-429-Source': 'durable-object-rate-limit',
+            'X-RateLimit-Source': 'durable_object',
+            'X-RateLimit-Policy': ratePolicy
+          }
+        );
       }
     }
 
@@ -476,6 +480,17 @@ export default {
 
     if (upstream.status === 101) {
       return upstream; // WebSocket upgrades
+    }
+
+    // Tag diagnostic header if upstream backend returned 429
+    if (upstream.status === 429) {
+      const headers = new Headers(upstream.headers);
+      if (!headers.has('X-Ripoma-429-Source')) {
+        const p = url.pathname;
+        const isAuth = p.includes('/auth') || p.includes('/customer-auth');
+        headers.set('X-Ripoma-429-Source', isAuth ? 'auth-rate-limit' : 'backend-rate-limit');
+      }
+      return withCors(new Response(upstream.body, { status: 429, headers }), origin, env, requestId);
     }
 
     // ── 8. Active Edge Cache Invalidation on Mutations ──────────────────────

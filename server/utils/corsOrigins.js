@@ -105,7 +105,7 @@ const corsOptions = {
     'Origin',
     'Cookie'
   ],
-  exposedHeaders: ['Set-Cookie'],
+  exposedHeaders: ['Set-Cookie', 'Retry-After', 'X-Ripoma-429-Source', 'X-RateLimit-Source', 'X-RateLimit-Policy'],
   optionsSuccessStatus: 204
 };
 

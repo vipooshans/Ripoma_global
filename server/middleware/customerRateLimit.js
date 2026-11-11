@@ -56,8 +56,10 @@ const createRateLimiter = ({
     if (entry.hits.length >= max) {
       const retryAfter = Math.ceil((entry.hits[0] + windowMs - now) / 1000);
       const delay = Math.max(1, retryAfter);
+      const isAuth = keyPrefix.includes('auth') || req.path?.includes('auth');
       res.setHeader('Retry-After', String(delay));
       res.setHeader('X-RateLimit-Source', 'express');
+      res.setHeader('X-Ripoma-429-Source', isAuth ? 'auth-rate-limit' : 'backend-rate-limit');
       return res.status(429).json({
         success: false,
         error: 'too_many_requests',
@@ -94,8 +96,10 @@ const createCustomerRateLimiter = ({
     if (entry.hits.length >= max) {
       const retryAfter = Math.ceil((entry.hits[0] + windowMs - now) / 1000);
       const delay = Math.max(1, retryAfter);
+      const isAuth = keyPrefix.includes('auth') || req.path?.includes('auth');
       res.setHeader('Retry-After', String(delay));
       res.setHeader('X-RateLimit-Source', 'express');
+      res.setHeader('X-Ripoma-429-Source', isAuth ? 'auth-rate-limit' : 'backend-rate-limit');
       return res.status(429).json({
         success: false,
         error: 'too_many_requests',

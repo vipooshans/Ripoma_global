@@ -17,9 +17,6 @@ let activeAuthType = null; // 'staff' | 'customer' | null
 let customerRefreshPromise = null;
 let staffRefreshPromise = null;
 
-// Global rate-limit cooldown to coordinate across concurrent requests
-let rateLimitCooldownUntil = 0;
-
 export const hasCustomerSessionHint = () => {
   try {
     return localStorage.getItem('ripoma_has_customer_session') === 'true';
@@ -135,7 +132,7 @@ export const refreshCustomerTokenSingleFlight = async () => {
       const response = await api.post(
         '/customer-auth/refresh',
         {},
-        { _skipAuthRefresh: true, _rateLimitRetryCount: 3 }
+        { _skipAuthRefresh: true }
       );
 
       const { accessToken, authenticated } = response.data || {};
@@ -178,7 +175,7 @@ export const refreshStaffTokenSingleFlight = async () => {
       const response = await api.post(
         '/auth/refresh',
         {},
-        { _skipAuthRefresh: true, _rateLimitRetryCount: 3 }
+        { _skipAuthRefresh: true }
       );
 
       const { accessToken } = response.data || {};
@@ -205,18 +202,15 @@ export const refreshStaffTokenSingleFlight = async () => {
   return staffRefreshPromise;
 };
 
-// Request interceptor — handles authorization headers & global rate-limit cooldown
+// Request interceptor — handles authorization headers for authenticated routes
 api.interceptors.request.use(async (config) => {
-  // If in a global 429 cooldown, pause to prevent thundering herd
-  const now = Date.now();
-  if (rateLimitCooldownUntil > now) {
-    const waitTime = rateLimitCooldownUntil - now + Math.floor(Math.random() * 200);
-    await new Promise((resolve) => setTimeout(resolve, waitTime));
-  }
-
-  // Do not add Authorization headers to purely public storefront requests unless customer token exists and endpoint is user-specific
   const url = config.url || '';
+
+  // Public storefront requests NEVER send Authorization headers
   if (isPublicStorefrontUrl(url)) {
+    if (config.headers?.Authorization) {
+      delete config.headers.Authorization;
+    }
     return config;
   }
 
@@ -228,37 +222,43 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Response interceptor — auto-retry on 429 & auto-refresh expired access tokens
+// Response interceptor — diagnostics for 429 & auto-refresh for expired 401 access tokens
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     if (!originalRequest) return Promise.reject(error);
 
-    // 1. Transparent retry for 429 Too Many Requests with exponential backoff & jitter
+    // 1. HTTP 429 Too Many Requests handling — NO RETRY by default to prevent cascade loops
     if (error.response?.status === 429) {
-      // Never retry the refresh endpoint itself on 429 to avoid cascade
-      if (isAuthRefreshRequest(originalRequest.url)) {
-        return Promise.reject(error);
-      }
+      const ripoma429Source =
+        error.response.headers?.['x-ripoma-429-source'] ||
+        error.response.headers?.['x-ratelimit-source'] ||
+        'cloudflare-upstream';
+      error.ripoma429Source = ripoma429Source;
 
-      originalRequest._rateLimitRetryCount = (originalRequest._rateLimitRetryCount || 0) + 1;
-      const maxRetries = 2;
-      if (originalRequest._rateLimitRetryCount <= maxRetries) {
+      console.warn(
+        `[Ripoma API 429] Source: ${ripoma429Source} | Route: ${originalRequest.url || ''}`
+      );
+
+      // Only retry if caller explicitly opted in (e.g. idempotent background sync), max 1 retry
+      if (
+        originalRequest._explicitRetryOn429 &&
+        (originalRequest._explicitRetryCount || 0) < 1 &&
+        !isAuthRefreshRequest(originalRequest.url)
+      ) {
+        originalRequest._explicitRetryCount = (originalRequest._explicitRetryCount || 0) + 1;
         const retryAfterHeader = error.response.headers?.['retry-after'];
-        let delaySeconds = retryAfterHeader
-          ? parseInt(retryAfterHeader, 10)
-          : 1.5 * originalRequest._rateLimitRetryCount;
-        if (isNaN(delaySeconds) || delaySeconds <= 0) delaySeconds = 1.5;
-        delaySeconds = Math.min(8, delaySeconds);
-
-        const delayMs = Math.round(delaySeconds * 1000) + Math.floor(Math.random() * 400);
-        // Coordinate backoff across all requests
-        rateLimitCooldownUntil = Math.max(rateLimitCooldownUntil, Date.now() + delayMs);
+        let delaySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 2;
+        if (isNaN(delaySeconds) || delaySeconds <= 0) delaySeconds = 2;
+        delaySeconds = Math.min(6, delaySeconds);
+        const delayMs = Math.round(delaySeconds * 1000) + Math.floor(Math.random() * 300);
 
         await new Promise((resolve) => setTimeout(resolve, delayMs));
         return api(originalRequest);
       }
+
+      // Default: reject immediately without retrying
       return Promise.reject(error);
     }
 

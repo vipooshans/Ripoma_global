@@ -28,17 +28,17 @@ export const RATE_POLICIES = {
   },
   storefront_browse: {
     windowMs: 60 * 1000,
-    max: 120,
+    max: 300,
     message: 'Browsing too quickly. Please slow down and try again.'
   },
   customer_api: {
     windowMs: 60 * 1000,
-    max: 60,
+    max: 120,
     message: 'Too many customer requests. Please slow down and try again.'
   },
   admin_api: {
     windowMs: 60 * 1000,
-    max: 120,
+    max: 180,
     message: 'Too many administrative requests. Please slow down.'
   }
 };
@@ -166,6 +166,13 @@ export class RipomaApi {
           status: result.allowed ? 200 : 429,
           headers: {
             'Content-Type': 'application/json',
+            ...(result.allowed
+              ? {}
+              : {
+                  'X-Ripoma-429-Source': 'durable-object-rate-limit',
+                  'X-RateLimit-Source': 'durable_object',
+                  'X-RateLimit-Policy': result.policy || policy
+                }),
             ...(result.retryAfter ? { 'Retry-After': String(result.retryAfter) } : {})
           }
         });
@@ -182,6 +189,55 @@ export class RipomaApi {
       headers: { 'Content-Type': 'application/json' }
     });
   }
+}
+
+/**
+ * Resolves client key for rate limiting to prevent global/IP collisions behind NAT/proxies.
+ *
+ * Strategies:
+ *   - auth_refresh: keyed by token hash/prefix extracted from Cookie (safe against shared IP).
+ *   - authenticated requests: keyed by user/customer ID extracted from Bearer JWT.
+ *   - storefront_browse / unauthenticated: keyed by trusted cf-connecting-ip.
+ */
+export function resolveRateKey(request, policy) {
+  const clientIp =
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    'unknown';
+
+  // 1. Session Refresh: isolate by refresh token cookie if present
+  if (policy === 'auth_refresh') {
+    const cookieHeader = request.headers.get('Cookie') || '';
+    const match = cookieHeader.match(/(?:customerRefreshToken|refreshToken)=([^;]+)/);
+    if (match && match[1]) {
+      const tokenValue = match[1].trim();
+      const tokenSlice = tokenValue.slice(0, 32);
+      return `refresh_token:${tokenSlice}`;
+    }
+    return `refresh_ip:${clientIp}`;
+  }
+
+  // 2. Authenticated requests: isolate by JWT subject (user/customer ID)
+  const authHeader = request.headers.get('Authorization') || '';
+  if (authHeader.startsWith('Bearer ')) {
+    try {
+      const parts = authHeader.slice(7).split('.');
+      if (parts.length >= 2) {
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const json = atob(base64);
+        const payload = JSON.parse(json);
+        const userId = payload.id || payload._id || payload.sub;
+        if (userId) {
+          return `user:${userId}`;
+        }
+      }
+    } catch {
+      return `auth:${authHeader.slice(-16)}`;
+    }
+  }
+
+  // 3. Fallback: IP-based key with policy prefix to avoid cross-policy collision
+  return `${policy}:${clientIp}`;
 }
 
 /**

@@ -1031,6 +1031,7 @@ exports.placeOrder = async (req, res) => {
       placedAt: { $gte: oneHourAgo }
     });
     if (recentCount >= 8) {
+      res.setHeader('X-Ripoma-429-Source', 'backend-rate-limit');
       return res.status(429).json({
         message: 'Too many orders placed recently. Please wait before ordering again.'
       });

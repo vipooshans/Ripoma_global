@@ -726,6 +726,7 @@ describe('Rippoma Authentication & D1 Schema Test Suite', () => {
     assert.strictEqual(nextCount, 2);
     assert.strictEqual(statusSet, 429);
     assert.strictEqual(headersSet['X-RateLimit-Source'], 'express');
+    assert.strictEqual(headersSet['X-Ripoma-429-Source'], 'backend-rate-limit');
     assert.ok(headersSet['Retry-After']);
     assert.strictEqual(jsonSent.error, 'too_many_requests');
     assert.strictEqual(jsonSent.source, 'express');
@@ -782,6 +783,17 @@ describe('Rippoma Authentication & D1 Schema Test Suite', () => {
     assert.strictEqual(rpcRes.status, 200);
     const rpcData = await rpcRes.json();
     assert.strictEqual(rpcData.allowed, true);
+
+    // Test RPC fetch blocked -> returns 429 with X-Ripoma-429-Source
+    const blockedRpcReq = new Request('http://internal/rate-limit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy: 'auth_login', key: '198.51.100.1' })
+    });
+    const blockedRpcRes = await doInstance.fetch(blockedRpcReq);
+    assert.strictEqual(blockedRpcRes.status, 429);
+    assert.strictEqual(blockedRpcRes.headers.get('X-Ripoma-429-Source'), 'durable-object-rate-limit');
+    assert.strictEqual(blockedRpcRes.headers.get('X-RateLimit-Source'), 'durable_object');
   });
 
   // ── 19. Native D1 Storefront Queries via Worker Gateway ─────────────────────
@@ -852,5 +864,54 @@ describe('Rippoma Authentication & D1 Schema Test Suite', () => {
     assert.strictEqual(promoRes.status, 200);
     const promoBody = await promoRes.json();
     assert.ok(promoBody.promos.marquee.length > 0);
+  });
+
+  // ── 20. Rate-limiting Key Resolution & NAT Collision Prevention ─────────────
+  it('20. resolveRateKey isolates keys by refresh token and customer user ID', async () => {
+    const { resolveRateKey } = await import('../../worker/src/durableRateLimiter.js');
+
+    // Case A: auth_refresh with cookie isolates by token, not IP
+    const refreshReq = new Request('https://worker.local/api/customer-auth/refresh', {
+      method: 'POST',
+      headers: {
+        'cf-connecting-ip': '203.0.113.50',
+        Cookie: 'customerRefreshToken=abc123secrettokenhere'
+      }
+    });
+    const refreshKey = resolveRateKey(refreshReq, 'auth_refresh');
+    assert.strictEqual(refreshKey, 'refresh_token:abc123secrettokenhere');
+
+    // Case B: authenticated API isolates by decoded JWT subject
+    const payload = Buffer.from(JSON.stringify({ id: 'cust_abc_999' })).toString('base64');
+    const authReq = new Request('https://worker.local/api/storefront/orders', {
+      method: 'POST',
+      headers: {
+        'cf-connecting-ip': '203.0.113.50',
+        Authorization: `Bearer header.${payload}.sig`
+      }
+    });
+    const authKey = resolveRateKey(authReq, 'customer_api');
+    assert.strictEqual(authKey, 'user:cust_abc_999');
+
+    // Case C: unauthenticated storefront browse uses policy-prefixed IP
+    const browseReq = new Request('https://worker.local/api/storefront/products', {
+      method: 'GET',
+      headers: { 'cf-connecting-ip': '203.0.113.50' }
+    });
+    const browseKey = resolveRateKey(browseReq, 'storefront_browse');
+    assert.strictEqual(browseKey, 'storefront_browse:203.0.113.50');
+  });
+
+  // ── 21. Anonymous Guest Refresh Fast-Path Bypass ────────────────────────────
+  it('21. Worker Gateway fast-path returns 200 for guest refresh without calling DO or backend', async () => {
+    const workerModule = (await import('../../worker/src/proxy.js')).default;
+    const guestReq = new Request('https://worker.local/api/customer-auth/refresh', {
+      method: 'POST',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const guestRes = await workerModule.fetch(guestReq, {});
+    assert.strictEqual(guestRes.status, 200);
+    const body = await guestRes.json();
+    assert.strictEqual(body.authenticated, false);
   });
 });
