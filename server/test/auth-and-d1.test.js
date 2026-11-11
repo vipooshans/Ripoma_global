@@ -747,4 +747,110 @@ describe('Rippoma Authentication & D1 Schema Test Suite', () => {
     assert.strictEqual(body.status, 'healthy');
     assert.strictEqual(body.service, 'ripoma-api-gateway');
   });
+
+  // ── 18. Durable Object Coordinated Rate Limiter ─────────────────────────────
+  it('18. Durable Object RipomaApi enforces policy limits and calculates retryAfter', async () => {
+    const { RipomaApi, RATE_POLICIES } = await import('../../worker/src/durableRateLimiter.js');
+    const mockState = {
+      storage: {
+        sql: null
+      }
+    };
+    const doInstance = new RipomaApi(mockState, {});
+
+    // Test auth_login (max 20)
+    for (let i = 0; i < 20; i++) {
+      const res = await doInstance.checkLimit('auth_login', '198.51.100.1');
+      assert.strictEqual(res.allowed, true);
+    }
+    const blockedRes = await doInstance.checkLimit('auth_login', '198.51.100.1');
+    assert.strictEqual(blockedRes.allowed, false);
+    assert.ok(blockedRes.retryAfter > 0);
+    assert.strictEqual(blockedRes.policy, 'auth_login');
+
+    // Different IP is not blocked
+    const otherIpRes = await doInstance.checkLimit('auth_login', '198.51.100.2');
+    assert.strictEqual(otherIpRes.allowed, true);
+
+    // Test RPC fetch /internal/rate-limit
+    const rpcReq = new Request('http://internal/rate-limit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy: 'storefront_browse', key: '198.51.100.1' })
+    });
+    const rpcRes = await doInstance.fetch(rpcReq);
+    assert.strictEqual(rpcRes.status, 200);
+    const rpcData = await rpcRes.json();
+    assert.strictEqual(rpcData.allowed, true);
+  });
+
+  // ── 19. Native D1 Storefront Queries via Worker Gateway ─────────────────────
+  it('19. Worker Gateway serves storefront featured, stats, and promos natively from D1', async () => {
+    const workerModule = (await import('../../worker/src/proxy.js')).default;
+    const mockDb = {
+      prepare(sql) {
+        return {
+          bind(...params) {
+            return this;
+          },
+          async first() {
+            if (sql.includes('COUNT(*) AS total FROM products')) return { total: 5 };
+            if (sql.includes('COUNT(DISTINCT category_id)')) return { total: 2 };
+            return null;
+          },
+          async all() {
+            if (sql.includes('is_featured = 1')) {
+              return {
+                results: [
+                  {
+                    id: 'prod-123',
+                    sku: 'SKU-001',
+                    name: 'Native D1 Product',
+                    description: 'Test product',
+                    selling_price: 1500,
+                    total_stock: 10,
+                    is_featured: 1
+                  }
+                ]
+              };
+            }
+            return { results: [] };
+          }
+        };
+      }
+    };
+
+    // 1. Featured products from native D1
+    const featReq = new Request('https://worker.local/api/storefront/featured?limit=4', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const featRes = await workerModule.fetch(featReq, { ripoma_db: mockDb });
+    assert.strictEqual(featRes.status, 200);
+    assert.strictEqual(featRes.headers.get('X-Data-Source'), 'native_d1');
+    const featBody = await featRes.json();
+    assert.strictEqual(featBody.products.length, 1);
+    assert.strictEqual(featBody.products[0].name, 'Native D1 Product');
+
+    // 2. Stats from native D1
+    const statsReq = new Request('https://worker.local/api/storefront/stats', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const statsRes = await workerModule.fetch(statsReq, { ripoma_db: mockDb });
+    assert.strictEqual(statsRes.status, 200);
+    const statsBody = await statsRes.json();
+    assert.strictEqual(statsBody.stats.productCount, 5);
+    assert.strictEqual(statsBody.stats.categoryCount, 2);
+
+    // 3. Promos from native D1
+    const promoReq = new Request('https://worker.local/api/storefront/promos', {
+      method: 'GET',
+      headers: { Origin: 'https://ripomaglobal.org' }
+    });
+    const promoRes = await workerModule.fetch(promoReq, { ripoma_db: mockDb });
+    assert.strictEqual(promoRes.status, 200);
+    const promoBody = await promoRes.json();
+    assert.ok(promoBody.promos.marquee.length > 0);
+  });
 });
