@@ -21,12 +21,14 @@ export const resolveAbsoluteUrl = (raw, fallback = '') => {
 };
 
 export const API_BASE_URL = resolveAbsoluteUrl(
-  import.meta.env.VITE_API_URL,
+  (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_API_URL) ||
+    (typeof process !== 'undefined' && process.env?.VITE_API_URL),
   'http://localhost:5000/api'
 );
 
 export const SOCKET_BASE_URL = resolveAbsoluteUrl(
-  import.meta.env.VITE_SOCKET_URL,
+  (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_SOCKET_URL) ||
+    (typeof process !== 'undefined' && process.env?.VITE_SOCKET_URL),
   'http://localhost:5000'
 );
 

@@ -76,12 +76,23 @@ export class RipomaApi {
     // 1. Production SQLite storage path
     if (this.state?.storage?.sql) {
       try {
+        // Prune expired for this key
         this.state.storage.sql.exec(
           'DELETE FROM rate_limits WHERE policy = ? AND key = ? AND timestamp < ?',
           policy,
           key,
           windowStart
         );
+
+        // Probabilistic garbage collection of expired entries across all keys (approx 1 in 50 calls)
+        if (Math.random() < 0.02) {
+          try {
+            this.state.storage.sql.exec(
+              'DELETE FROM rate_limits WHERE timestamp < ?',
+              now - 3600000
+            );
+          } catch {}
+        }
         const cursor = this.state.storage.sql.exec(
           'SELECT count(*) as count, min(timestamp) as oldest FROM rate_limits WHERE policy = ? AND key = ?',
           policy,
@@ -122,17 +133,13 @@ export class RipomaApi {
 
     // 2. In-Memory / KV fallback path (for mock testing and environments without SQLite storage)
     const mapKey = `${policy}:${key}`;
-    let entry = this.memoryBuckets.get(mapKey);
-    if (!entry) {
-      entry = [];
-      this.memoryBuckets.set(mapKey, entry);
-    }
+    const entry = this.memoryBuckets.get(mapKey) || [];
 
     // Prune expired
     const active = entry.filter((t) => t > windowStart);
-    this.memoryBuckets.set(mapKey, active);
 
     if (active.length >= config.max) {
+      this.memoryBuckets.set(mapKey, active);
       const oldest = active[0] || now;
       const retryAfter = Math.max(1, Math.ceil((oldest + config.windowMs - now) / 1000));
       return {
@@ -146,6 +153,7 @@ export class RipomaApi {
     }
 
     active.push(now);
+    this.memoryBuckets.set(mapKey, active);
     return {
       allowed: true,
       policy,
