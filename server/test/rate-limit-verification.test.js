@@ -288,11 +288,14 @@ describe('Rippoma HTTP 429 & Rate-Limiting Verification Suite', () => {
     assert.ok(!content.includes('ripomaglobal1.ripomaglobal.workers.dev'), 'Must not reference workers.dev in production env');
 
     // Check built bundle in client/dist if present
-    const distJsPath = path.resolve(__dirname, '../../client/dist/assets/index-Dbn4ZeXg.js');
-    if (fs.existsSync(distJsPath)) {
-      const bundle = fs.readFileSync(distJsPath, 'utf8');
-      assert.ok(bundle.includes('api.ripomaglobal.org'), 'Compiled bundle must contain api.ripomaglobal.org');
-      assert.strictEqual(bundle.indexOf('ripomaglobal1.ripomaglobal.workers.dev'), -1, 'Compiled bundle must not contain workers.dev');
+    const distAssetsDir = path.resolve(__dirname, '../../client/dist/assets');
+    if (fs.existsSync(distAssetsDir)) {
+      const files = fs.readdirSync(distAssetsDir).filter((f) => f.startsWith('index-') && f.endsWith('.js'));
+      if (files.length > 0) {
+        const bundle = fs.readFileSync(path.join(distAssetsDir, files[0]), 'utf8');
+        assert.ok(bundle.includes('api.ripomaglobal.org'), 'Compiled bundle must contain api.ripomaglobal.org');
+        assert.strictEqual(bundle.indexOf('ripomaglobal1.ripomaglobal.workers.dev'), -1, 'Compiled bundle must not contain workers.dev');
+      }
     }
   });
 
@@ -312,5 +315,24 @@ describe('Rippoma HTTP 429 & Rate-Limiting Verification Suite', () => {
     assert.strictEqual(isPublicStorefrontUrl('/api/customer-auth/me'), false);
     assert.strictEqual(isPublicStorefrontUrl('/api/storefront/orders'), false);
     assert.strictEqual(isPublicStorefrontUrl('/api/admin/dashboard'), false);
+  });
+
+  // ── 13. Runtime Normalizer Guard Against workers.dev ──────────────────────
+  it('13. resolveAbsoluteUrl automatically rewrites workers.dev to api.ripomaglobal.org in production', async () => {
+    const { resolveAbsoluteUrl } = await import('../../client/src/config/apiBase.js');
+
+    global.window = {
+      location: {
+        hostname: 'ripomaglobal.org'
+      }
+    };
+
+    const rewritten = resolveAbsoluteUrl('https://ripomaglobal1.ripomaglobal.workers.dev/api');
+    assert.strictEqual(rewritten, 'https://api.ripomaglobal.org/api');
+
+    const pagesRewritten = resolveAbsoluteUrl('https://ripomaglobal1.ripomaglobal.workers.dev');
+    assert.strictEqual(pagesRewritten, 'https://api.ripomaglobal.org');
+
+    delete global.window;
   });
 });
