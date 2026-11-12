@@ -315,11 +315,9 @@ export default {
 
     // ── 5. Cloudflare Edge Cache for Public Storefront GET (Pre-Rate-Limit) ───
     const hasAuth = request.headers.has('Authorization');
-    const hasCookie = request.headers.has('Cookie');
     const isPublicStorefrontGet =
       request.method === 'GET' &&
       !hasAuth &&
-      !hasCookie &&
       (url.pathname === '/api/storefront/categories' ||
         url.pathname.startsWith('/api/storefront/categories/') ||
         url.pathname === '/api/storefront/featured' ||
