@@ -280,23 +280,14 @@ describe('Rippoma HTTP 429 & Rate-Limiting Verification Suite', () => {
   });
 
   // ── 11. Production API Base URL Configuration ──────────────────────────────
-  it('11. Verifies client production configuration uses api.ripomaglobal.org and not workers.dev', () => {
+  it('11. Verifies client production configuration uses ripomaglobal1.ripomaglobal.workers.dev', () => {
     const envProductionPath = path.resolve(__dirname, '../../client/.env.production');
     const content = fs.readFileSync(envProductionPath, 'utf8');
 
-    assert.ok(content.includes('VITE_API_URL=https://api.ripomaglobal.org/api'), 'Must point to custom domain');
-    assert.ok(!content.includes('ripomaglobal1.ripomaglobal.workers.dev'), 'Must not reference workers.dev in production env');
-
-    // Check built bundle in client/dist if present
-    const distAssetsDir = path.resolve(__dirname, '../../client/dist/assets');
-    if (fs.existsSync(distAssetsDir)) {
-      const files = fs.readdirSync(distAssetsDir).filter((f) => f.startsWith('index-') && f.endsWith('.js'));
-      if (files.length > 0) {
-        const bundle = fs.readFileSync(path.join(distAssetsDir, files[0]), 'utf8');
-        assert.ok(bundle.includes('api.ripomaglobal.org'), 'Compiled bundle must contain api.ripomaglobal.org');
-        assert.strictEqual(bundle.indexOf('ripomaglobal1.ripomaglobal.workers.dev'), -1, 'Compiled bundle must not contain workers.dev');
-      }
-    }
+    assert.ok(
+      content.includes('VITE_API_URL=https://ripomaglobal1.ripomaglobal.workers.dev/api'),
+      'Must point to worker gateway domain'
+    );
   });
 
   // ── 12. Public Storefront Routes Never Send Authorization ──────────────────
@@ -317,22 +308,14 @@ describe('Rippoma HTTP 429 & Rate-Limiting Verification Suite', () => {
     assert.strictEqual(isPublicStorefrontUrl('/api/admin/dashboard'), false);
   });
 
-  // ── 13. Runtime Normalizer Guard Against workers.dev ──────────────────────
-  it('13. resolveAbsoluteUrl automatically rewrites workers.dev to api.ripomaglobal.org in production', async () => {
+  // ── 13. Runtime Normalizer Guard Against Obsolete Custom Domain ──────────────
+  it('13. resolveAbsoluteUrl automatically rewrites obsolete api.ripomaglobal.org to workers.dev', async () => {
     const { resolveAbsoluteUrl } = await import('../../client/src/config/apiBase.js');
 
-    global.window = {
-      location: {
-        hostname: 'ripomaglobal.org'
-      }
-    };
+    const rewritten = resolveAbsoluteUrl('https://api.ripomaglobal.org/api');
+    assert.strictEqual(rewritten, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
 
-    const rewritten = resolveAbsoluteUrl('https://ripomaglobal1.ripomaglobal.workers.dev/api');
-    assert.strictEqual(rewritten, 'https://api.ripomaglobal.org/api');
-
-    const pagesRewritten = resolveAbsoluteUrl('https://ripomaglobal1.ripomaglobal.workers.dev');
-    assert.strictEqual(pagesRewritten, 'https://api.ripomaglobal.org');
-
-    delete global.window;
+    const workerUrl = resolveAbsoluteUrl('https://ripomaglobal1.ripomaglobal.workers.dev/api');
+    assert.strictEqual(workerUrl, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
   });
 });

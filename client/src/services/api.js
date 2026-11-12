@@ -248,37 +248,6 @@ api.interceptors.response.use(
         `[Ripoma API 429] Source: ${ripoma429Source}${isHtmlChallenge ? ' (Cloudflare Challenge Page)' : ''} | Route: ${originalRequest.url || ''}`
       );
 
-      // Self-healing: If an obsolete workers.dev URL triggered Cloudflare's Bot Challenge,
-      // seamlessly reroute to the dedicated custom domain https://api.ripomaglobal.org and retry once
-      const targetBase = String(originalRequest.baseURL || api.defaults.baseURL || '');
-      const targetUrl = String(originalRequest.url || '');
-      if (
-        (targetBase.includes('workers.dev') || targetUrl.includes('workers.dev')) &&
-        !originalRequest._retriedOnCustomDomain
-      ) {
-        console.warn(
-          `[Ripoma API] Obsolete workers.dev endpoint challenged. Dynamically rerouting to custom domain https://api.ripomaglobal.org...`
-        );
-        originalRequest._retriedOnCustomDomain = true;
-        if (originalRequest.baseURL) {
-          originalRequest.baseURL = originalRequest.baseURL.replace(
-            /https:\/\/[^/]+\.workers\.dev/i,
-            'https://api.ripomaglobal.org'
-          );
-        }
-        if (originalRequest.url) {
-          originalRequest.url = originalRequest.url.replace(
-            /https:\/\/[^/]+\.workers\.dev/i,
-            'https://api.ripomaglobal.org'
-          );
-        }
-        api.defaults.baseURL = String(api.defaults.baseURL || '').replace(
-          /https:\/\/[^/]+\.workers\.dev/i,
-          'https://api.ripomaglobal.org'
-        );
-        return api(originalRequest);
-      }
-
       // Only retry if caller explicitly opted in (e.g. idempotent background sync), max 1 retry
       if (
         originalRequest._explicitRetryOn429 &&
