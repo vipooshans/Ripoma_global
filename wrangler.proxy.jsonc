@@ -10,7 +10,9 @@
   "name": "ripomaglobal1",
   "main": "worker/src/proxy.js",
   "compatibility_date": "2026-07-21",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": true,
   "vars": {
     "NODE_ENV": "production",
