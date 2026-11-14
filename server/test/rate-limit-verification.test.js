@@ -308,15 +308,18 @@ describe('Rippoma HTTP 429 & Rate-Limiting Verification Suite', () => {
     assert.strictEqual(isPublicStorefrontUrl('/api/admin/dashboard'), false);
   });
 
-  // ── 13. Runtime Normalizer Guard Against Obsolete Custom Domain ──────────────
-  it('13. resolveAbsoluteUrl automatically rewrites obsolete api.ripomaglobal.org to workers.dev', async () => {
+  // ── 13. URL Normalizer for Workers Production Gateway ──────────────────────
+  it('13. resolveAbsoluteUrl properly normalizes workers.dev URL and prevents relative path corruption', async () => {
     const { resolveAbsoluteUrl } = await import('../../client/src/config/apiBase.js');
-
-    const rewritten = resolveAbsoluteUrl('https://api.ripomaglobal.org/api');
-    assert.strictEqual(rewritten, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
 
     const workerUrl = resolveAbsoluteUrl('https://ripomaglobal1.ripomaglobal.workers.dev/api');
     assert.strictEqual(workerUrl, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
+
+    const withoutProtocol = resolveAbsoluteUrl('ripomaglobal1.ripomaglobal.workers.dev/api');
+    assert.strictEqual(withoutProtocol, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
+
+    const withLeadingSlash = resolveAbsoluteUrl('/ripomaglobal1.ripomaglobal.workers.dev/api');
+    assert.strictEqual(withLeadingSlash, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
   });
 
   // ── 14. Token Expiry Check & Refresh Prevention ────────────────────────────

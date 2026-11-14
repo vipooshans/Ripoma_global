@@ -17,16 +17,6 @@ export const resolveAbsoluteUrl = (raw, fallback = '') => {
     value = `https://${value}`;
   }
 
-  // Backward-compatibility Guard:
-  // If an obsolete domain like api.ripomaglobal.org was cached or provided,
-  // ensure it safely points to the active Worker gateway URL.
-  if (value.includes('api.ripomaglobal.org')) {
-    value = value.replace(
-      /https:\/\/api\.ripomaglobal\.org/gi,
-      'https://ripomaglobal1.ripomaglobal.workers.dev'
-    );
-  }
-
   return value.replace(/\/+$/, '');
 };
 
