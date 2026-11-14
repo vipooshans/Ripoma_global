@@ -272,6 +272,14 @@ export const refreshStaffTokenSingleFlight = async (force = false) => {
 
 // Request interceptor — handles authorization headers for authenticated routes
 api.interceptors.request.use(async (config) => {
+  // Production safety guard: enforce ripomaglobal1.ripomaglobal.workers.dev as sole backend
+  if (config.baseURL && config.baseURL.includes('api.ripomaglobal.org')) {
+    config.baseURL = 'https://ripomaglobal1.ripomaglobal.workers.dev/api';
+  }
+  if (typeof config.url === 'string' && config.url.includes('api.ripomaglobal.org')) {
+    config.url = config.url.replace(/https?:\/\/api\.ripomaglobal\.org(\/api)?/g, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
+  }
+
   const url = config.url || '';
 
   // Public storefront requests NEVER send Authorization headers

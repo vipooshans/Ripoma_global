@@ -5,7 +5,14 @@
  */
 export const resolveAbsoluteUrl = (raw, fallback = '') => {
   let value = String(raw ?? '').trim();
+  // Permanently ignore and strip obsolete api.ripomaglobal.org if passed via environment variables
+  if (value.includes('api.ripomaglobal.org')) {
+    value = '';
+  }
   if (!value) value = String(fallback ?? '').trim();
+  if (value.includes('api.ripomaglobal.org')) {
+    value = '';
+  }
   if (!value) return '';
 
   // Accidental leading slash → relative to Pages host
