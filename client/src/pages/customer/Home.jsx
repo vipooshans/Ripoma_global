@@ -92,18 +92,30 @@ const CustomerHome = () => {
       try {
         setLoading(true);
         setError(null);
-        const [featuredData, catData, newData, statsData, promosData] = await Promise.all([
+        const results = await Promise.allSettled([
           storefrontService.getFeaturedProducts(8),
           storefrontService.getCategories(),
           storefrontService.getProducts({ sort: 'newest', limit: 4 }),
           storefrontService.getStats(),
           storefrontService.getPromos()
         ]);
-        setFeatured(featuredData.products || []);
-        setCategories(catData.categories || []);
-        setNewArrivals(newData.products || []);
-        setStats(statsData.stats || { productCount: 0, categoryCount: 0 });
-        setPromos(promosData.promos || { marquee: [], cards: [] });
+        const [featuredRes, catRes, newRes, statsRes, promosRes] = results;
+        const ok = (r) => (r.status === 'fulfilled' ? r.value : null);
+        results.forEach((r) => {
+          if (r.status === 'rejected') console.warn('Storefront request failed:', r.reason?.config?.url, r.reason?.response?.status);
+        });
+
+        // Stats & promos are cosmetic — never fail the whole page because of them
+        setStats(ok(statsRes)?.stats || { productCount: 0, categoryCount: 0 });
+        setPromos(ok(promosRes)?.promos || { marquee: [], cards: [] });
+        setFeatured(ok(featuredRes)?.products || []);
+        setCategories(ok(catRes)?.categories || []);
+        setNewArrivals(ok(newRes)?.products || []);
+
+        // Only show the error state if the core product data failed
+        if (!ok(featuredRes) && !ok(catRes) && !ok(newRes)) {
+          throw (featuredRes.reason || catRes.reason || newRes.reason);
+        }
       } catch (err) {
         console.error('Storefront data error:', err);
         setError('Unable to load storefront data. Please try again later.');

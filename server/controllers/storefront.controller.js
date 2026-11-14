@@ -679,19 +679,18 @@ exports.getSearchSuggestions = async (req, res) => {
 // ─── GET /api/storefront/stats ────────────────────────────────────────────────
 exports.getStats = async (req, res) => {
   try {
-    const productCount = await Product.countDocuments({ status: 'active', deleted: false });
-    const categories = await Category.find().select('_id');
-    let categoryCount = 0;
+    const activeFilter = { status: 'active', deleted: false };
+    // 3 queries total instead of 1 + one per category
+    const [productCount, activeCategoryIds] = await Promise.all([
+      Product.countDocuments(activeFilter),
+      Product.distinct('category', activeFilter)
+    ]);
+    const categoryCount = activeCategoryIds.length
+      ? await Category.countDocuments({ _id: { $in: activeCategoryIds } })
+      : 0;
 
-    for (const cat of categories) {
-      const count = await Product.countDocuments({
-        category: cat._id,
-        status: 'active',
-        deleted: false
-      });
-      if (count > 0) categoryCount += 1;
-    }
-
+    // Public, cosmetic numbers — let browsers / edge cache them briefly
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=300');
     return res.status(200).json({
       stats: {
         productCount,
