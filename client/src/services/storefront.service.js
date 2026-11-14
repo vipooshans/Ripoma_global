@@ -1,14 +1,44 @@
 import api from './api';
 
-// In-memory cache & inflight request deduplication to prevent burst 429 errors
+// In-memory & session cache + inflight request deduplication to prevent burst 429 errors
 const cache = new Map();
 const inflight = new Map();
+const STORAGE_PREFIX = 'sf_cache_';
+
+function readSessionCache(key, ttlMs) {
+  if (typeof window === 'undefined' || !window.sessionStorage) return null;
+  try {
+    const raw = sessionStorage.getItem(`${STORAGE_PREFIX}${key}`);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw);
+    if (Date.now() - timestamp < ttlMs) {
+      return data;
+    }
+    sessionStorage.removeItem(`${STORAGE_PREFIX}${key}`);
+  } catch {}
+  return null;
+}
+
+function writeSessionCache(key, data) {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    sessionStorage.setItem(
+      `${STORAGE_PREFIX}${key}`,
+      JSON.stringify({ data, timestamp: Date.now() })
+    );
+  } catch {}
+}
 
 async function cachedFetch(key, ttlMs, fetcher) {
   const now = Date.now();
   const cached = cache.get(key);
   if (cached && now - cached.timestamp < ttlMs) {
     return cached.data;
+  }
+  const sessionCached = readSessionCache(key, ttlMs);
+  if (sessionCached) {
+    cache.set(key, { data: sessionCached, timestamp: now });
+    return sessionCached;
   }
   if (inflight.has(key)) {
     return inflight.get(key);
@@ -17,6 +47,7 @@ async function cachedFetch(key, ttlMs, fetcher) {
     try {
       const data = await fetcher();
       cache.set(key, { data, timestamp: Date.now() });
+      writeSessionCache(key, data);
       return data;
     } finally {
       inflight.delete(key);
@@ -117,14 +148,14 @@ const storefrontService = {
   },
 
   getStats: async () => {
-    return cachedFetch('stats', 300_000, async () => {
+    return cachedFetch('stats', 600_000, async () => {
       const res = await api.get('/storefront/stats');
       return res.data;
     });
   },
 
   getPromos: async () => {
-    return cachedFetch('promos', 300_000, async () => {
+    return cachedFetch('promos', 600_000, async () => {
       const res = await api.get('/storefront/promos');
       return res.data;
     });

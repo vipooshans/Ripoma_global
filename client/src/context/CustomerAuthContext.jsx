@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import customerAuthService from '../services/customerAuth.service';
 import {
   setCustomerAuthHeader,
@@ -23,7 +23,7 @@ export const CustomerAuthProvider = ({ children }) => {
 
   const IDLE_MS = 30 * 60 * 1000;
 
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     // Don't restore customer session while browsing staff admin routes
     if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/customer')) {
       setLoading(false);
@@ -56,7 +56,7 @@ export const CustomerAuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkSession();
@@ -150,16 +150,19 @@ export const CustomerAuthProvider = ({ children }) => {
     }
   };
 
-  const value = {
-    customerUser,
-    isAuthenticated: Boolean(customerUser),
-    loading,
-    error,
-    login,
-    loginWithGoogle,
-    logout,
-    refreshCustomer: checkSession
-  };
+  const value = useMemo(
+    () => ({
+      customerUser,
+      isAuthenticated: Boolean(customerUser),
+      loading,
+      error,
+      login,
+      loginWithGoogle,
+      logout,
+      refreshCustomer: checkSession
+    }),
+    [customerUser, loading, error, checkSession]
+  );
 
   return (
     <CustomerAuthContext.Provider value={value}>

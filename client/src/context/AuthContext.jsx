@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import authService from '../services/auth.service';
 import {
   setAuthHeader,
@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     // Staff session restore is not needed on the customer portal
     if (isCustomerPortalPath()) {
       setLoading(false);
@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkSession();
@@ -90,14 +90,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const value = {
-    user,
-    loading,
-    error,
-    login,
-    logout,
-    setUser
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      error,
+      login,
+      logout,
+      setUser
+    }),
+    [user, loading, error]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

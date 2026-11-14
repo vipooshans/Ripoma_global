@@ -18,7 +18,7 @@ export const RATE_POLICIES = {
   },
   auth_refresh: {
     windowMs: 15 * 60 * 1000,
-    max: 60,
+    max: 240,
     message: 'Too many session refresh attempts. Please wait and try again.'
   },
   auth_reset: {

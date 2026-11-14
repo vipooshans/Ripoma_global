@@ -318,4 +318,25 @@ describe('Rippoma HTTP 429 & Rate-Limiting Verification Suite', () => {
     const workerUrl = resolveAbsoluteUrl('https://ripomaglobal1.ripomaglobal.workers.dev/api');
     assert.strictEqual(workerUrl, 'https://ripomaglobal1.ripomaglobal.workers.dev/api');
   });
+
+  // ── 14. Token Expiry Check & Refresh Prevention ────────────────────────────
+  it('14. isJwtExpiringSoon correctly detects unexpired tokens and prevents redundant refresh calls', async () => {
+    const { isJwtExpiringSoon, setCustomerAuthHeader, refreshCustomerTokenSingleFlight } = await import('../../client/src/services/api.js');
+
+    const validPayload = { id: 'cust_valid', exp: Math.floor(Date.now() / 1000) + 600 };
+    const validToken = `header.${Buffer.from(JSON.stringify(validPayload)).toString('base64').replace(/=/g, '')}.signature`;
+
+    assert.strictEqual(isJwtExpiringSoon(validToken, 60), false);
+
+    const expiringPayload = { id: 'cust_expiring', exp: Math.floor(Date.now() / 1000) + 20 };
+    const expiringToken = `header.${Buffer.from(JSON.stringify(expiringPayload)).toString('base64').replace(/=/g, '')}.signature`;
+
+    assert.strictEqual(isJwtExpiringSoon(expiringToken, 60), true);
+
+    // Set valid token and verify refreshCustomerTokenSingleFlight returns it immediately without calling network
+    setCustomerAuthHeader(validToken);
+    const returned = await refreshCustomerTokenSingleFlight();
+    assert.strictEqual(returned, validToken);
+    setCustomerAuthHeader(null);
+  });
 });

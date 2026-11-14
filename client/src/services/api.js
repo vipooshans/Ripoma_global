@@ -115,8 +115,40 @@ export const setCustomerAuthHeader = (token) => {
   applyAuthorizationHeader();
 };
 
+/** Checks whether a JWT is expired or expiring within `leadSeconds` (default 60s). */
+export const isJwtExpiringSoon = (token, leadSeconds = 60) => {
+  if (!token || typeof token !== 'string') return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = typeof window !== 'undefined' ? atob(base64) : Buffer.from(base64, 'base64').toString('utf8');
+    const payload = JSON.parse(json);
+    if (!payload.exp) return false;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return payload.exp - nowSeconds <= leadSeconds;
+  } catch {
+    return true;
+  }
+};
+
+let customerRefreshCooldownUntil = 0;
+let staffRefreshCooldownUntil = 0;
+
 // Single-flight customer token refresh
-export const refreshCustomerTokenSingleFlight = async () => {
+export const refreshCustomerTokenSingleFlight = async (force = false) => {
+  // If the current token is valid and not expiring soon, do not fire a network request
+  if (!force && customerAccessToken && !isJwtExpiringSoon(customerAccessToken, 60)) {
+    return customerAccessToken;
+  }
+
+  // Active 429 rate limit cooldown: reject immediately without hammering the server
+  if (Date.now() < customerRefreshCooldownUntil) {
+    const remainingSec = Math.ceil((customerRefreshCooldownUntil - Date.now()) / 1000);
+    console.warn(`[Customer Refresh] Cooldown active (${remainingSec}s remaining). Skipping refresh.`);
+    return null;
+  }
+
   if (customerRefreshPromise) {
     return customerRefreshPromise;
   }
@@ -139,7 +171,9 @@ export const refreshCustomerTokenSingleFlight = async () => {
       if (authenticated === false || !accessToken) {
         setCustomerAuthHeader(null);
         setCustomerSessionHint(false);
-        window.dispatchEvent(new Event('customer-auth-expired'));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('customer-auth-expired'));
+        }
         return null;
       }
 
@@ -147,9 +181,19 @@ export const refreshCustomerTokenSingleFlight = async () => {
       setCustomerSessionHint(true);
       return accessToken;
     } catch (err) {
-      setCustomerAuthHeader(null);
-      setCustomerSessionHint(false);
-      window.dispatchEvent(new Event('customer-auth-expired'));
+      // Respect 429 Retry-After header to prevent tight refresh loops
+      if (err.response?.status === 429) {
+        const retryHeader = err.response.headers?.['retry-after'];
+        const delaySeconds = Math.max(15, Number(retryHeader) || 30);
+        customerRefreshCooldownUntil = Date.now() + delaySeconds * 1000;
+        console.warn(`[Customer Refresh] 429 received. Backing off for ${delaySeconds}s.`);
+      } else {
+        setCustomerAuthHeader(null);
+        setCustomerSessionHint(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('customer-auth-expired'));
+        }
+      }
       throw err;
     } finally {
       customerRefreshPromise = null;
@@ -160,7 +204,19 @@ export const refreshCustomerTokenSingleFlight = async () => {
 };
 
 // Single-flight staff token refresh
-export const refreshStaffTokenSingleFlight = async () => {
+export const refreshStaffTokenSingleFlight = async (force = false) => {
+  // If the current staff token is valid and not expiring soon, do not fire a network request
+  if (!force && staffAccessToken && !isJwtExpiringSoon(staffAccessToken, 60)) {
+    return staffAccessToken;
+  }
+
+  // Active 429 rate limit cooldown: reject immediately without hammering the server
+  if (Date.now() < staffRefreshCooldownUntil) {
+    const remainingSec = Math.ceil((staffRefreshCooldownUntil - Date.now()) / 1000);
+    console.warn(`[Staff Refresh] Cooldown active (${remainingSec}s remaining). Skipping refresh.`);
+    return null;
+  }
+
   if (staffRefreshPromise) {
     return staffRefreshPromise;
   }
@@ -182,7 +238,9 @@ export const refreshStaffTokenSingleFlight = async () => {
       if (!accessToken) {
         setAuthHeader(null);
         setStaffSessionHint(false);
-        window.dispatchEvent(new Event('auth-expired'));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth-expired'));
+        }
         return null;
       }
 
@@ -190,9 +248,19 @@ export const refreshStaffTokenSingleFlight = async () => {
       setStaffSessionHint(true);
       return accessToken;
     } catch (err) {
-      setAuthHeader(null);
-      setStaffSessionHint(false);
-      window.dispatchEvent(new Event('auth-expired'));
+      // Respect 429 Retry-After header
+      if (err.response?.status === 429) {
+        const retryHeader = err.response.headers?.['retry-after'];
+        const delaySeconds = Math.max(15, Number(retryHeader) || 30);
+        staffRefreshCooldownUntil = Date.now() + delaySeconds * 1000;
+        console.warn(`[Staff Refresh] 429 received. Backing off for ${delaySeconds}s.`);
+      } else {
+        setAuthHeader(null);
+        setStaffSessionHint(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth-expired'));
+        }
+      }
       throw err;
     } finally {
       staffRefreshPromise = null;
