@@ -731,18 +731,18 @@ exports.getSearchSuggestions = async (req, res) => {
 // ─── GET /api/storefront/stats ────────────────────────────────────────────────
 exports.getStats = async (req, res) => {
   try {
-    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
-
-    if (USE_D1_CATALOG) {
-      const stats = await catalogD1.getStats();
-      return res.status(200).json({ stats });
-    }
-
+    const activeFilter = { status: 'active', deleted: false };
+    // 3 queries total instead of 1 + one per category
     const [productCount, activeCategoryIds] = await Promise.all([
-      Product.countDocuments({ status: 'active', deleted: false }),
-      Product.distinct('category', { status: 'active', deleted: false })
+      Product.countDocuments(activeFilter),
+      Product.distinct('category', activeFilter)
     ]);
+    const categoryCount = activeCategoryIds.length
+      ? await Category.countDocuments({ _id: { $in: activeCategoryIds } })
+      : 0;
 
+    // Public, cosmetic numbers — let browsers / edge cache them briefly
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=300');
     return res.status(200).json({
       stats: {
         productCount,
