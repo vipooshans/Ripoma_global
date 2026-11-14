@@ -223,8 +223,12 @@ exports.getChartData = async (req, res) => {
       const mo = d.getUTCMonth() + 1;
       const label = `${monthNames[mo - 1]} ${yr}`;
 
-      const revItem = revenueByMonth.find(r => r._id.year === yr && r._id.month === mo);
-      const expItem = expensesByMonth.find(e => e._id.year === yr && e._id.month === mo);
+      const revItem = Array.isArray(revenueByMonth)
+        ? revenueByMonth.find(r => r?._id?.year === yr && r?._id?.month === mo)
+        : null;
+      const expItem = Array.isArray(expensesByMonth)
+        ? expensesByMonth.find(e => e?._id?.year === yr && e?._id?.month === mo)
+        : null;
 
       months.push({
         month: label,

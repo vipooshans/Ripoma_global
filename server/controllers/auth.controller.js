@@ -19,6 +19,41 @@ const generateRefreshToken = (user) => {
   );
 };
 
+/**
+ * Pages (https) → Workers → Express needs SameSite=None; Secure.
+ * Detect HTTPS via X-Forwarded-Proto (set by the Worker proxy) so local
+ * NODE_ENV=development still works when API_ORIGIN tunnels production traffic.
+ */
+const refreshCookieOptions = (req) => {
+  const forwarded = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  const crossSite =
+    process.env.NODE_ENV === 'production' ||
+    process.env.CROSS_SITE_COOKIES === 'true' ||
+    forwarded === 'https' ||
+    req.secure === true;
+
+  return {
+    httpOnly: true,
+    secure: crossSite,
+    sameSite: crossSite ? 'none' : 'strict',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  };
+};
+
+const clearRefreshCookie = (req, res) => {
+  const opts = refreshCookieOptions(req);
+  res.clearCookie('refreshToken', {
+    httpOnly: opts.httpOnly,
+    secure: opts.secure,
+    sameSite: opts.sameSite,
+    path: opts.path
+  });
+};
+
 // POST /api/auth/login
 exports.login = async (req, res) => {
   try {
@@ -28,9 +63,18 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
-    const user = await User.findOne({ email });
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+    if (!user.password) {
+      console.error('Login Error: user has no password hash', { email: normalizedEmail, id: user._id });
+      return res.status(401).json({
+        message: 'Invalid credentials.',
+        code: 'PASSWORD_NOT_SET'
+      });
     }
 
     const isMatch = await user.comparePassword(password);
@@ -52,15 +96,9 @@ exports.login = async (req, res) => {
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
+    const cookieOpts = refreshCookieOptions(req);
 
-    // Set refresh token in httpOnly cookie (SameSite=None required for Pages ↔ Workers)
-    const isProd = process.env.NODE_ENV === 'production';
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    res.cookie('refreshToken', refreshToken, cookieOpts);
 
     return res.status(200).json({
       accessToken,
@@ -78,47 +116,75 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error('Login Error:', error);
-    return res.status(500).json({ message: 'Internal server error during login' });
+    const body = { message: 'Internal server error during login', code: 'LOGIN_FAILED' };
+    if (process.env.NODE_ENV !== 'production') {
+      body.error = error.message;
+      body.stack = error.stack;
+    }
+    return res.status(500).json(body);
   }
 };
 
 // POST /api/auth/refresh
 exports.refresh = async (req, res) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
-      return res.status(401).json({ message: 'Refresh token missing.' });
+      console.warn('Refresh failed: cookie missing', {
+        origin: req.headers.origin || null,
+        cookieHeader: Boolean(req.headers.cookie),
+        forwardedProto: req.headers['x-forwarded-proto'] || null
+      });
+      return res.status(401).json({
+        message: 'Refresh token missing.',
+        code: 'REFRESH_TOKEN_MISSING'
+      });
     }
 
     let decoded;
     try {
-      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'ripoma_refresh_secret_key_67890');
+      decoded = jwt.verify(
+        refreshToken,
+        process.env.JWT_REFRESH_SECRET || 'ripoma_refresh_secret_key_67890'
+      );
     } catch (err) {
-      return res.status(401).json({ message: 'Invalid or expired refresh token.' });
+      console.warn('Refresh failed: token verify', err.message);
+      return res.status(401).json({
+        message: 'Invalid or expired refresh token.',
+        code: 'REFRESH_TOKEN_INVALID'
+      });
     }
 
     const user = await User.findById(decoded.id);
     if (!user || user.status !== 'active') {
-      return res.status(401).json({ message: 'User not authorized or inactive.' });
+      console.warn('Refresh failed: user not authorized', {
+        id: decoded.id,
+        found: Boolean(user),
+        status: user?.status
+      });
+      return res.status(401).json({
+        message: 'User not authorized or inactive.',
+        code: 'REFRESH_USER_UNAUTHORIZED'
+      });
     }
 
     const accessToken = generateAccessToken(user);
     return res.status(200).json({ accessToken });
   } catch (error) {
     console.error('Refresh Token Error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    const body = { message: 'Internal server error', code: 'REFRESH_FAILED' };
+    if (process.env.NODE_ENV !== 'production') {
+      body.error = error.message;
+      body.stack = error.stack;
+    }
+    return res.status(500).json(body);
   }
 };
 
 // POST /api/auth/logout
 exports.logout = (req, res) => {
-  const isProd = process.env.NODE_ENV === 'production';
-  res.clearCookie('refreshToken', {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'strict'
-  });
+  clearRefreshCookie(req, res);
   return res.status(200).json({ message: 'Logged out successfully.' });
 };
 

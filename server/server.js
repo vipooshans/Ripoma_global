@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./utils/d1Mongoose');
 const { requireProductionEnv, isEmailVerificationRequired } = require('./utils/customerAuthConfig');
 requireProductionEnv();
 
@@ -56,6 +57,8 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const authMiddleware = require('./middleware/authMiddleware');
 const { globalSearch } = require('./controllers/dashboard.controller');
 
+const d1 = require('./utils/d1');
+const { USE_D1 } = require('./utils/d1Mongoose');
 const { initLowStockCron } = require('./jobs/lowStockCheck');
 const { initOverdueCron } = require('./jobs/overdueDeliveryCheck');
 const { initOverdueInvoiceCron } = require('./jobs/overdueInvoiceCheck');
@@ -156,10 +159,12 @@ async function seedDB() {
 }
 
 mongoose
-  .connect(MONGODB_URI)
+  .connect(USE_D1 ? 'd1://ripoma-db' : MONGODB_URI)
   .then(async () => {
-    console.log('Successfully connected to MongoDB.');
-    await seedDB();
+    console.log(USE_D1 ? 'Using Cloudflare D1 as the application database.' : 'Successfully connected to MongoDB.');
+    if (!USE_D1) {
+      await seedDB();
+    }
     await seedExchangeRates();
     initLowStockCron();
     initOverdueCron();
@@ -174,7 +179,7 @@ mongoose
     initCustomerOrderReminderCron();
   })
   .catch((err) => {
-    console.error('MongoDB Connection Error:', err);
+    console.error(USE_D1 ? 'D1 Connection Error:' : 'MongoDB Connection Error:', err);
   });
 
 // API Routes
@@ -228,7 +233,11 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy', timestamp: new Date() });
+  res.status(200).json({
+    status: 'healthy',
+    database: USE_D1 ? 'd1' : 'mongodb',
+    timestamp: new Date()
+  });
 });
 
 // Global error handler
@@ -244,6 +253,23 @@ const socketIO = require('./socket');
 
 const server = http.createServer(app);
 socketIO.init(server);
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('');
+    console.error(`✖ Port ${PORT} is already in use — the API is most likely already running via pm2.`);
+    console.error('');
+    console.error('  You do NOT need "npm run dev" while pm2 is online. Instead:');
+    console.error('    • Apply server code changes:  npx pm2 restart ripoma-api');
+    console.error('    • Watch server logs:          npx pm2 logs ripoma-api');
+    console.error('');
+    console.error('  To really use "npm run dev", first stop pm2 (also stops the live tunnel):');
+    console.error('    cd E:\\project\\Rippoma ; npm run api:offline');
+    console.error('');
+    process.exit(1);
+  }
+  throw err;
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);

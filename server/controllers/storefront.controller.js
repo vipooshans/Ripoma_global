@@ -18,6 +18,12 @@ const {
   getDescendantCategoryIds,
   getStorefrontCategoryDetail
 } = require('../utils/categoryHelpers');
+const catalogD1 = require('../repositories/storefrontCatalogD1');
+
+// Mongo -> D1 migration: catalog reads come from Cloudflare D1 when
+// DATA_BACKEND=d1 (server/.env). Writes and account data remain on Mongo
+// until their slices are migrated.
+const USE_D1_CATALOG = String(process.env.DATA_BACKEND || 'd1').toLowerCase() === 'd1';
 
 const ACTIVE_QUERY = { status: 'active', deleted: false };
 
@@ -253,7 +259,14 @@ const enrichProductsWithStock = async (products) => {
 // Returns active products marked isFeatured; falls back to newest if none featured
 exports.getFeaturedProducts = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=60');
     const limit = parseInt(req.query.limit) || 8;
+
+    if (USE_D1_CATALOG) {
+      const products = await catalogD1.getFeatured(limit);
+      return res.status(200).json({ products });
+    }
+
     const baseQuery = { status: 'active', deleted: false };
 
     let products = await Product.find({ ...baseQuery, isFeatured: true })
@@ -286,6 +299,12 @@ exports.getFeaturedProducts = async (req, res) => {
 // Returns hierarchical categories with rolled-up product counts
 exports.getCategories = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
+    if (USE_D1_CATALOG) {
+      const categories = await catalogD1.getCategoryTree();
+      return res.status(200).json({ categories });
+    }
+
     const categories = await buildStorefrontCategoryTree();
     return res.status(200).json({ categories });
   } catch (error) {
@@ -297,8 +316,11 @@ exports.getCategories = async (req, res) => {
 // ─── GET /api/storefront/categories/:id ─────────────────────────────────────────
 exports.getCategoryDetail = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
     const { id } = req.params;
-    const category = await getStorefrontCategoryDetail(id);
+    const category = USE_D1_CATALOG
+      ? await catalogD1.getCategoryDetail(id)
+      : await getStorefrontCategoryDetail(id);
 
     if (!category) {
       return res.status(404).json({ message: 'Category not found.' });
@@ -314,6 +336,12 @@ exports.getCategoryDetail = async (req, res) => {
 // ─── GET /api/storefront/products/facets ──────────────────────────────────────
 exports.getProductFacets = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=15, s-maxage=60');
+    if (USE_D1_CATALOG) {
+      const facets = await catalogD1.getFacets(req.query);
+      return res.status(200).json(facets);
+    }
+
     const query = await buildProductListQuery(req.query);
 
     const brands = await Product.distinct('brand', {
@@ -350,6 +378,12 @@ exports.getProductFacets = async (req, res) => {
 // Public product listing with search, filter, pagination
 exports.getProducts = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=15, s-maxage=60');
+    if (USE_D1_CATALOG) {
+      const result = await catalogD1.listProducts(req.query);
+      return res.status(200).json(result);
+    }
+
     const { sort, page, limit, availability } = req.query;
 
     const query = await buildProductListQuery(req.query);
@@ -423,7 +457,20 @@ exports.getProducts = async (req, res) => {
 // ─── GET /api/storefront/products/:id ─────────────────────────────────────────
 exports.getProductDetail = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=15, s-maxage=60');
     const { id } = req.params;
+
+    if (USE_D1_CATALOG) {
+      const detail = await catalogD1.getProductDetail(id);
+      if (!detail) {
+        return res.status(404).json({ message: 'Product not found.' });
+      }
+      return res.status(200).json({
+        product: detail.product,
+        related: detail.related,
+        reviewSummary: detail.product.reviewSummary
+      });
+    }
 
     const product = await Product.findOne({ _id: id, status: 'active', deleted: false })
       .populate('category', 'name description');
@@ -621,6 +668,11 @@ exports.getSearchSuggestions = async (req, res) => {
       return res.status(200).json({ suggestions: [], categories: [] });
     }
 
+    if (USE_D1_CATALOG) {
+      const result = await catalogD1.getSearchSuggestions(trimmed);
+      return res.status(200).json(result);
+    }
+
     const rx = { $regex: escapeRegex(trimmed), $options: 'i' };
     const prefixRx = new RegExp(`^${escapeRegex(trimmed)}`, 'i');
 
@@ -694,7 +746,7 @@ exports.getStats = async (req, res) => {
     return res.status(200).json({
       stats: {
         productCount,
-        categoryCount
+        categoryCount: activeCategoryIds.filter(Boolean).length
       }
     });
   } catch (error) {
@@ -706,6 +758,7 @@ exports.getStats = async (req, res) => {
 // ─── GET /api/storefront/promos ───────────────────────────────────────────────
 exports.getPromos = async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=300');
     const promos = getStorefrontPromos();
     return res.status(200).json({ promos });
   } catch (error) {
@@ -978,6 +1031,7 @@ exports.placeOrder = async (req, res) => {
       placedAt: { $gte: oneHourAgo }
     });
     if (recentCount >= 8) {
+      res.setHeader('X-Ripoma-429-Source', 'backend-rate-limit');
       return res.status(429).json({
         message: 'Too many orders placed recently. Please wait before ordering again.'
       });

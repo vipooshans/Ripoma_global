@@ -10,52 +10,85 @@
  * Pages frontend vars: see client/.env.production.example
  */
 {
-  "name": "ripomaglobal1",
-  "main": "worker/src/index.js",
-  "compatibility_date": "2026-07-21",
-  "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "vars": {
-    "NODE_ENV": "production",
-    "FRONTEND_URL": "https://ripoma-global.pages.dev",
-    "CORS_PAGES_HOST": "ripoma-global.pages.dev"
-    // Optional plaintext: "API_ORIGIN": "https://YOUR-SERVICE.onrender.com"
-  },
-  "containers": [
-    {
-      "class_name": "RipomaApi",
-      "image": "./server/Dockerfile",
-      "max_instances": 3,
-      "instance_type": "basic"
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "RIPOMA_API",
-        "class_name": "RipomaApi"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["RipomaApi"]
-    }
-  ],
-  "observability": {
-    "enabled": false,
-    "head_sampling_rate": 1,
-    "logs": {
-      "enabled": true,
-      "head_sampling_rate": 1,
-      "persist": true,
-      "invocation_logs": true
-    },
-    "traces": {
-      "enabled": true,
-      "persist": true,
-      "head_sampling_rate": 1
-    }
-  }
+	"name": "ripomaglobal1",
+	"main": "worker/src/index.js",
+	"compatibility_date": "2026-07-21",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"workers_dev": true,
+	"routes": [
+		{
+			"pattern": "api.ripomaglobal.org",
+			"zone_name": "ripomaglobal.org",
+			"custom_domain": true
+		}
+	],
+	"vars": {
+		"NODE_ENV": "production",
+		"FRONTEND_URL": "https://ripomaglobal.org",
+		"CORS_ORIGINS": "https://ripomaglobal.org,https://www.ripomaglobal.org,https://ripoma-global.pages.dev",
+		"CORS_PAGES_HOST": "ripoma-global.pages.dev",
+		"GOOGLE_CLIENT_ID": "140622339758-03aobin1o3qfct6fdn3bpfe5hr2gujsv.apps.googleusercontent.com"
+		// Optional plaintext: "API_ORIGIN": "https://YOUR-SERVICE.onrender.com"
+	},
+	"containers": [
+		{
+			"class_name": "RipomaApi",
+			"image": "./server/Dockerfile",
+			"max_instances": 3,
+			"instance_type": "basic"
+		}
+	],
+	// Cloudflare D1 — application database.
+	// 1. Create it:            npx wrangler d1 create ripoma-db
+	// 2. Paste the printed database_id below and uncomment the block.
+	// 3. Apply the schema:     npm run d1:schema:remote
+	// "d1_databases": [
+	//   {
+	//     "binding": "DB",
+	//     "database_name": "ripoma-db",
+	//     "database_id": "<paste-database-id-here>"
+	//   }
+	// ],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "RIPOMA_API",
+				"class_name": "RipomaApi"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"RipomaApi"
+			]
+		}
+	],
+	"observability": {
+		"enabled": false,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true,
+			"invocation_logs": true
+		},
+		"traces": {
+			"enabled": true,
+			"persist": true,
+			"head_sampling_rate": 1
+		}
+	},
+	"d1_databases": [
+		{
+			"binding": "ripoma_db",
+			"database_name": "ripoma-db",
+			"database_id": "5ea18c20-f058-4c9d-81e2-e2952097b8fe",
+			"migrations_dir": "d1/migrations",
+			"remote": true
+		}
+	]
 }

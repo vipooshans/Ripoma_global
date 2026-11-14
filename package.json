@@ -5,14 +5,25 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "deploy:proxy": "node scripts/deploy-proxy.mjs",
+    "api:tunnel": "node scripts/refresh-api-origin.mjs",
+    "api:online": "pm2 start ecosystem.config.cjs && pm2 save",
+    "api:offline": "pm2 delete ripoma-api ripoma-tunnel",
+    "api:status": "pm2 list",
     "dev": "wrangler dev",
     "dev:proxy": "wrangler dev -c wrangler.proxy.jsonc",
-    "containers:list": "wrangler containers list"
+    "containers:list": "wrangler containers list",
+    "d1:create": "wrangler d1 create ripoma-db",
+    "d1:schema:local": "wrangler d1 execute ripoma-db --local --file=d1/schema.sql",
+    "d1:schema:remote": "wrangler d1 execute ripoma-db --remote --file=d1/schema.sql",
+    "d1:export": "node scripts/export-mongo-to-d1.mjs",
+    "d1:verify": "node scripts/verify-d1-schema.mjs",
+    "test": "npm --prefix server test"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.0.30"
   },
   "devDependencies": {
+    "pm2": "^7.0.3",
     "wrangler": "^4.112.0"
   }
 }

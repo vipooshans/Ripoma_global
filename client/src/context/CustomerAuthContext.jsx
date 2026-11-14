@@ -1,14 +1,20 @@
 import React, { createContext, useState, useEffect } from 'react';
 import customerAuthService from '../services/customerAuth.service';
-import { setCustomerAuthHeader } from '../services/api';
+import {
+  setCustomerAuthHeader,
+  hasCustomerSessionHint,
+  setCustomerSessionHint
+} from '../services/api';
 
 export const CustomerAuthContext = createContext(null);
 
-const PUBLIC_CUSTOMER_PATHS = [
-  '/customer/login',
-  '/customer/register',
-  '/customer/forgot-password'
+const PROTECTED_CUSTOMER_PATHS = [
+  '/customer/profile',
+  '/customer/orders'
 ];
+
+const isProtectedCustomerPath = (pathname = '') =>
+  PROTECTED_CUSTOMER_PATHS.some((p) => pathname.startsWith(p));
 
 export const CustomerAuthProvider = ({ children }) => {
   const [customerUser, setCustomerUser] = useState(null);
@@ -24,17 +30,29 @@ export const CustomerAuthProvider = ({ children }) => {
       return;
     }
 
+    // Fast-path: anonymous visitors without a session hint never fire refresh requests
+    if (!hasCustomerSessionHint()) {
+      setCustomerUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       const refreshData = await customerAuthService.refresh();
-      if (!refreshData.accessToken) {
+      if (!refreshData || !refreshData.accessToken) {
+        setCustomerUser(null);
+        setCustomerSessionHint(false);
         return;
       }
       const data = await customerAuthService.getCurrentCustomer();
       if (data?.customer) {
         setCustomerUser(data.customer);
+        setCustomerSessionHint(true);
       }
     } catch {
+      setCustomerUser(null);
       setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
     } finally {
       setLoading(false);
     }
@@ -46,52 +64,47 @@ export const CustomerAuthProvider = ({ children }) => {
     const handleExpired = () => {
       setCustomerUser(null);
       setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
       setError('Your session has expired. Please log in again.');
 
-      const path = window.location.pathname;
-      const isPublic =
-        PUBLIC_CUSTOMER_PATHS.some((p) => path.startsWith(p)) ||
-        path.startsWith('/customer/reset-password') ||
-        path.startsWith('/customer/verify-email');
-
-      if (path.startsWith('/customer') && !isPublic) {
+      const path = typeof window !== 'undefined' ? window.location.pathname : '';
+      if (isProtectedCustomerPath(path)) {
         window.location.href = '/customer/login';
       }
     };
 
     window.addEventListener('customer-auth-expired', handleExpired);
-    return () => window.removeEventListener('customer-auth-expired', handleExpired);
+    return () => {
+      window.removeEventListener('customer-auth-expired', handleExpired);
+    };
   }, []);
 
-  // Idle timeout: sign out after 30 minutes without activity while authenticated
+  // Idle timer auto logout
   useEffect(() => {
     if (!customerUser) return undefined;
 
-    let timer;
-    const reset = () => {
-      clearTimeout(timer);
-      timer = setTimeout(async () => {
-        try {
-          await customerAuthService.logout();
-        } catch {
-          /* ignore */
-        }
+    let timeoutId;
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
         setCustomerUser(null);
         setCustomerAuthHeader(null);
+        setCustomerSessionHint(false);
         setError('Signed out due to inactivity.');
-        if (window.location.pathname.startsWith('/customer')) {
+        const path = typeof window !== 'undefined' ? window.location.pathname : '';
+        if (isProtectedCustomerPath(path)) {
           window.location.href = '/customer/login';
         }
       }, IDLE_MS);
     };
 
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
-    reset();
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((ev) => window.addEventListener(ev, resetTimer));
+    resetTimer();
 
     return () => {
-      clearTimeout(timer);
-      events.forEach((e) => window.removeEventListener(e, reset));
+      clearTimeout(timeoutId);
+      events.forEach((ev) => window.removeEventListener(ev, resetTimer));
     };
   }, [customerUser]);
 
@@ -99,14 +112,15 @@ export const CustomerAuthProvider = ({ children }) => {
     try {
       setError(null);
       const data = await customerAuthService.login(email, password);
-      setCustomerUser(data.customer);
-      return data.customer;
+      if (data.customer) {
+        setCustomerUser(data.customer);
+        setCustomerSessionHint(true);
+      }
+      return data;
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setError(msg);
-      const loginError = new Error(msg);
-      loginError.code = err.response?.data?.code;
-      throw loginError;
+      throw err;
     }
   };
 
@@ -114,36 +128,37 @@ export const CustomerAuthProvider = ({ children }) => {
     try {
       setError(null);
       const data = await customerAuthService.loginWithGoogle(credential);
-      setCustomerUser(data.customer);
-      return data.customer;
+      if (data.customer) {
+        setCustomerUser(data.customer);
+        setCustomerSessionHint(true);
+      }
+      return data;
     } catch (err) {
-      const msg = err.response?.data?.message || 'Google sign-in failed. Please try again.';
+      const msg = err.response?.data?.message || 'Google login failed. Please try again.';
       setError(msg);
-      throw new Error(msg);
+      throw err;
     }
   };
 
   const logout = async () => {
     try {
       await customerAuthService.logout();
-    } catch (err) {
-      console.error('Customer logout error:', err);
     } finally {
       setCustomerUser(null);
-      setError(null);
       setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
     }
   };
 
   const value = {
     customerUser,
+    isAuthenticated: Boolean(customerUser),
     loading,
     error,
-    isAuthenticated: !!customerUser,
     login,
     loginWithGoogle,
     logout,
-    setCustomerUser
+    refreshCustomer: checkSession
   };
 
   return (

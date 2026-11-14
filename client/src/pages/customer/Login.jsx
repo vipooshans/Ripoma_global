@@ -14,14 +14,35 @@ import {
   Mail,
   Globe,
   ArrowRight,
-  UserCircle,
-  ShieldCheck
+  ShieldCheck,
+  Package,
+  Truck,
+  FileText,
+  Sparkles
 } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
   password: z.string().min(1, 'Password is required')
 });
+
+const highlights = [
+  {
+    icon: Package,
+    title: 'Real-time tracking',
+    text: 'Follow every order from warehouse to doorstep.'
+  },
+  {
+    icon: Truck,
+    title: 'Global logistics',
+    text: 'Import & export shipments managed end to end.'
+  },
+  {
+    icon: FileText,
+    title: 'Instant invoices',
+    text: 'View and download your documents anytime.'
+  }
+];
 
 const CustomerLogin = () => {
   const { login, loginWithGoogle } = useContext(CustomerAuthContext);
@@ -93,201 +114,228 @@ const CustomerLogin = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 px-4 py-8">
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[520px]">
+    <div className="relative flex items-center justify-center min-h-screen bg-slate-950 px-3 sm:px-4 py-6 sm:py-10 overflow-hidden">
+      {/* Ambient background */}
+      <div className="absolute inset-0 auth-grid-overlay" />
+      <div className="absolute -top-40 -left-40 w-[34rem] h-[34rem] bg-teal-500/20 rounded-full blur-[120px] animate-auth-blob" />
+      <div className="absolute -bottom-48 -right-32 w-[30rem] h-[30rem] bg-emerald-500/15 rounded-full blur-[120px] animate-auth-blob-slow" />
+      <div className="absolute top-1/3 right-1/4 w-72 h-72 bg-cyan-500/10 rounded-full blur-[100px] animate-auth-blob" />
 
-        {/* Left Brand Panel */}
-        <div className="md:w-5/12 bg-gradient-to-br from-slate-900 to-teal-900 text-white p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute -top-20 -left-20 w-64 h-64 bg-teal-400/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-16 -right-16 w-56 h-56 bg-teal-400/15 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl" />
+      <div className="relative w-full max-w-5xl animate-auth-fade-up">
+        {/* Gradient border wrapper */}
+        <div className="rounded-3xl p-[1px] bg-gradient-to-br from-teal-400/40 via-slate-700/40 to-emerald-400/30 shadow-2xl shadow-black/40">
+          <div className="rounded-3xl bg-white overflow-hidden flex flex-col md:flex-row min-h-[560px]">
 
-          {/* Logo */}
-          <div className="flex items-center gap-2.5 relative z-10">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-teal-500 text-slate-950 font-extrabold text-xl shadow-lg shadow-teal-500/30">
-              R
-            </div>
-            <div>
-              <p className="text-base font-extrabold tracking-wider leading-none">RIPOMA</p>
-              <span className="text-[10px] text-teal-400 font-bold tracking-widest uppercase">GLOBAL</span>
-            </div>
-          </div>
+            {/* ── Left Brand Panel ── */}
+            <div className="md:w-[45%] relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 text-white p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
+              <div className="absolute inset-0 auth-grid-overlay opacity-60" />
+              <div className="absolute -top-24 -left-24 w-72 h-72 bg-teal-500/20 rounded-full blur-3xl animate-auth-blob" />
+              <div className="absolute -bottom-20 -right-16 w-64 h-64 bg-emerald-400/15 rounded-full blur-3xl animate-auth-blob-slow" />
 
-          {/* Center content */}
-          <div className="my-8 md:my-0 relative z-10">
-            <div className="w-16 h-16 bg-teal-500/20 rounded-2xl flex items-center justify-center mb-6 border border-teal-500/30">
-              <UserCircle className="w-9 h-9 text-teal-400" />
-            </div>
-            <h2 className="text-2xl lg:text-3xl font-extrabold text-white leading-tight">
-              Customer Portal
-            </h2>
-            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
-              Access your orders, manage your profile, and track your shipments with RIPOMA GLOBAL.
-            </p>
+              {/* Logo */}
+              <div className="relative z-10">
+                <img
+                  src="/logo-white.svg"
+                  alt="RIPOMA GLOBAL TRADING (PVT) LTD"
+                  className="h-16 w-auto -ml-2"
+                />
+              </div>
 
-            <div className="mt-6 space-y-3">
-              {[
-                'Track your orders in real time',
-                'Manage shipping addresses',
-                'View & download invoices'
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-2.5">
-                  <ShieldCheck size={14} className="text-teal-400 shrink-0" />
-                  <span className="text-xs text-slate-300">{item}</span>
+              {/* Center content */}
+              <div className="my-6 md:my-0 relative z-10">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-400/30 text-teal-300 text-[11px] font-bold uppercase tracking-widest mb-4 sm:mb-5">
+                  <Sparkles size={12} />
+                  Customer Portal
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="text-xs text-slate-500 relative z-10">
-            © {new Date().getFullYear()} RIPOMA GLOBAL Inc. All rights reserved.
-          </div>
-        </div>
-
-        {/* Right Login Form */}
-        <div className="md:w-7/12 p-8 lg:p-12 flex flex-col justify-center">
-          <div className="mb-8">
-            <h3 className="text-xl lg:text-2xl font-extrabold text-slate-800">Welcome Back</h3>
-            <p className="text-slate-500 text-sm mt-1">Sign in to your customer account.</p>
-          </div>
-
-          <div className="mb-5">
-            <GoogleSignInButton
-              onCredential={handleGoogleCredential}
-              disabled={submitting || googleSubmitting}
-              text="signin_with"
-            />
-            <p className="text-[11px] text-slate-400 text-center mt-2">
-              By continuing with Google, you agree to our Terms and Privacy Policy.
-            </p>
-          </div>
-
-          <div className="relative mb-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-white px-3 text-slate-400 font-semibold uppercase tracking-wide">
-                or continue with email
-              </span>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {unverifiedEmail && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                <p className="font-semibold">Email not verified</p>
-                <p className="mt-1 text-xs text-amber-700">
-                  Check your inbox for the verification link, or request a new one.
+                <h2 className="text-2xl sm:text-3xl lg:text-[2.1rem] font-extrabold leading-tight">
+                  Your trade, <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-emerald-300">
+                    beautifully managed.
+                  </span>
+                </h2>
+                <p className="text-slate-400 text-sm mt-4 leading-relaxed max-w-xs">
+                  Sign in to track shipments, manage orders, and stay on top of your business with RIPOMA GLOBAL.
                 </p>
-                <button
-                  type="button"
-                  onClick={handleResendVerification}
-                  disabled={resending}
-                  className="mt-2 text-xs font-bold text-teal-700 hover:text-teal-800 disabled:opacity-50"
-                >
-                  {resending ? 'Sending…' : 'Resend verification email'}
-                </button>
+
+                <div className="hidden md:block mt-8 space-y-3">
+                  {highlights.map((item, i) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={item.title}
+                        className="flex items-start gap-3.5 rounded-2xl bg-white/[0.04] border border-white/[0.07] backdrop-blur-sm px-4 py-3 animate-auth-float"
+                        style={{ animationDelay: `${i * 0.7}s` }}
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-teal-500/15 border border-teal-400/25 flex items-center justify-center shrink-0">
+                          <Icon size={16} className="text-teal-300" />
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-bold text-white leading-tight">{item.title}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{item.text}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            )}
-            {/* Email */}
-            <div>
-              <label className="form-label">Email Address</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
-                  <Mail size={16} />
+
+              {/* Footer */}
+              <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-500">
+                <span>© {new Date().getFullYear()} RIPOMA GLOBAL Inc.</span>
+                <span className="inline-flex items-center gap-1 text-teal-400/80">
+                  <ShieldCheck size={12} />
+                  256-bit encrypted
                 </span>
-                <input
-                  id="customer-login-email"
-                  type="email"
-                  className={`form-input pl-10 ${
-                    errors.email ? 'border-rose-500 focus:ring-rose-500/20 focus:border-rose-500' : ''
-                  }`}
-                  placeholder="you@example.com"
-                  {...register('email')}
-                />
               </div>
-              {errors.email && (
-                <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.email.message}</p>
-              )}
             </div>
 
-            {/* Password */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="form-label mb-0">Password</label>
-                <Link
-                  to="/customer/forgot-password"
-                  className="text-xs font-bold text-teal-600 hover:text-teal-700 transition-colors"
-                >
-                  Forgot password?
-                </Link>
+            {/* ── Right Login Form ── */}
+            <div className="md:w-[55%] p-6 sm:p-8 lg:p-12 flex flex-col justify-center bg-white">
+              <div className="w-full max-w-md mx-auto">
+                <div className="mb-7">
+                  <h3 className="text-2xl font-extrabold text-slate-900">Welcome back</h3>
+                  <p className="text-slate-500 text-sm mt-1.5">
+                    Sign in to continue to your customer account.
+                  </p>
+                </div>
+
+                <div className="mb-5">
+                  <GoogleSignInButton
+                    onCredential={handleGoogleCredential}
+                    disabled={submitting || googleSubmitting}
+                    text="signin_with"
+                  />
+                </div>
+
+                <div className="relative mb-5">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center text-[11px]">
+                    <span className="bg-white px-3 text-slate-400 font-bold uppercase tracking-widest">
+                      or continue with email
+                    </span>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                  {unverifiedEmail && (
+                    <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 px-4 py-3.5 text-sm text-amber-800 animate-auth-fade-up">
+                      <p className="font-bold">Email not verified</p>
+                      <p className="mt-1 text-xs text-amber-700">
+                        Check your inbox for the verification link, or request a new one.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleResendVerification}
+                        disabled={resending}
+                        className="mt-2 text-xs font-bold text-teal-700 hover:text-teal-800 underline underline-offset-2 disabled:opacity-50"
+                      >
+                        {resending ? 'Sending…' : 'Resend verification email'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Email */}
+                  <div className="group">
+                    <label className="auth-label">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Mail size={12} className="text-teal-500" />
+                        Email Address
+                      </span>
+                    </label>
+                    <input
+                      id="customer-login-email"
+                      type="email"
+                      className={`auth-input ${
+                        errors.email ? 'border-rose-400 focus:ring-rose-500/10 focus:border-rose-500' : ''
+                      }`}
+                      placeholder="you@example.com"
+                      {...register('email')}
+                    />
+                    {errors.email && (
+                      <p className="text-rose-500 text-xs mt-1.5 font-semibold">{errors.email.message}</p>
+                    )}
+                  </div>
+
+                  {/* Password */}
+                  <div className="group">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="auth-label mb-0">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Lock size={12} className="text-teal-500" />
+                          Password
+                        </span>
+                      </label>
+                      <Link
+                        to="/customer/forgot-password"
+                        className="text-xs font-bold text-teal-600 hover:text-teal-700 transition-colors"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <div className="relative">
+                      <input
+                        id="customer-login-password"
+                        type={showPassword ? 'text' : 'password'}
+                        className={`auth-input pr-10 ${
+                          errors.password ? 'border-rose-400 focus:ring-rose-500/10 focus:border-rose-500' : ''
+                        }`}
+                        placeholder="••••••••••••"
+                        {...register('password')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-teal-600 transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="text-rose-500 text-xs mt-1.5 font-semibold">{errors.password.message}</p>
+                    )}
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    id="customer-login-submit"
+                    type="submit"
+                    disabled={submitting || googleSubmitting}
+                    className="auth-btn-primary mt-2"
+                  >
+                    {submitting ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span>Sign In</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <p className="text-sm text-slate-500 text-center mt-6">
+                  Don't have an account?{' '}
+                  <Link
+                    to="/customer/register"
+                    className="font-bold text-teal-600 hover:text-teal-700 transition-colors"
+                  >
+                    Create one for free
+                  </Link>
+                </p>
+
+                <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-teal-600 transition-colors"
+                  >
+                    <Globe size={12} />
+                    Staff / Admin Login
+                  </Link>
+                </div>
               </div>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
-                  <Lock size={16} />
-                </span>
-                <input
-                  id="customer-login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  className={`form-input pl-10 pr-10 ${
-                    errors.password ? 'border-rose-500 focus:ring-rose-500/20 focus:border-rose-500' : ''
-                  }`}
-                  placeholder="••••••••••••"
-                  {...register('password')}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="text-rose-500 text-xs mt-1 font-semibold">{errors.password.message}</p>
-              )}
             </div>
-
-            {/* Submit */}
-            <button
-              id="customer-login-submit"
-              type="submit"
-              disabled={submitting || googleSubmitting}
-              className="btn-primary w-full py-2.5 mt-2"
-            >
-              {submitting ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span>Sign In</span>
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-slate-500">
-              Don't have an account?{' '}
-              <Link
-                to="/customer/register"
-                className="font-bold text-teal-600 hover:text-teal-700 transition-colors"
-              >
-                Create one
-              </Link>
-            </p>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-slate-100 text-center">
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-600 transition-colors"
-            >
-              <Globe size={12} />
-              Staff / Admin Login
-            </Link>
           </div>
         </div>
       </div>

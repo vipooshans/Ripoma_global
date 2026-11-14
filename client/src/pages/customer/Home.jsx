@@ -17,10 +17,10 @@ import {
 } from 'lucide-react';
 
 const ProductGridSkeleton = ({ count = 4 }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
     {Array(count).fill(null).map((_, i) => (
       <div key={i} className="bg-white rounded-2xl overflow-hidden border border-slate-100">
-        <div className="h-52 bg-slate-100 animate-pulse" />
+        <div className="h-40 sm:h-52 bg-slate-100 animate-pulse" />
         <div className="p-4 space-y-2">
           <div className="h-3 bg-slate-100 rounded animate-pulse w-1/3" />
           <div className="h-4 bg-slate-100 rounded animate-pulse w-3/4" />
@@ -31,7 +31,7 @@ const ProductGridSkeleton = ({ count = 4 }) => (
 );
 
 const CategoryGridSkeleton = () => (
-  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
     {Array(5).fill(null).map((_, i) => (
       <div key={i} className="h-32 bg-slate-100 rounded-2xl animate-pulse" />
     ))}
@@ -47,22 +47,20 @@ const FeatureHighlights = () => {
   ];
 
   return (
-    <section className="py-20 px-6 lg:px-12 bg-slate-50" aria-labelledby="why-us-heading">
+    <section className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-slate-50" aria-labelledby="why-us-heading">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-12">
+        <div className="text-center mb-8 sm:mb-12">
           <span className="text-xs font-bold text-teal-600 uppercase tracking-widest">Why RIPOMA GLOBAL</span>
-          <h2 id="why-us-heading" className="text-3xl font-extrabold text-slate-900 mt-2">Built for Serious Buyers</h2>
+          <h2 id="why-us-heading" className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">Built for Serious Buyers</h2>
           <p className="text-slate-500 text-sm mt-2 max-w-lg mx-auto">
-            A professional B2B marketplace designed for importers, distributors, and enterprise buyers.
+            A professional B2C marketplace designed for customers who value quality products and reliable delivery.
           </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map(({ icon: Icon, color, bg, title, desc }) => (
-            <div key={title} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
-              <div className={`w-12 h-12 ${bg} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                <div className={`w-6 h-6 bg-gradient-to-br ${color} rounded-lg flex items-center justify-center`}>
-                  <Icon size={13} className="text-white" />
-                </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+          {features.map(({ icon: Icon, color, title, desc }) => (
+            <div key={title} className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
+              <div className={`w-11 h-11 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center mb-3 sm:mb-4 shadow-md group-hover:scale-110 transition-transform duration-300`}>
+                <Icon size={19} className="text-white" />
               </div>
               <h3 className="font-bold text-slate-800 text-sm mb-1.5">{title}</h3>
               <p className="text-slate-500 text-xs leading-relaxed">{desc}</p>
@@ -88,6 +86,7 @@ const CustomerHome = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -117,14 +116,18 @@ const CustomerHome = () => {
           throw (featuredRes.reason || catRes.reason || newRes.reason);
         }
       } catch (err) {
+        if (!isMounted) return;
         console.error('Storefront data error:', err);
         setError('Unable to load storefront data. Please try again later.');
         toast.error('Failed to load products. Please refresh the page.');
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchData();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -138,6 +141,13 @@ const CustomerHome = () => {
       {/* Hero */}
       <section className="relative min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 overflow-hidden flex flex-col">
         <div className="absolute inset-0 pointer-events-none">
+          <img
+            src="https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?auto=format&fit=crop&w=1920&q=70"
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/95 via-slate-900/85 to-teal-950/90" />
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
           <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-teal-400/8 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '6s' }} />
           <div className="absolute inset-0 opacity-5" style={{
@@ -154,19 +164,19 @@ const CustomerHome = () => {
           onLogout={handleLogout}
         />
 
-        <div className="relative z-10 flex-1 flex items-center justify-center px-6 lg:px-12 py-16">
+        <div className="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-12 py-12 sm:py-16">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 bg-teal-500/15 border border-teal-500/30 rounded-full px-4 py-2 mb-8 text-teal-300 text-xs font-bold tracking-wider uppercase backdrop-blur-sm">
+            <div className="inline-flex items-center gap-2 bg-teal-500/15 border border-teal-500/30 rounded-full px-3.5 sm:px-4 py-2 mb-6 sm:mb-8 text-teal-300 text-[10px] sm:text-xs font-bold tracking-wider uppercase backdrop-blur-sm">
               <Sparkles size={12} />
               Global Import & Export Marketplace
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-5 sm:mb-6">
               Source Quality Products{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-teal-300">from Anywhere</span>
             </h1>
 
-            <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+            <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed mb-8 sm:mb-10">
               Discover a curated selection of global products. From electronics to industrial goods — browse, search, and order with confidence.
             </p>
 
@@ -192,12 +202,12 @@ const CustomerHome = () => {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-8 mt-14 pt-10 border-t border-white/10">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-6 sm:gap-8 mt-10 sm:mt-14 pt-8 sm:pt-10 border-t border-white/10">
               {[
                 { icon: Package, label: 'Products', value: formatStat(stats.productCount) },
                 { icon: Globe, label: 'Categories', value: formatStat(stats.categoryCount) },
                 { icon: Truck, label: 'Fast Shipping', value: '48hr' },
-                { icon: Award, label: 'Trusted Platform', value: 'B2B' }
+                { icon: Award, label: 'Trusted Platform', value: 'B2C' }
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="flex flex-col items-center gap-1">
                   <Icon size={18} className="text-teal-400 mb-1" />
@@ -226,21 +236,21 @@ const CustomerHome = () => {
       )}
 
       {/* Categories */}
-      <section id="categories" className="py-20 px-6 lg:px-12 bg-white" aria-labelledby="categories-heading">
+      <section id="categories" className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-white" aria-labelledby="categories-heading">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-end justify-between mb-10">
+          <div className="flex items-end justify-between gap-3 mb-7 sm:mb-10">
             <div>
               <span className="text-xs font-bold text-teal-600 uppercase tracking-widest">Browse By</span>
-              <h2 id="categories-heading" className="text-3xl font-extrabold text-slate-900 mt-1">Product Categories</h2>
+              <h2 id="categories-heading" className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">Product Categories</h2>
             </div>
-            <Link to="/customer/categories" className="hidden sm:flex items-center gap-1.5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors">
+            <Link to="/customer/categories" className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors shrink-0 mb-1">
               View All <ArrowRight size={14} />
             </Link>
           </div>
           {loading ? (
             <CategoryGridSkeleton />
           ) : categories.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {categories.slice(0, 10).map((cat) => (
                 <CategoryCard
                   key={cat.id}
@@ -266,17 +276,17 @@ const CustomerHome = () => {
       </section>
 
       {/* Featured */}
-      <section id="featured" className="py-20 px-6 lg:px-12 bg-slate-50" aria-labelledby="featured-heading">
+      <section id="featured" className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-slate-50" aria-labelledby="featured-heading">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-end justify-between mb-10">
+          <div className="flex items-end justify-between gap-3 mb-7 sm:mb-10">
             <div>
               <span className="text-xs font-bold text-teal-600 uppercase tracking-widest flex items-center gap-1.5">
                 <TrendingUp size={12} /> Featured
               </span>
-              <h2 id="featured-heading" className="text-3xl font-extrabold text-slate-900 mt-1">Featured Products</h2>
-              <p className="text-slate-500 text-sm mt-1">Our most popular products, ready to ship</p>
+              <h2 id="featured-heading" className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">Featured Products</h2>
+              <p className="hidden sm:block text-slate-500 text-sm mt-1">Our most popular products, ready to ship</p>
             </div>
-            <Link to="/customer/products" className="hidden sm:flex items-center gap-1.5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors">
+            <Link to="/customer/products" className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors shrink-0 mb-1">
               See All <ArrowRight size={14} />
             </Link>
           </div>
@@ -284,7 +294,7 @@ const CustomerHome = () => {
           {loading ? (
             <ProductGridSkeleton count={8} />
           ) : featured.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
               {featured.map((product) => (
                 <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
               ))}
@@ -302,20 +312,20 @@ const CustomerHome = () => {
 
       {/* New Arrivals */}
       {!loading && newArrivals.length > 0 && (
-        <section className="py-20 px-6 lg:px-12 bg-white" aria-labelledby="new-arrivals-heading">
+        <section className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-white" aria-labelledby="new-arrivals-heading">
           <div className="max-w-6xl mx-auto">
-            <div className="flex items-end justify-between mb-10">
+            <div className="flex items-end justify-between gap-3 mb-7 sm:mb-10">
               <div>
                 <span className="text-xs font-bold text-teal-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Clock size={12} /> Just Added
                 </span>
-                <h2 id="new-arrivals-heading" className="text-3xl font-extrabold text-slate-900 mt-1">New Arrivals</h2>
+                <h2 id="new-arrivals-heading" className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">New Arrivals</h2>
               </div>
-              <Link to="/customer/products?sort=newest" className="hidden sm:flex items-center gap-1.5 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors">
+              <Link to="/customer/products?sort=newest" className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors shrink-0 mb-1">
                 View All <ArrowRight size={14} />
               </Link>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
               {newArrivals.map((product) => (
                 <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
               ))}
@@ -327,7 +337,7 @@ const CustomerHome = () => {
       <FeatureHighlights />
 
       {/* CTA */}
-      <section id="about" className="py-24 px-6 lg:px-12 bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 relative overflow-hidden">
+      <section id="about" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-12 bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl" />
         </div>
@@ -335,7 +345,7 @@ const CustomerHome = () => {
           <div className="inline-flex items-center gap-2 bg-teal-500/15 border border-teal-500/30 rounded-full px-4 py-2 mb-6 text-teal-300 text-xs font-bold uppercase tracking-wider">
             <Star size={11} /> Trusted Global Marketplace
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">Ready to Start Sourcing?</h2>
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-4">Ready to Start Sourcing?</h2>
           <p className="text-slate-400 mb-10 leading-relaxed">
             Create your free customer account to access exclusive pricing, manage orders, and track shipments in real time.
           </p>

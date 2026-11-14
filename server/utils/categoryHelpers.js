@@ -42,7 +42,7 @@ function formatStorefrontNode(cat, childrenMap, directCounts) {
 
   const subcategories = children
     .map((child) => formatStorefrontNode(child, childrenMap, directCounts))
-    .filter((node) => node.productCount > 0 || node.subcategories.length > 0);
+    .filter((node) => node && (node.productCount > 0 || node.subcategories.length > 0));
 
   const productCount = rollupProductCount(cat._id, childrenMap, directCounts);
 

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../config/apiBase';
+import { API_BASE_URL } from '../config/apiBase.js';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -13,19 +13,62 @@ let staffAccessToken = null;
 let customerAccessToken = null;
 let activeAuthType = null; // 'staff' | 'customer' | null
 
-let isRefreshing = false;
-let failedQueue = [];
+// Single-flight refresh promises for staff and customer
+let customerRefreshPromise = null;
+let staffRefreshPromise = null;
 
-const processQueue = (error, token = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
+export const hasCustomerSessionHint = () => {
+  try {
+    return localStorage.getItem('ripoma_has_customer_session') === 'true';
+  } catch {
+    return false;
+  }
 };
+
+export const setCustomerSessionHint = (active) => {
+  try {
+    if (active) {
+      localStorage.setItem('ripoma_has_customer_session', 'true');
+    } else {
+      localStorage.removeItem('ripoma_has_customer_session');
+    }
+  } catch {}
+};
+
+export const hasStaffSessionHint = () => {
+  try {
+    return localStorage.getItem('ripoma_has_staff_session') === 'true';
+  } catch {
+    return false;
+  }
+};
+
+export const setStaffSessionHint = (active) => {
+  try {
+    if (active) {
+      localStorage.setItem('ripoma_has_staff_session', 'true');
+    } else {
+      localStorage.removeItem('ripoma_has_staff_session');
+    }
+  } catch {}
+};
+
+export const isPublicStorefrontUrl = (url = '') => {
+  const path = String(url).split('?')[0];
+  return (
+    path.includes('/storefront/categories') ||
+    path.includes('/storefront/featured') ||
+    path.includes('/storefront/promos') ||
+    path.includes('/storefront/stats') ||
+    path.includes('/storefront/faqs') ||
+    path.includes('/storefront/products') ||
+    path.includes('/storefront/search-suggestions') ||
+    path.includes('/customer-auth/legal')
+  );
+};
+
+export const isAuthRefreshRequest = (url = '') =>
+  url.includes('/auth/refresh') || url.includes('/customer-auth/refresh');
 
 const applyAuthorizationHeader = () => {
   const token =
@@ -60,8 +103,118 @@ const resolveTokenForUrl = (url = '') => {
   return customerAccessToken || null;
 };
 
-api.interceptors.request.use((config) => {
-  const token = resolveTokenForUrl(config.url || '');
+export const setAuthHeader = (token) => {
+  staffAccessToken = token;
+  activeAuthType = token ? 'staff' : activeAuthType === 'staff' ? null : activeAuthType;
+  applyAuthorizationHeader();
+};
+
+export const setCustomerAuthHeader = (token) => {
+  customerAccessToken = token;
+  activeAuthType = token ? 'customer' : activeAuthType === 'customer' ? null : activeAuthType;
+  applyAuthorizationHeader();
+};
+
+// Single-flight customer token refresh
+export const refreshCustomerTokenSingleFlight = async () => {
+  if (customerRefreshPromise) {
+    return customerRefreshPromise;
+  }
+
+  // If there's no session hint and no customer token, do not make network calls for guests
+  if (!hasCustomerSessionHint() && !customerAccessToken) {
+    setCustomerAuthHeader(null);
+    return null;
+  }
+
+  customerRefreshPromise = (async () => {
+    try {
+      const response = await api.post(
+        '/customer-auth/refresh',
+        {},
+        { _skipAuthRefresh: true }
+      );
+
+      const { accessToken, authenticated } = response.data || {};
+      if (authenticated === false || !accessToken) {
+        setCustomerAuthHeader(null);
+        setCustomerSessionHint(false);
+        window.dispatchEvent(new Event('customer-auth-expired'));
+        return null;
+      }
+
+      setCustomerAuthHeader(accessToken);
+      setCustomerSessionHint(true);
+      return accessToken;
+    } catch (err) {
+      setCustomerAuthHeader(null);
+      setCustomerSessionHint(false);
+      window.dispatchEvent(new Event('customer-auth-expired'));
+      throw err;
+    } finally {
+      customerRefreshPromise = null;
+    }
+  })();
+
+  return customerRefreshPromise;
+};
+
+// Single-flight staff token refresh
+export const refreshStaffTokenSingleFlight = async () => {
+  if (staffRefreshPromise) {
+    return staffRefreshPromise;
+  }
+
+  if (!hasStaffSessionHint() && !staffAccessToken) {
+    setAuthHeader(null);
+    return null;
+  }
+
+  staffRefreshPromise = (async () => {
+    try {
+      const response = await api.post(
+        '/auth/refresh',
+        {},
+        { _skipAuthRefresh: true }
+      );
+
+      const { accessToken } = response.data || {};
+      if (!accessToken) {
+        setAuthHeader(null);
+        setStaffSessionHint(false);
+        window.dispatchEvent(new Event('auth-expired'));
+        return null;
+      }
+
+      setAuthHeader(accessToken);
+      setStaffSessionHint(true);
+      return accessToken;
+    } catch (err) {
+      setAuthHeader(null);
+      setStaffSessionHint(false);
+      window.dispatchEvent(new Event('auth-expired'));
+      throw err;
+    } finally {
+      staffRefreshPromise = null;
+    }
+  })();
+
+  return staffRefreshPromise;
+};
+
+// Request interceptor — handles authorization headers for authenticated routes
+api.interceptors.request.use(async (config) => {
+  const url = config.url || '';
+
+  // Public storefront requests NEVER send Authorization headers
+  if (isPublicStorefrontUrl(url)) {
+    if (config.headers?.Authorization) {
+      delete config.headers.Authorization;
+    }
+    return config;
+  }
+
+  const token = resolveTokenForUrl(url);
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -69,98 +222,133 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-const isAuthRefreshRequest = (url) =>
-  url?.includes('/auth/refresh') || url?.includes('/customer-auth/refresh');
-
-// Response interceptor — auto-refresh expired access tokens
+// Response interceptor — diagnostics for 429 & auto-refresh for expired 401 access tokens
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    if (!originalRequest) return Promise.reject(error);
+
+    // 1. HTTP 429 Too Many Requests handling — NO RETRY by default to prevent cascade loops
+    if (error.response?.status === 429) {
+      const isHtmlChallenge =
+        typeof error.response.data === 'string' &&
+        (error.response.data.includes('Just a moment...') ||
+          error.response.data.includes('cf-browser-verification') ||
+          error.response.data.includes('<!DOCTYPE html>'));
+
+      const ripoma429Source = isHtmlChallenge
+        ? 'cloudflare-upstream'
+        : error.response.headers?.['x-ripoma-429-source'] ||
+          error.response.headers?.['x-ratelimit-source'] ||
+          'cloudflare-upstream';
+      error.ripoma429Source = ripoma429Source;
+
+      console.warn(
+        `[Ripoma API 429] Source: ${ripoma429Source}${isHtmlChallenge ? ' (Cloudflare Challenge Page)' : ''} | Route: ${originalRequest.url || ''}`
+      );
+
+      // Self-healing: If an obsolete workers.dev URL triggered Cloudflare's Bot Challenge,
+      // seamlessly reroute to the dedicated custom domain https://api.ripomaglobal.org and retry once
+      const targetBase = String(originalRequest.baseURL || api.defaults.baseURL || '');
+      const targetUrl = String(originalRequest.url || '');
+      if (
+        (targetBase.includes('workers.dev') || targetUrl.includes('workers.dev')) &&
+        !originalRequest._retriedOnCustomDomain
+      ) {
+        console.warn(
+          `[Ripoma API] Obsolete workers.dev endpoint challenged. Dynamically rerouting to custom domain https://api.ripomaglobal.org...`
+        );
+        originalRequest._retriedOnCustomDomain = true;
+        if (originalRequest.baseURL) {
+          originalRequest.baseURL = originalRequest.baseURL.replace(
+            /https:\/\/[^/]+\.workers\.dev/i,
+            'https://api.ripomaglobal.org'
+          );
+        }
+        if (originalRequest.url) {
+          originalRequest.url = originalRequest.url.replace(
+            /https:\/\/[^/]+\.workers\.dev/i,
+            'https://api.ripomaglobal.org'
+          );
+        }
+        api.defaults.baseURL = String(api.defaults.baseURL || '').replace(
+          /https:\/\/[^/]+\.workers\.dev/i,
+          'https://api.ripomaglobal.org'
+        );
+        return api(originalRequest);
+      }
+
+      // Only retry if caller explicitly opted in (e.g. idempotent background sync), max 1 retry
+      if (
+        originalRequest._explicitRetryOn429 &&
+        (originalRequest._explicitRetryCount || 0) < 1 &&
+        !isAuthRefreshRequest(originalRequest.url) &&
+        !isHtmlChallenge
+      ) {
+        originalRequest._explicitRetryCount = (originalRequest._explicitRetryCount || 0) + 1;
+        const retryAfterHeader = error.response.headers?.['retry-after'];
+        let delaySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 2;
+        if (isNaN(delaySeconds) || delaySeconds <= 0) delaySeconds = 2;
+        delaySeconds = Math.min(6, delaySeconds);
+        const delayMs = Math.round(delaySeconds * 1000) + Math.floor(Math.random() * 300);
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return api(originalRequest);
+      }
+
+      // Default: reject immediately without retrying
+      return Promise.reject(error);
+    }
+
+    // 2. Token refresh handling on 401 Unauthorized
     const errorCode = error.response?.data?.code;
 
+    // Reject immediately without refreshing if:
+    // - Not a 401 response
+    // - Request already retried once (_retry flag)
+    // - Request explicitly skipped auth refresh (_skipAuthRefresh)
+    // - It is the auth refresh request itself
+    // - It is a public storefront route (public storefront routes must never refresh auth)
     if (
       error.response?.status !== 401 ||
-      !errorCode ||
       originalRequest._retry ||
-      isAuthRefreshRequest(originalRequest.url)
+      originalRequest._skipAuthRefresh ||
+      isAuthRefreshRequest(originalRequest.url) ||
+      isPublicStorefrontUrl(originalRequest.url)
     ) {
       return Promise.reject(error);
     }
 
-    const isCustomer = errorCode === 'CUSTOMER_TOKEN_EXPIRED';
-    const isStaff = errorCode === 'TOKEN_EXPIRED';
+    const isCustomer =
+      errorCode === 'CUSTOMER_TOKEN_EXPIRED' ||
+      (originalRequest.url && originalRequest.url.includes('/customer-auth/'));
+    const isStaff =
+      errorCode === 'TOKEN_EXPIRED' || (!isCustomer && Boolean(staffAccessToken));
 
     if (!isCustomer && !isStaff) {
       return Promise.reject(error);
     }
 
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
-      })
-        .then((token) => {
-          originalRequest.headers['Authorization'] = 'Bearer ' + token;
-          return api(originalRequest);
-        })
-        .catch((err) => Promise.reject(err));
-    }
-
+    // Mark as retried — ensures retry happens only ONCE
     originalRequest._retry = true;
-    isRefreshing = true;
 
     try {
-      // Use the same axios instance so baseURL stays absolute and method stays POST
-      const refreshPath = isCustomer ? '/customer-auth/refresh' : '/auth/refresh';
-      const response = await api.post(refreshPath, {});
-      const { accessToken } = response.data;
+      const newToken = isCustomer
+        ? await refreshCustomerTokenSingleFlight()
+        : await refreshStaffTokenSingleFlight();
 
-      if (isCustomer) {
-        setCustomerAuthHeader(accessToken);
-      } else {
-        setAuthHeader(accessToken);
+      if (!newToken) {
+        return Promise.reject(error);
       }
 
-      originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
-      processQueue(null, accessToken);
-      isRefreshing = false;
-
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
       return api(originalRequest);
-    } catch (refreshError) {
-      processQueue(refreshError, null);
-      isRefreshing = false;
-
-      if (isCustomer) {
-        setCustomerAuthHeader(null);
-        window.dispatchEvent(new Event('customer-auth-expired'));
-      } else {
-        setAuthHeader(null);
-        window.dispatchEvent(new Event('auth-expired'));
-      }
-
-      return Promise.reject(refreshError);
+    } catch (refreshErr) {
+      return Promise.reject(refreshErr);
     }
   }
 );
-
-export const setAuthHeader = (token) => {
-  staffAccessToken = token || null;
-  if (token) {
-    activeAuthType = 'staff';
-  } else if (activeAuthType === 'staff') {
-    activeAuthType = customerAccessToken ? 'customer' : null;
-  }
-  applyAuthorizationHeader();
-};
-
-export const setCustomerAuthHeader = (token) => {
-  customerAccessToken = token || null;
-  if (token) {
-    activeAuthType = 'customer';
-  } else if (activeAuthType === 'customer') {
-    activeAuthType = staffAccessToken ? 'staff' : null;
-  }
-  applyAuthorizationHeader();
-};
 
 export default api;

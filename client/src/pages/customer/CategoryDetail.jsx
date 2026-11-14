@@ -21,19 +21,27 @@ const CustomerCategoryDetail = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [catData, prodData] = await Promise.all([
+        const [catRes, prodRes] = await Promise.allSettled([
           storefrontService.getCategoryDetail(id),
           storefrontService.getProducts({ category: id, limit: 12 })
         ]);
-        setCategory(catData.category);
-        setProducts(prodData.products || []);
-      } catch (err) {
-        if (err.response?.status === 404) {
+        if (catRes.status === 'fulfilled') {
+          setCategory(catRes.value?.category || null);
+        } else if (catRes.reason?.response?.status === 404) {
           toast.error('Category not found.');
           navigate('/customer/categories');
+          return;
         } else {
-          toast.error('Failed to load category.');
+          toast.error('Failed to load category details.');
         }
+
+        if (prodRes.status === 'fulfilled') {
+          setProducts(prodRes.value?.products || []);
+        } else {
+          setProducts([]);
+        }
+      } catch (err) {
+        toast.error('Failed to load category.');
       } finally {
         setLoading(false);
       }

@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   Home, ChevronRight, ShoppingBag, Package, ArrowLeft, ArrowRight,
-  MapPin, CreditCard, Truck, Building2, Loader2, Check
+  MapPin, Building2, Loader2, Check
 } from 'lucide-react';
 import { CustomerAuthContext } from '../../context/CustomerAuthContext';
 import { useStorefront } from '../../components/storefront/CustomerStorefrontLayout';
@@ -25,24 +25,21 @@ const STEPS = [
 
 const PAYMENT_OPTIONS = [
   {
-    id: 'cod',
-    title: 'Cash on Delivery',
-    desc: 'Pay when your order arrives',
-    icon: Truck
-  },
-  {
     id: 'bank_transfer',
     title: 'Bank Transfer',
     desc: 'Transfer funds using your order number as reference',
     icon: Building2
-  },
-  {
-    id: 'card_mock',
-    title: 'Card (Demo)',
-    desc: 'Simulated card payment — no real charge',
-    icon: CreditCard
   }
 ];
+
+const BANK_DETAILS = {
+  payTo: 'RIPOMA GLOBAL TRADIN',
+  bank: "People's Bank",
+  accountNo: '255100110082556'
+};
+
+const WHATSAPP_NUMBER = '94742522230'; // +94 74 252 2230
+const WHATSAPP_DISPLAY = '+94 74 252 2230';
 
 const emptyEstimate = {
   subtotal: 0,
@@ -52,6 +49,49 @@ const emptyEstimate = {
   total: 0,
   currency: 'LKR',
   coupon: null
+};
+
+const buildWhatsAppUrl = ({ orderNumber, cart, estimate, customer, shipping }) => {
+  const items = cart
+    .map(
+      (i, idx) =>
+        `${idx + 1}. ${i.name} x ${i.qty} — ${formatPrice(i.sellingPrice * i.qty, i.currency)}`
+    )
+    .join('\n');
+
+  const address = [shipping.street, shipping.city, shipping.state, shipping.postalCode, shipping.country]
+    .filter(Boolean)
+    .join(', ');
+
+  const lines = [
+    `Hello ${BANK_DETAILS.payTo}, I have just placed order *${orderNumber}* and selected Bank Transfer as my payment method.`,
+    '',
+    '*Order Details*',
+    items,
+    `Subtotal: ${formatPrice(estimate.subtotal, estimate.currency)}`,
+    estimate.discount > 0
+      ? `Discount${estimate.coupon ? ` (${estimate.coupon.code})` : ''}: -${formatPrice(estimate.discount, estimate.currency)}`
+      : null,
+    `Shipping: ${estimate.shipping === 0 ? 'Free' : formatPrice(estimate.shipping, estimate.currency)}`,
+    `Tax: ${formatPrice(estimate.tax, estimate.currency)}`,
+    `*Total: ${formatPrice(estimate.total, estimate.currency)}*`,
+    '',
+    '*Customer Details*',
+    `Name: ${`${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || '—'}`,
+    customer?.email ? `Email: ${customer.email}` : null,
+    customer?.phone ? `Phone: ${customer.phone}` : null,
+    `Shipping Address: ${address}`,
+    '',
+    '*Payment Details*',
+    `Pay to: ${BANK_DETAILS.payTo}`,
+    `Bank: ${BANK_DETAILS.bank}`,
+    `Account No: ${BANK_DETAILS.accountNo}`,
+    `Payment Reference: ${orderNumber}`,
+    '',
+    'I will transfer the total to this account and send the payment receipt to this WhatsApp number.'
+  ].filter((line) => line !== null);
+
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(lines.join('\n'))}`;
 };
 
 const CustomerCheckout = () => {
@@ -70,7 +110,7 @@ const CustomerCheckout = () => {
   });
   const [saveAddress, setSaveAddress] = useState(true);
   const [customerNote, setCustomerNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   const [estimate, setEstimate] = useState(emptyEstimate);
   const [estimating, setEstimating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -184,6 +224,10 @@ const CustomerCheckout = () => {
       toast.error('Please complete shipping details');
       return;
     }
+    // Opened synchronously within the click gesture so popup blockers allow it;
+    // the wa.me URL is only known after the order API call succeeds.
+    const isBankTransfer = paymentMethod === 'bank_transfer';
+    const waTab = isBankTransfer ? window.open('', '_blank') : null;
     setSubmitting(true);
     try {
       const payload = {
@@ -201,6 +245,20 @@ const CustomerCheckout = () => {
         saveAddressToProfile: saveAddress
       };
       const data = await storefrontService.placeOrder(payload);
+      if (isBankTransfer) {
+        const waUrl = buildWhatsAppUrl({
+          orderNumber: data.order.orderNumber,
+          cart,
+          estimate,
+          customer: customerUser,
+          shipping
+        });
+        if (waTab && !waTab.closed) {
+          waTab.location.href = waUrl;
+        } else {
+          window.open(waUrl, '_blank');
+        }
+      }
       clearCart();
       clearStoredCouponCode();
       if (saveAddress) {
@@ -214,6 +272,7 @@ const CustomerCheckout = () => {
       toast.success(`Order ${data.order.orderNumber} placed`);
       navigate(`/customer/orders/${data.order.id}`, { state: { justPlaced: true } });
     } catch (err) {
+      if (waTab && !waTab.closed) waTab.close();
       toast.error(err.response?.data?.message || 'Could not place order');
     } finally {
       setSubmitting(false);
@@ -433,9 +492,8 @@ const CustomerCheckout = () => {
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-3">
               <h2 className="font-extrabold text-slate-800 text-sm">Payment method</h2>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Your account is protected with encrypted login. We never collect or store full card
-                numbers. Card (Demo) simulates payment without a charge. Prefer offline settlement?
-                Choose COD or bank transfer.
+                We accept payment by bank transfer. After placing your order, transfer the total to
+                the account below and send the payment receipt to our WhatsApp number.
               </p>
               {PAYMENT_OPTIONS.map((opt) => {
                 const Icon = opt.icon;
@@ -464,15 +522,16 @@ const CustomerCheckout = () => {
               {paymentMethod === 'bank_transfer' && (
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-1">
                   <p className="font-bold text-slate-800">Bank transfer instructions</p>
-                  <p>Bank: Rippoma Global Commerce</p>
-                  <p>Account: ·····1234</p>
+                  <p>Pay to: <span className="font-bold text-slate-800">{BANK_DETAILS.payTo}</span></p>
+                  <p>Bank: <span className="font-bold text-slate-800">{BANK_DETAILS.bank}</span></p>
+                  <p>Account No: <span className="font-bold text-slate-800">{BANK_DETAILS.accountNo}</span></p>
                   <p>Use your order number as the payment reference after placing the order.</p>
+                  <p>
+                    After paying, please send the payment receipt to WhatsApp{' '}
+                    <span className="font-bold text-slate-800">{WHATSAPP_DISPLAY}</span>. Your order
+                    details will open in WhatsApp automatically after you place the order.
+                  </p>
                 </div>
-              )}
-              {paymentMethod === 'card_mock' && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                  Demo only — no real card charge will be processed.
-                </p>
               )}
             </div>
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 flex justify-between items-center">

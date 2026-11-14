@@ -56,12 +56,19 @@ const CustomerProducts = () => {
   }), [search, category]);
 
   useEffect(() => {
+    let isCancelled = false;
     storefrontService.getProductFacets(facetParams)
-      .then(setFacets)
+      .then((f) => {
+        if (!isCancelled) setFacets(f);
+      })
       .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
   }, [facetParams]);
 
   useEffect(() => {
+    let isCancelled = false;
     const fetchProducts = async () => {
       setLoading(true);
       try {
@@ -77,16 +84,25 @@ const CustomerProducts = () => {
           availability: availability || undefined
         };
         const data = await storefrontService.getProducts(params);
-        setProducts(data.products || []);
-        setPagination(data.pagination || { total: 0, page: 1, totalPages: 1 });
+        if (!isCancelled) {
+          setProducts(data.products || []);
+          setPagination(data.pagination || { total: 0, page: 1, totalPages: 1 });
+        }
       } catch (err) {
-        console.error(err);
-        toast.error('Failed to load products. Please try again.');
+        if (!isCancelled) {
+          console.error(err);
+          toast.error('Failed to load products. Please try again.');
+        }
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
     fetchProducts();
+    return () => {
+      isCancelled = true;
+    };
   }, [search, category, sort, page, brand, minPrice, maxPrice, availability]);
 
   const updateParam = (key, value) => {
@@ -257,7 +273,7 @@ const CustomerProducts = () => {
           )}
 
           {loading ? (
-            <div className={view === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5' : 'space-y-3'}>
+            <div className={view === 'grid' ? 'grid grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5' : 'space-y-3'}>
               {Array(9).fill(null).map((_, i) => (
                 view === 'grid'
                   ? <div key={i} className="bg-white rounded-2xl overflow-hidden border border-slate-100"><div className="h-48 bg-slate-100 animate-pulse" /><div className="p-4 space-y-2"><div className="h-3 bg-slate-100 rounded animate-pulse w-1/3" /><div className="h-4 bg-slate-100 rounded animate-pulse w-3/4" /></div></div>
@@ -265,7 +281,7 @@ const CustomerProducts = () => {
               ))}
             </div>
           ) : products.length > 0 ? (
-            <div className={view === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5' : 'space-y-3'}>
+            <div className={view === 'grid' ? 'grid grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5' : 'space-y-3'}>
               {products.map((p) => (
                 <ProductCard key={p.id} product={p} onAddToCart={(prod) => addToCart(prod, false)} view={view} />
               ))}

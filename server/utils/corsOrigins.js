@@ -10,6 +10,9 @@
 
 const LOCAL_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
 
+/** Production hosts that are always allowed regardless of env configuration. */
+const STATIC_ORIGINS = ['https://ripomaglobal.org', 'https://www.ripomaglobal.org'];
+
 /** Default Pages project host for this product (override with CORS_PAGES_HOST). */
 const DEFAULT_PAGES_HOST = 'ripoma-global.pages.dev';
 
@@ -55,7 +58,9 @@ const pagesPreviewPatternFromUrl = (url) => {
 const getAllowedOrigins = () => {
   const frontendUrl = normalizeOrigin(process.env.FRONTEND_URL || 'http://localhost:5173');
   const extras = parseList(process.env.CORS_ORIGINS);
-  const origins = [...new Set([frontendUrl, ...extras, ...LOCAL_ORIGINS].filter(Boolean))];
+  const origins = [
+    ...new Set([frontendUrl, ...extras, ...STATIC_ORIGINS, ...LOCAL_ORIGINS].filter(Boolean))
+  ];
 
   const pagesHost = process.env.CORS_PAGES_HOST || DEFAULT_PAGES_HOST;
   const previewRe =
@@ -100,7 +105,7 @@ const corsOptions = {
     'Origin',
     'Cookie'
   ],
-  exposedHeaders: ['Set-Cookie'],
+  exposedHeaders: ['Set-Cookie', 'Retry-After', 'X-Ripoma-429-Source', 'X-RateLimit-Source', 'X-RateLimit-Policy'],
   optionsSuccessStatus: 204
 };
 

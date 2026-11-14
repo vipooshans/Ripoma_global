@@ -5,7 +5,6 @@
 
 const DEFAULT_PROMOS = {
   marquee: [
-    { text: 'Free shipping on orders over LKR 500', icon: 'truck' },
     { text: 'Verified quality standards', icon: 'shield' },
     { text: 'Same-day order processing', icon: 'zap' },
     { text: 'Worldwide delivery network', icon: 'globe' }

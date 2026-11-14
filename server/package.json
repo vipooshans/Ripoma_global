@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node --test test/auth-and-d1.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1056.0",
