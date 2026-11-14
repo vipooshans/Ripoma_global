@@ -91,25 +91,29 @@ const CustomerHome = () => {
       try {
         setLoading(true);
         setError(null);
-        const [featuredRes, catRes, newRes, statsRes, promosRes] = await Promise.allSettled([
+        const results = await Promise.allSettled([
           storefrontService.getFeaturedProducts(8),
           storefrontService.getCategories(),
           storefrontService.getProducts({ sort: 'newest', limit: 4 }),
           storefrontService.getStats(),
           storefrontService.getPromos()
         ]);
-        if (!isMounted) return;
+        const [featuredRes, catRes, newRes, statsRes, promosRes] = results;
+        const ok = (r) => (r.status === 'fulfilled' ? r.value : null);
+        results.forEach((r) => {
+          if (r.status === 'rejected') console.warn('Storefront request failed:', r.reason?.config?.url, r.reason?.response?.status);
+        });
 
-        if (featuredRes.status === 'fulfilled') setFeatured(featuredRes.value?.products || []);
-        if (catRes.status === 'fulfilled') setCategories(catRes.value?.categories || []);
-        if (newRes.status === 'fulfilled') setNewArrivals(newRes.value?.products || []);
-        if (statsRes.status === 'fulfilled') setStats(statsRes.value?.stats || { productCount: 0, categoryCount: 0 });
-        if (promosRes.status === 'fulfilled') setPromos(promosRes.value?.promos || { marquee: [], cards: [] });
+        // Stats & promos are cosmetic — never fail the whole page because of them
+        setStats(ok(statsRes)?.stats || { productCount: 0, categoryCount: 0 });
+        setPromos(ok(promosRes)?.promos || { marquee: [], cards: [] });
+        setFeatured(ok(featuredRes)?.products || []);
+        setCategories(ok(catRes)?.categories || []);
+        setNewArrivals(ok(newRes)?.products || []);
 
-        const rejected = [featuredRes, catRes, newRes, statsRes, promosRes].filter((r) => r.status === 'rejected');
-        if (rejected.length === 5) {
-          setError('Unable to load storefront data. Please try again later.');
-          toast.error('Failed to load products. Please refresh the page.');
+        // Only show the error state if the core product data failed
+        if (!ok(featuredRes) && !ok(catRes) && !ok(newRes)) {
+          throw (featuredRes.reason || catRes.reason || newRes.reason);
         }
       } catch (err) {
         if (!isMounted) return;
