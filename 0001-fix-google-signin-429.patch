@@ -1,0 +1,168 @@
+From 3d312608d75409d7afec26fe02c9a013c914dc3a Mon Sep 17 00:00:00 2001
+From: vipooshans <vipooshan9@gmail.com>
+Date: Fri, 20 Nov 2026 13:52:01 +0530
+Subject: [PATCH] fix: Google sign-in 429 caused by shared rate-limit bucket
+
+Cloudflare overwrites CF-Connecting-IP on Worker subrequests to the
+Render origin, so every visitor shared one auth rate-limit bucket.
+
+- Worker forwards the real visitor IP in X-Ripoma-Client-IP (plus
+  optional X-Ripoma-Proxy-Secret when PROXY_SHARED_SECRET is set)
+- Backend trusts that header only via the Worker / matching secret
+- Separate limiter for /customer-auth/google
+- Login limiters only count failed attempts
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01SZCqNeEbTGUHT8qv5xAdL3
+---
+ server/middleware/customerRateLimit.js | 29 +++++++++++++++++++++++++-
+ server/routes/customerAuth.routes.js   | 15 +++++++++++--
+ worker/src/index.js                    | 12 ++++++++++-
+ worker/src/proxy.js                    | 12 ++++++++++-
+ 4 files changed, 63 insertions(+), 5 deletions(-)
+
+diff --git a/server/middleware/customerRateLimit.js b/server/middleware/customerRateLimit.js
+index aadbf4b..4811423 100644
+--- a/server/middleware/customerRateLimit.js
++++ b/server/middleware/customerRateLimit.js
+@@ -24,7 +24,23 @@ if (typeof setInterval !== 'undefined') {
+   if (cleanup.unref) cleanup.unref();
+ }
+ 
++// Cloudflare Worker subrequests reach a Cloudflare-fronted origin (Render) with
++// CF-Connecting-IP set to the Worker's egress IP, not the visitor's.
++const WORKER_EGRESS_PREFIXES = ['2a06:98c0:3600:'];
++const isWorkerEgressIp = (ip) =>
++  !!ip && WORKER_EGRESS_PREFIXES.some((p) => String(ip).toLowerCase().startsWith(p));
++
++const trustForwardedClientIp = (req) => {
++  const secret = process.env.PROXY_SHARED_SECRET;
++  if (secret) return req?.headers?.['x-ripoma-proxy-secret'] === secret;
++  const cfIp = req?.headers?.['cf-connecting-ip'];
++  // No secret configured: only trust it when the request clearly came through a Worker.
++  return !cfIp || isWorkerEgressIp(cfIp);
++};
++
+ const getClientIp = (req) => {
++  const forwarded = req?.headers?.['x-ripoma-client-ip'];
++  if (forwarded && trustForwardedClientIp(req)) return String(forwarded).trim();
+   const cfIp = req?.headers?.['cf-connecting-ip'];
+   if (cfIp) return String(cfIp).trim();
+   const fwd = req?.headers?.['x-forwarded-for'];
+@@ -39,7 +55,8 @@ const createRateLimiter = ({
+   windowMs = 15 * 60 * 1000,
+   max = 20,
+   keyPrefix = 'rl',
+-  message = 'Too many requests. Please try again later.'
++  message = 'Too many requests. Please try again later.',
++  skipSuccessfulRequests = false
+ } = {}) => {
+   return (req, res, next) => {
+     const ip = getClientIp(req);
+@@ -70,6 +87,16 @@ const createRateLimiter = ({
+     }
+ 
+     entry.hits.push(now);
++    if (skipSuccessfulRequests && typeof res.on === 'function') {
++      // Only failed attempts count toward the limit (successful sign-ins are refunded).
++      res.on('finish', () => {
++        if (res.statusCode < 400) {
++          const idx = entry.hits.indexOf(now);
++          if (idx !== -1) entry.hits.splice(idx, 1);
++          if (!entry.hits.length && buckets.get(key) === entry) buckets.delete(key);
++        }
++      });
++    }
+     return next();
+   };
+ };
+diff --git a/server/routes/customerAuth.routes.js b/server/routes/customerAuth.routes.js
+index 3efc16e..cc42133 100644
+--- a/server/routes/customerAuth.routes.js
++++ b/server/routes/customerAuth.routes.js
+@@ -8,7 +8,18 @@ const authLoginLimiter = createRateLimiter({
+   windowMs: 15 * 60 * 1000,
+   max: 20,
+   keyPrefix: 'cust-login',
+-  message: 'Too many sign-in attempts. Please wait and try again.'
++  message: 'Too many sign-in attempts. Please wait and try again.',
++  skipSuccessfulRequests: true
++});
++
++// Google ID tokens are verified server-side, so brute force isn't a concern here;
++// keep it in its own bucket so failed password attempts don't block Google sign-in.
++const authGoogleLimiter = createRateLimiter({
++  windowMs: 15 * 60 * 1000,
++  max: 30,
++  keyPrefix: 'cust-google',
++  message: 'Too many Google sign-in attempts. Please wait and try again.',
++  skipSuccessfulRequests: true
+ });
+ 
+ const authRegisterLimiter = createRateLimiter({
+@@ -37,7 +48,7 @@ router.get('/legal', customerAuthController.getLegal);
+ router.post('/register', authRegisterLimiter, customerAuthController.register);
+ router.get('/verify-email/:token', customerAuthController.verifyEmail);
+ router.post('/login', authLoginLimiter, customerAuthController.login);
+-router.post('/google', authLoginLimiter, customerAuthController.loginWithGoogle);
++router.post('/google', authGoogleLimiter, customerAuthController.loginWithGoogle);
+ router.post('/logout', customerAuthController.logout);
+ router.post('/refresh', authRefreshLimiter, customerAuthController.refresh);
+ router.post('/forgot-password', authForgotLimiter, customerAuthController.forgotPassword);
+diff --git a/worker/src/index.js b/worker/src/index.js
+index a494cab..e458a72 100644
+--- a/worker/src/index.js
++++ b/worker/src/index.js
+@@ -191,11 +191,21 @@ async function proxyToOrigin(request, apiOrigin, requestId = '') {
+ 
+   const clientIp =
+     request.headers.get('cf-connecting-ip') ||
+-    request.headers.get('x-forwarded-for') ||
++    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+     '';
+   if (clientIp) {
+     headers.set('CF-Connecting-IP', clientIp);
+     headers.set('X-Forwarded-For', clientIp);
++    // Cloudflare overwrites CF-Connecting-IP / X-Forwarded-For on Worker subrequests to a
++    // Cloudflare-fronted origin (e.g. Render) with the Worker's own egress IP, so every
++    // visitor would share one rate-limit bucket. Send the real IP in a custom header too.
++    headers.set('X-Ripoma-Client-IP', clientIp);
++  }
++  // Optional shared secret so the backend only trusts X-Ripoma-Client-IP from this Worker.
++  if (env?.PROXY_SHARED_SECRET) {
++    headers.set('X-Ripoma-Proxy-Secret', String(env.PROXY_SHARED_SECRET));
++  } else {
++    headers.delete('X-Ripoma-Proxy-Secret');
+   }
+ 
+   const init = {
+diff --git a/worker/src/proxy.js b/worker/src/proxy.js
+index 956706b..480f6bf 100644
+--- a/worker/src/proxy.js
++++ b/worker/src/proxy.js
+@@ -156,11 +156,21 @@ async function proxyToOrigin(request, env, apiOrigin, requestId = '') {
+ 
+   const clientIp =
+     request.headers.get('cf-connecting-ip') ||
+-    request.headers.get('x-forwarded-for') ||
++    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+     '';
+   if (clientIp) {
+     headers.set('CF-Connecting-IP', clientIp);
+     headers.set('X-Forwarded-For', clientIp);
++    // Cloudflare overwrites CF-Connecting-IP / X-Forwarded-For on Worker subrequests to a
++    // Cloudflare-fronted origin (e.g. Render) with the Worker's own egress IP, so every
++    // visitor would share one rate-limit bucket. Send the real IP in a custom header too.
++    headers.set('X-Ripoma-Client-IP', clientIp);
++  }
++  // Optional shared secret so the backend only trusts X-Ripoma-Client-IP from this Worker.
++  if (env?.PROXY_SHARED_SECRET) {
++    headers.set('X-Ripoma-Proxy-Secret', String(env.PROXY_SHARED_SECRET));
++  } else {
++    headers.delete('X-Ripoma-Proxy-Secret');
+   }
+ 
+   const init = {
+-- 
+2.43.0
+

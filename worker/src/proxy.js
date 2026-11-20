@@ -156,11 +156,21 @@ async function proxyToOrigin(request, env, apiOrigin, requestId = '') {
 
   const clientIp =
     request.headers.get('cf-connecting-ip') ||
-    request.headers.get('x-forwarded-for') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     '';
   if (clientIp) {
     headers.set('CF-Connecting-IP', clientIp);
     headers.set('X-Forwarded-For', clientIp);
+    // Cloudflare overwrites CF-Connecting-IP / X-Forwarded-For on Worker subrequests to a
+    // Cloudflare-fronted origin (e.g. Render) with the Worker's own egress IP, so every
+    // visitor would share one rate-limit bucket. Send the real IP in a custom header too.
+    headers.set('X-Ripoma-Client-IP', clientIp);
+  }
+  // Optional shared secret so the backend only trusts X-Ripoma-Client-IP from this Worker.
+  if (env?.PROXY_SHARED_SECRET) {
+    headers.set('X-Ripoma-Proxy-Secret', String(env.PROXY_SHARED_SECRET));
+  } else {
+    headers.delete('X-Ripoma-Proxy-Secret');
   }
 
   const init = {
