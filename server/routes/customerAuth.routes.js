@@ -8,7 +8,18 @@ const authLoginLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 20,
   keyPrefix: 'cust-login',
-  message: 'Too many sign-in attempts. Please wait and try again.'
+  message: 'Too many sign-in attempts. Please wait and try again.',
+  skipSuccessfulRequests: true
+});
+
+// Google ID tokens are verified server-side, so brute force isn't a concern here;
+// keep it in its own bucket so failed password attempts don't block Google sign-in.
+const authGoogleLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyPrefix: 'cust-google',
+  message: 'Too many Google sign-in attempts. Please wait and try again.',
+  skipSuccessfulRequests: true
 });
 
 const authRegisterLimiter = createRateLimiter({
@@ -37,7 +48,7 @@ router.get('/legal', customerAuthController.getLegal);
 router.post('/register', authRegisterLimiter, customerAuthController.register);
 router.get('/verify-email/:token', customerAuthController.verifyEmail);
 router.post('/login', authLoginLimiter, customerAuthController.login);
-router.post('/google', authLoginLimiter, customerAuthController.loginWithGoogle);
+router.post('/google', authGoogleLimiter, customerAuthController.loginWithGoogle);
 router.post('/logout', customerAuthController.logout);
 router.post('/refresh', authRefreshLimiter, customerAuthController.refresh);
 router.post('/forgot-password', authForgotLimiter, customerAuthController.forgotPassword);

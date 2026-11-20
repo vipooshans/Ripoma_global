@@ -24,7 +24,23 @@ if (typeof setInterval !== 'undefined') {
   if (cleanup.unref) cleanup.unref();
 }
 
+// Cloudflare Worker subrequests reach a Cloudflare-fronted origin (Render) with
+// CF-Connecting-IP set to the Worker's egress IP, not the visitor's.
+const WORKER_EGRESS_PREFIXES = ['2a06:98c0:3600:'];
+const isWorkerEgressIp = (ip) =>
+  !!ip && WORKER_EGRESS_PREFIXES.some((p) => String(ip).toLowerCase().startsWith(p));
+
+const trustForwardedClientIp = (req) => {
+  const secret = process.env.PROXY_SHARED_SECRET;
+  if (secret) return req?.headers?.['x-ripoma-proxy-secret'] === secret;
+  const cfIp = req?.headers?.['cf-connecting-ip'];
+  // No secret configured: only trust it when the request clearly came through a Worker.
+  return !cfIp || isWorkerEgressIp(cfIp);
+};
+
 const getClientIp = (req) => {
+  const forwarded = req?.headers?.['x-ripoma-client-ip'];
+  if (forwarded && trustForwardedClientIp(req)) return String(forwarded).trim();
   const cfIp = req?.headers?.['cf-connecting-ip'];
   if (cfIp) return String(cfIp).trim();
   const fwd = req?.headers?.['x-forwarded-for'];
@@ -39,7 +55,8 @@ const createRateLimiter = ({
   windowMs = 15 * 60 * 1000,
   max = 20,
   keyPrefix = 'rl',
-  message = 'Too many requests. Please try again later.'
+  message = 'Too many requests. Please try again later.',
+  skipSuccessfulRequests = false
 } = {}) => {
   return (req, res, next) => {
     const ip = getClientIp(req);
@@ -70,6 +87,16 @@ const createRateLimiter = ({
     }
 
     entry.hits.push(now);
+    if (skipSuccessfulRequests && typeof res.on === 'function') {
+      // Only failed attempts count toward the limit (successful sign-ins are refunded).
+      res.on('finish', () => {
+        if (res.statusCode < 400) {
+          const idx = entry.hits.indexOf(now);
+          if (idx !== -1) entry.hits.splice(idx, 1);
+          if (!entry.hits.length && buckets.get(key) === entry) buckets.delete(key);
+        }
+      });
+    }
     return next();
   };
 };
