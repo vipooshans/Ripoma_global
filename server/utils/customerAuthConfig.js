@@ -46,7 +46,14 @@ const getFrontendUrl = () => {
   return raw ? String(raw).replace(/\/+$/, '') : raw;
 };
 
-const getGoogleClientId = () => String(process.env.GOOGLE_CLIENT_ID || '').trim();
+// GOOGLE_CLIENT_ID may be a comma-separated list (e.g. production + legacy web client IDs).
+const getGoogleClientIds = () =>
+  String(process.env.GOOGLE_CLIENT_ID || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+const getGoogleClientId = () => getGoogleClientIds()[0] || '';
 
 module.exports = {
   requireProductionEnv,
@@ -54,5 +61,6 @@ module.exports = {
   getCustomerRefreshSecret,
   getFrontendUrl,
   getGoogleClientId,
+  getGoogleClientIds,
   isEmailVerificationRequired
 };

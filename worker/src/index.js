@@ -179,6 +179,39 @@ async function checkDurableRateLimit(workerEnv, policy, key) {
   }
 }
 
+/**
+ * Render (and other Cloudflare-fronted hosts) can answer with an edge
+ * challenge / block page ("Just a moment...") instead of reaching Express.
+ * Express always answers JSON, so a non-JSON 403/429/503 is the host's edge,
+ * not our app. A Worker can never solve that challenge.
+ */
+const ORIGIN_BLOCK_COOLDOWN_MS = 5 * 60 * 1000;
+let originBlockedUntil = 0;
+
+function isOriginEdgeBlock(response) {
+  if (!response || ![403, 429, 503].includes(response.status)) return false;
+  if (response.headers.get('cf-mitigated')) return true;
+  const type = (response.headers.get('content-type') || '').toLowerCase();
+  return !type.includes('application/json');
+}
+
+function originUnavailableResponse(origin, requestId, retryAfterSec) {
+  return jsonResponse(
+    {
+      success: false,
+      error: 'backend_temporarily_unavailable',
+      message: 'Our server is temporarily unavailable. Please try again in a few minutes.'
+    },
+    503,
+    origin,
+    requestId,
+    {
+      'Retry-After': String(retryAfterSec),
+      'X-Ripoma-429-Source': 'origin-edge-challenge'
+    }
+  );
+}
+
 async function proxyToOrigin(request, apiOrigin, requestId = '') {
   const target = new URL(request.url);
   const upstream = `${apiOrigin}${target.pathname}${target.search}`;
@@ -514,12 +547,44 @@ export default {
     let upstream;
 
     try {
-      if (apiOrigin) {
-        upstream = await proxyToOrigin(request, apiOrigin, requestId);
-      } else if (workerEnv.RIPOMA_API) {
-        const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
-        upstream = await container.fetch(request);
-      } else {
+      const hasContainer = !!workerEnv.RIPOMA_API;
+      const originCoolingDown = apiOrigin && Date.now() < originBlockedUntil;
+
+      if (apiOrigin && !originCoolingDown) {
+        // Keep a copy of the request so we can fall back to the container if the origin's edge blocks us.
+        const originRequest = hasContainer ? request.clone() : request;
+        upstream = await proxyToOrigin(originRequest, apiOrigin, requestId);
+
+        if (isOriginEdgeBlock(upstream)) {
+          originBlockedUntil = Date.now() + ORIGIN_BLOCK_COOLDOWN_MS;
+          console.warn(
+            `[RipomaApi] API_ORIGIN edge-blocked (status ${upstream.status}); ` +
+              `pausing origin for ${ORIGIN_BLOCK_COOLDOWN_MS / 1000}s` +
+              (hasContainer ? ', falling back to container' : '')
+          );
+          if (!hasContainer) {
+            return originUnavailableResponse(origin, requestId, ORIGIN_BLOCK_COOLDOWN_MS / 1000);
+          }
+          upstream = null;
+        }
+      }
+
+      if (!upstream && hasContainer) {
+        try {
+          const container = getContainer(workerEnv.RIPOMA_API, 'ripoma-api');
+          upstream = await container.fetch(request);
+        } catch (containerErr) {
+          console.error('[RipomaApi] container fallback failed:', containerErr);
+          return originUnavailableResponse(origin, requestId, 60);
+        }
+      }
+
+      if (!upstream && originCoolingDown) {
+        const retryAfter = Math.max(1, Math.ceil((originBlockedUntil - Date.now()) / 1000));
+        return originUnavailableResponse(origin, requestId, retryAfter);
+      }
+
+      if (!upstream) {
         return jsonResponse(
           { success: false, error: 'backend_unavailable', message: 'No backend origin or container bound.' },
           503,

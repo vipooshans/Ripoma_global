@@ -11,6 +11,7 @@ const {
   getCustomerRefreshSecret,
   getFrontendUrl,
   getGoogleClientId,
+  getGoogleClientIds,
   isEmailVerificationRequired
 } = require('../utils/customerAuthConfig');
 const { validateCustomerPassword } = require('../utils/customerPasswordPolicy');
@@ -415,7 +416,7 @@ exports.loginWithGoogle = async (req, res) => {
     try {
       const ticket = await oauthClient.verifyIdToken({
         idToken: credential,
-        audience: clientId
+        audience: getGoogleClientIds()
       });
       payload = ticket.getPayload();
     } catch (verifyErr) {
