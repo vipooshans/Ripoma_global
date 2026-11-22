@@ -144,6 +144,17 @@ async function checkDurableRateLimit(env, policy, key) {
 /**
  * Proxy to upstream backend (Render or container) for admin and mutation operations.
  */
+/** See worker/src/index.js — detects host edge challenge/block pages (non-JSON 403/429/503). */
+const ORIGIN_BLOCK_COOLDOWN_MS = 5 * 60 * 1000;
+let originBlockedUntil = 0;
+
+function isOriginEdgeBlock(response) {
+  if (!response || ![403, 429, 503].includes(response.status)) return false;
+  if (response.headers.get('cf-mitigated')) return true;
+  const type = (response.headers.get('content-type') || '').toLowerCase();
+  return !type.includes('application/json');
+}
+
 async function proxyToOrigin(request, env, apiOrigin, requestId = '') {
   const target = new URL(request.url);
   const upstream = `${apiOrigin}${target.pathname}${target.search}`;
@@ -484,7 +495,31 @@ export default {
       );
     }
 
+    const unavailable = (retryAfterSec) =>
+      jsonResponse(
+        {
+          success: false,
+          error: 'backend_temporarily_unavailable',
+          message: 'Our server is temporarily unavailable. Please try again in a few minutes.'
+        },
+        503,
+        origin,
+        env,
+        requestId,
+        { 'Retry-After': String(retryAfterSec), 'X-Ripoma-429-Source': 'origin-edge-challenge' }
+      );
+
+    if (Date.now() < originBlockedUntil) {
+      return unavailable(Math.max(1, Math.ceil((originBlockedUntil - Date.now()) / 1000)));
+    }
+
     const upstream = await proxyToOrigin(request, env, apiOrigin, requestId);
+
+    if (isOriginEdgeBlock(upstream)) {
+      originBlockedUntil = Date.now() + ORIGIN_BLOCK_COOLDOWN_MS;
+      console.warn(`[proxy] API_ORIGIN edge-blocked (status ${upstream.status}); pausing origin`);
+      return unavailable(ORIGIN_BLOCK_COOLDOWN_MS / 1000);
+    }
 
     if (upstream.status === 101) {
       return upstream; // WebSocket upgrades
